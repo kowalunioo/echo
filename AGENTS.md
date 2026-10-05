@@ -4,7 +4,7 @@ Private, local dictation app for Windows (Tauri 2 + Rust + React/TS). Read [`doc
 
 ## Clean room — hard rule
 
-This is a clean-room rewrite ([ADR 0001](docs/adr/0001-clean-room-rewrite.md)). Work only from this repository, its specs and public documentation of the libraries you use. Never open `D:\ECHO-LEGACY`, the `kowalunioo/echo-legacy` repo, its git history, or the Handy project's source (`cjpais/Handy`, `handy-computer/*` apart from using `transcribe-cpp` as a dependency). Banned dependencies: `handy-keys` and any `cjpais` fork. If a spec is unclear, ask the orchestrator instead of looking elsewhere.
+This is a clean-room rewrite ([ADR 0001](docs/adr/0001-clean-room-rewrite.md)). Work only from this repository, its specs and public documentation of the libraries you use. Never open `D:\ECHO-LEGACY`, the `kowalunioo/echo-legacy` repo, its git history, or the Handy project's source (`cjpais/Handy`, `handy-computer/*` apart from using `transcribe-cpp` as a dependency). Downloading the Model files named in `docs/specs/models.md` from their Hugging Face repositories is allowed (weights, not code). Banned dependencies: `handy-keys` and any `cjpais` fork. If a spec is unclear, ask the orchestrator instead of looking elsewhere.
 
 ## Working on an issue
 
