@@ -1,0 +1,14 @@
+# Generated
+dist/
+src/bindings.ts
+src-tauri/target/
+src-tauri/gen/
+bun.lock
+
+# Prose is reviewed by hand; approved specs must not be reflowed by a formatter.
+*.md
+
+# Local, not part of the repo
+.claude/
+.agents/
+.toolchain/
