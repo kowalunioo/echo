@@ -1,0 +1,7 @@
+# LF everywhere so formatters and the generated-bindings check agree on every machine,
+# including Windows CI runners where core.autocrlf is on.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
+*.wav binary

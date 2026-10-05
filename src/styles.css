@@ -1,0 +1,97 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Calm, minimal: soft neutrals with a faint violet tint, generous spacing,
+ * rounded surfaces and one restrained lavender accent. Light and dark follow the Windows app mode
+ * through prefers-color-scheme (settings-and-first-run.md rule 20).
+ */
+:root {
+  color-scheme: light dark;
+
+  /*
+   * Accent = brand lavender #7C6BE0, for graphics (logo, icons, focus rings): 3.6:1 or more on
+   * every surface, above the 3:1 WCAG asks of non-text. It is too light for normal-size text
+   * (white on it 4.2:1), so text in accent colour and filled buttons use accent-strong
+   * (white on it 5.2:1, on bg 4.8:1). Muted text on bg 5.2:1.
+   */
+  --echo-bg: #f6f5f9;
+  --echo-surface: #ffffff;
+  --echo-sidebar: #eeedf3;
+  --echo-raised: #e5e3ed;
+  --echo-line: #e0dee8;
+  --echo-fg: #25232d;
+  --echo-muted: #686574;
+  --echo-accent: #7c6be0;
+  --echo-accent-strong: #6c5bd3;
+  --echo-accent-fg: #ffffff;
+  --echo-accent-soft: #ebe8f8;
+  --echo-accent-soft-fg: #4c4294;
+  --echo-focus: #7c6be0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Brand lavender #A99BF7 is AA-safe here for text too: ink on it 7.1:1, it on surface 6.4:1,
+       muted on bg 6.7:1. */
+    --echo-bg: #1c1b21;
+    --echo-surface: #25242b;
+    --echo-sidebar: #16151a;
+    --echo-raised: #302e37;
+    --echo-line: #36343e;
+    --echo-fg: #eceaf2;
+    --echo-muted: #a3a0ae;
+    --echo-accent: #a99bf7;
+    --echo-accent-strong: #a99bf7;
+    --echo-accent-fg: #1c1b21;
+    --echo-accent-soft: #2f2a45;
+    --echo-accent-soft-fg: #d2cbf7;
+    --echo-focus: #a99bf7;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--echo-bg);
+  --color-surface: var(--echo-surface);
+  --color-sidebar: var(--echo-sidebar);
+  --color-raised: var(--echo-raised);
+  --color-line: var(--echo-line);
+  --color-fg: var(--echo-fg);
+  --color-muted: var(--echo-muted);
+  --color-accent: var(--echo-accent);
+  --color-accent-strong: var(--echo-accent-strong);
+  --color-accent-fg: var(--echo-accent-fg);
+  --color-accent-soft: var(--echo-accent-soft);
+  --color-accent-soft-fg: var(--echo-accent-soft-fg);
+  --color-focus: var(--echo-focus);
+
+  /* Local Windows fonts only: Echo never fetches anything for its UI. */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+
+  --radius-card: 1rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}

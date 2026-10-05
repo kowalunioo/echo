@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Checks (Windows)
+    runs-on: windows-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # Tauri embeds the built frontend at compile time, so it must exist before cargo runs.
+      - name: Build frontend
+        run: bun run build
+
+      - name: Prettier
+        run: bun run format:check
+
+      - name: ESLint
+        run: bun run lint
+
+      - name: TypeScript
+        run: bun run typecheck
+
+      - name: Vitest
+        run: bun run test
+
+      - name: rustfmt
+        run: bun run rust:fmt
+
+      - name: Clippy
+        run: bun run rust:clippy
+
+      - name: Generated bindings are up to date
+        run: bun run bindings:check
+
+      # Audio fixtures are not in the repository; tests that need them skip themselves.
+      - name: Rust tests
+        run: bun run rust:test

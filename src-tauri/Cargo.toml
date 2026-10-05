@@ -1,0 +1,33 @@
+[package]
+name = "echo"
+version = "0.1.0"
+description = "Private, local dictation for Windows"
+authors = ["Jakub Kowalski"]
+license = "MIT"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[lib]
+# The `_lib` suffix avoids a name clash with the binary on Windows (cargo#8519).
+name = "echo_lib"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+thiserror = "2"
+hound = "3.5"
+rubato = "5"
+sys-locale = "0.3"
+# tauri-specta and specta are pre-1.0 release candidates whose generated output
+# changes between releases, so they are pinned exactly.
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "=0.0.12"
+tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+
+[profile.dev.package."*"]
+# Audio resampling is unbearably slow unoptimised, even in tests.
+opt-level = 2
