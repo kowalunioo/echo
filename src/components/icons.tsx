@@ -21,15 +21,16 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement> & { children: Reac
   );
 }
 
+/**
+ * Echo's mark without its app-icon tile: three bars on the brand's 32-unit grid. The outer bars
+ * use the current text colour so they read on light and dark; the middle one is the accent.
+ */
 export function EchoMark({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <rect width="32" height="32" rx="8" className="fill-accent" />
-      <g fill="none" className="stroke-accent-fg" strokeLinecap="round" strokeWidth="2">
-        <path d="M12.2 11.8a6 6 0 0 0 0 8.4" />
-        <path d="M19.8 11.8a6 6 0 0 1 0 8.4" />
-      </g>
-      <circle cx="16" cy="16" r="2.2" className="fill-accent-fg" />
+    <svg viewBox="7 6 18 20" className={className} aria-hidden="true">
+      <rect x="8" y="7" width="16" height="4" rx="2" fill="currentColor" />
+      <rect x="8" y="14" width="11" height="4" rx="2" className="fill-accent" />
+      <rect x="8" y="21" width="16" height="4" rx="2" fill="currentColor" />
     </svg>
   );
 }
