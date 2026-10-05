@@ -1,3 +1,6 @@
 .claude/settings.local.json
 # Test recordings of the user's voice — local only, never commit (public repo)
 tests/fixtures/audio/
+
+# Local toolchain (rustup, cargo, bun cache, Vulkan SDK) — CARGO_HOME/RUSTUP_HOME point here
+.toolchain/
