@@ -1,0 +1,3 @@
+# Own low-level keyboard hook for shortcuts
+
+We implement global shortcuts with our own `WH_KEYBOARD_LL` hook (via the `windows` crate) rather than Tauri's global-shortcut plugin or a third-party crate. A low-level hook sees every key-down and key-up, so it supports modifier-only combinations and reliable Push-to-Talk release, which registration-based shortcut APIs handle poorly or not at all; the obvious ready-made crate (`handy-keys`) comes from the project we are clean-rooming away from and is banned. The hook sits behind a `ShortcutListener` trait so other platforms can supply their own implementation.
