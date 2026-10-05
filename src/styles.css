@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens. Calm, warm, minimal: a soft paper-like neutral palette, generous spacing,
+ * rounded surfaces and one restrained clay accent. Light and dark follow the Windows app mode
+ * through prefers-color-scheme (settings-and-first-run.md rule 20).
+ */
+:root {
+  color-scheme: light dark;
+
+  --echo-bg: #f7f4ee;
+  --echo-surface: #fffdf9;
+  --echo-sidebar: #efeae2;
+  --echo-raised: #e7e0d5;
+  --echo-line: #e3dbcf;
+  --echo-fg: #2a2621;
+  --echo-muted: #6e665c;
+  --echo-accent: #b4552f;
+  --echo-accent-fg: #fffaf5;
+  --echo-accent-soft: #f4e4d9;
+  --echo-accent-soft-fg: #8a3d1f;
+  --echo-focus: #c96a43;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --echo-bg: #1f1d1a;
+    --echo-surface: #282521;
+    --echo-sidebar: #181614;
+    --echo-raised: #34302b;
+    --echo-line: #3a3530;
+    --echo-fg: #ede7de;
+    --echo-muted: #a69d91;
+    --echo-accent: #e08a5f;
+    --echo-accent-fg: #1f1d1a;
+    --echo-accent-soft: #3d2b21;
+    --echo-accent-soft-fg: #f0b493;
+    --echo-focus: #e8997a;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--echo-bg);
+  --color-surface: var(--echo-surface);
+  --color-sidebar: var(--echo-sidebar);
+  --color-raised: var(--echo-raised);
+  --color-line: var(--echo-line);
+  --color-fg: var(--echo-fg);
+  --color-muted: var(--echo-muted);
+  --color-accent: var(--echo-accent);
+  --color-accent-fg: var(--echo-accent-fg);
+  --color-accent-soft: var(--echo-accent-soft);
+  --color-accent-soft-fg: var(--echo-accent-soft-fg);
+  --color-focus: var(--echo-focus);
+
+  /* Local Windows fonts only: Echo never fetches anything for its UI. */
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+
+  --radius-card: 1rem;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    cursor: default;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
