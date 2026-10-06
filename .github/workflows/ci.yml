@@ -18,6 +18,11 @@ jobs:
     runs-on: windows-latest
     env:
       CARGO_TERM_COLOR: always
+      # The cargo steps below build without Echo's default `vulkan` feature: the runner has no GPU
+      # to exercise it and no Vulkan SDK to build it, and Echo's own Rust code is the same with or
+      # without it (the feature only adds the native Vulkan backend). The CPU build still compiles,
+      # lints and tests every line of the Engine. Local `bun run check` builds with Vulkan.
+      ECHO_CI_CARGO_FEATURES: --no-default-features
     steps:
       - uses: actions/checkout@v4
 
@@ -66,11 +71,11 @@ jobs:
         run: bun run rust:fmt
 
       - name: Clippy
-        run: bun run rust:clippy
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets $env:ECHO_CI_CARGO_FEATURES -- -D warnings
 
       - name: Generated bindings are up to date
-        run: bun run bindings:check
+        run: cargo test --manifest-path src-tauri/Cargo.toml $env:ECHO_CI_CARGO_FEATURES --lib typescript_bindings_are_up_to_date
 
       # Audio fixtures are not in the repository; tests that need them skip themselves.
       - name: Rust tests
-        run: bun run rust:test
+        run: cargo test --manifest-path src-tauri/Cargo.toml $env:ECHO_CI_CARGO_FEATURES
