@@ -1,7 +1,7 @@
 // Bumps Echo's version everywhere it is written down, for a release:
 //   bun run bump [patch|minor|major|x.y.z]     (default: patch)
 // Updates package.json, src-tauri/tauri.conf.json, src-tauri/Cargo.toml and src-tauri/Cargo.lock,
-// then prints "Bumped A -> B". The release workflow checks that the tag matches tauri.conf.json.
+// then prints "Bumped A -> B". The release workflow checks that the tag matches all four.
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";

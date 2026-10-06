@@ -27,7 +27,12 @@ fn mock_app() -> tauri::App<MockRuntime> {
     let mut context = mock_context(noop_assets());
     context.config_mut().plugins.0.insert(
         "updater".into(),
-        json!({ "pubkey": TEST_PUBKEY.trim(), "dangerousInsecureTransportProtocol": true }),
+        // As in tauri.conf.json: the signature must name the announced version.
+        json!({
+            "pubkey": TEST_PUBKEY.trim(),
+            "requireSignedVersion": true,
+            "dangerousInsecureTransportProtocol": true
+        }),
     );
     context.package_info_mut().version = Version::new(0, 1, 0);
     mock_builder()
@@ -86,6 +91,7 @@ impl super::Host for Host {
     fn before_install(&self, version: &Version) {
         self.prepared.borrow_mut().push(version.to_string());
     }
+    fn install_failed(&self) {}
     fn publish(&self, _status: &UpdateStatus) {}
 }
 
@@ -156,6 +162,24 @@ fn acceptance_3_a_package_signed_with_another_key_is_rejected() {
     assert_eq!(updater.status(), &UpdateStatus::Unverified);
     assert!(installer.installed.borrow().is_empty());
     assert!(host.prepared.borrow().is_empty());
+}
+
+#[test]
+fn a_signature_for_another_version_is_rejected() {
+    // The fixture is signed for 0.2.0; a manifest announcing it as 0.3.0 is a replayed package.
+    let (app, server, installer) = (
+        mock_app(),
+        TestServer::start(),
+        RecordingInstaller::default(),
+    );
+    serve(&server, "0.3.0", SIGNATURE);
+    let mut updater = updater(&app, &server, &installer);
+    let host = Host::new(true);
+
+    updater.check_manually(&host);
+    updater.install_confirmed(&host);
+    assert_eq!(updater.status(), &UpdateStatus::Unverified);
+    assert!(installer.installed.borrow().is_empty());
 }
 
 #[test]
@@ -234,9 +258,12 @@ fn an_automatic_check_downloads_and_installs_when_idle() {
     let mut updater = updater(&app, &server, &installer);
     let host = Host::new(true);
 
+    // Downloaded at 30 s; installed once Echo has been Idle for 10 s after the download.
     for second in 0..=40 {
         updater.tick(second * SECOND, &host);
     }
+    assert!(installer.installed.borrow().is_empty());
+    updater.tick(41 * SECOND, &host);
     assert_eq!(*installer.installed.borrow(), vec![PACKAGE.to_vec()]);
 }
 

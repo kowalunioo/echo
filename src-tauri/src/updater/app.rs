@@ -5,9 +5,9 @@
 //! and runs manual checks and confirmed installs sent by the commands, so no
 //! command waits on the network.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -104,11 +104,16 @@ pub fn install(app: &AppHandle, marker_file: PathBuf, disabled: bool, updated_to
         let spawned = thread::Builder::new()
             .name("echo-updater".into())
             .spawn(move || {
+                let installing = Arc::new(Mutex::new(None));
                 let host = AppHost {
                     app: handle.clone(),
-                    marker_file,
+                    marker_file: marker_file.clone(),
+                    installing: Arc::clone(&installing),
                 };
-                let feed = PluginFeed::new(handle);
+                let exiting = handle.clone();
+                let feed = PluginFeed::new(handle, move || {
+                    before_exit(&exiting, &marker_file, &installing);
+                });
                 let version = Version::parse(current).expect("Cargo version is semver");
                 let mut core = UpdaterCore::new(feed, PluginInstaller, version, Duration::ZERO);
                 loop {
@@ -147,6 +152,12 @@ pub fn check_now(app: &AppHandle) {
     }
 }
 
+/// Whether an update is installing: Echo is about to restart, so no Dictation may start.
+pub fn installing(app: &AppHandle) -> bool {
+    app.try_state::<Updater>()
+        .is_some_and(|updater| matches!(updater.view().status, UpdateStatus::Installing { .. }))
+}
+
 /// Whether the tray shows "Check for updates…" (rule 11).
 pub fn enabled(app: &AppHandle) -> bool {
     app.try_state::<Updater>()
@@ -168,6 +179,36 @@ pub fn is_idle(dictation: &DictationStatus, models: &ModelsState) -> bool {
 struct AppHost {
     app: AppHandle,
     marker_file: PathBuf,
+    /// The version being installed, for [`before_exit`].
+    installing: Arc<Mutex<Option<Version>>>,
+}
+
+/// Runs right before the installer ends Echo (never in development builds, which do not
+/// install): writes the restart marker (rule 6) and saves what the usual exit would.
+fn before_exit(app: &AppHandle, marker_file: &Path, installing: &Mutex<Option<Version>>) {
+    let Some(version) = installing
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone()
+    else {
+        return;
+    };
+    let window_visible = app.get_webview_window(MAIN_WINDOW).is_some_and(|window| {
+        marker::window_shown(
+            window.is_visible().unwrap_or(false),
+            window.is_minimized().unwrap_or(false),
+        )
+    });
+    let marker = RestartMarker {
+        version: version.to_string(),
+        window_visible,
+    };
+    if let Err(error) = marker::write_for_restart(marker_file, &marker, cfg!(debug_assertions)) {
+        log::warn!("Couldn't write the update restart marker: {error}");
+    }
+    if let Some(tracker) = app.try_state::<WindowTracker>() {
+        tracker.save();
+    }
 }
 
 impl Host for AppHost {
@@ -185,22 +226,19 @@ impl Host for AppHost {
     }
 
     fn before_install(&self, version: &Version) {
-        let window_visible = self
-            .app
-            .get_webview_window(MAIN_WINDOW)
-            .and_then(|window| window.is_visible().ok())
-            .unwrap_or(false);
-        let marker = RestartMarker {
-            version: version.to_string(),
-            window_visible,
-        };
-        if let Err(error) = marker::write(&self.marker_file, &marker) {
-            log::warn!("Couldn't write the update restart marker: {error}");
-        }
-        // The installer ends Echo without the usual exit, so save what exit would.
-        if let Some(tracker) = self.app.try_state::<WindowTracker>() {
-            tracker.save();
-        }
+        // The marker itself is written by `before_exit`, once the installer really starts.
+        *self
+            .installing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(version.clone());
+    }
+
+    fn install_failed(&self) {
+        self.installing
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        marker::remove(&self.marker_file);
     }
 
     fn publish(&self, status: &UpdateStatus) {

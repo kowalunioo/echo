@@ -85,6 +85,8 @@ pub trait Host {
     fn automatic(&self) -> bool;
     /// Called right before installing: remember what to restore after the restart (rule 6).
     fn before_install(&self, version: &Version);
+    /// The install did not start: forget what [`Host::before_install`] remembered.
+    fn install_failed(&self);
     /// The status shown in the main window changed.
     fn publish(&self, status: &UpdateStatus);
 }
@@ -125,11 +127,14 @@ enum Pending<R, P> {
     /// Found by a check, not downloaded yet.
     Found { version: Version, release: R },
     /// Downloaded and verified; `automatic` installs it on its own after 10 s Idle.
+    /// `confirmed`: the user confirmed the install while Echo was busy, so it installs
+    /// after 10 s Idle even with automatic checks off.
     Downloaded {
         version: Version,
         release: R,
         package: P,
         automatic: bool,
+        confirmed: bool,
     },
 }
 
@@ -204,12 +209,13 @@ where
         if automatic && now >= self.next_check {
             self.next_check = now + CHECK_INTERVAL;
             self.check_automatically(host);
+            // The check may have downloaded for a long time: Idle is judged again next tick.
+            return;
         }
         let idle_long_enough = self
             .idle_since
             .is_some_and(|since| now.saturating_sub(since) >= IDLE_BEFORE_INSTALL);
-        if automatic
-            && idle_long_enough
+        if idle_long_enough
             && matches!(
                 self.pending,
                 Some(Pending::Downloaded {
@@ -224,6 +230,17 @@ where
 
     /// "Check for updates" from the tray or the settings (rule 7).
     pub fn check_manually(&mut self, host: &impl Host) {
+        if let Some(Pending::Downloaded {
+            version,
+            confirmed: true,
+            ..
+        }) = &self.pending
+        {
+            // Confirmed already; it installs when Echo is Idle.
+            let version = version.to_string();
+            self.set(UpdateStatus::Ready { version }, host);
+            return;
+        }
         if let Some(pending) = &self.pending {
             // Already found or downloaded: offer it without asking the feed again.
             let version = pending.version().to_string();
@@ -253,7 +270,8 @@ where
         }
     }
 
-    /// The user confirmed "Install and restart" (rule 7).
+    /// The user confirmed "Install and restart" (rule 7). It installs now when Echo is Idle;
+    /// otherwise it waits like an automatic update, so no Dictation is ever cut off.
     pub fn install_confirmed(&mut self, host: &impl Host) {
         match self.pending.take() {
             Some(Pending::Found { version, release }) => {
@@ -263,15 +281,42 @@ where
                         release,
                         package,
                         automatic: false,
+                        confirmed: true,
                     });
-                    self.install(host);
+                    self.install_when_idle(host);
                 }
             }
-            Some(downloaded @ Pending::Downloaded { .. }) => {
-                self.pending = Some(downloaded);
-                self.install(host);
+            Some(Pending::Downloaded {
+                version,
+                release,
+                package,
+                ..
+            }) => {
+                self.pending = Some(Pending::Downloaded {
+                    version,
+                    release,
+                    package,
+                    automatic: false,
+                    confirmed: true,
+                });
+                self.install_when_idle(host);
             }
             None => {}
+        }
+    }
+
+    /// Installs a confirmed update now if Echo is Idle, or else once it has been Idle for 10 s.
+    fn install_when_idle(&mut self, host: &impl Host) {
+        if host.is_idle() {
+            self.install(host);
+        } else if let Some(Pending::Downloaded {
+            version, automatic, ..
+        }) = &mut self.pending
+        {
+            *automatic = true;
+            let version = version.to_string();
+            self.idle_since = None;
+            self.set(UpdateStatus::Ready { version }, host);
         }
     }
 
@@ -299,6 +344,7 @@ where
                 release: found.release,
                 package,
                 automatic: true,
+                confirmed: false,
             });
             self.set(UpdateStatus::Ready { version }, host);
         }
@@ -333,6 +379,8 @@ where
             }
         };
         let result = self.feed.download(release, &mut progress);
+        // A Dictation may have started and ended while downloading: the 10 s count again.
+        self.idle_since = None;
         if let Some(percent) = last {
             self.status = UpdateStatus::Downloading {
                 version: shown,
@@ -360,25 +408,43 @@ where
     }
 
     fn install(&mut self, host: &impl Host) {
-        let Some(Pending::Downloaded {
-            version,
-            release,
-            package,
-            ..
-        }) = self.pending.take()
-        else {
+        let Some(Pending::Downloaded { version, .. }) = &self.pending else {
             return;
         };
-        log::info!("Installing update {version} and restarting");
+        let version = version.clone();
+        // "Installing" first: no Dictation starts from now on. Then Idle once more, in case
+        // one started since the last tick; the installer ends Echo.
         self.set(
             UpdateStatus::Installing {
                 version: version.to_string(),
             },
             host,
         );
+        if !host.is_idle() {
+            log::info!("Update {version} waits: Echo is busy");
+            self.idle_since = None;
+            if let Some(Pending::Downloaded { automatic, .. }) = &mut self.pending {
+                *automatic = true;
+            }
+            self.set(
+                UpdateStatus::Ready {
+                    version: version.to_string(),
+                },
+                host,
+            );
+            return;
+        }
+        let Some(Pending::Downloaded {
+            release, package, ..
+        }) = self.pending.take()
+        else {
+            return;
+        };
+        log::info!("Installing update {version} and restarting");
         host.before_install(&version);
         if let Err(error) = self.installer.install(&release, package) {
             log::error!("Installing update {version} failed: {error}");
+            host.install_failed();
             self.set(UpdateStatus::InstallFailed, host);
         }
     }
@@ -386,7 +452,10 @@ where
     /// With automatic checks off, a downloaded update waits for the user instead.
     fn stop_automatic_install(&mut self, host: &impl Host) {
         if let Some(Pending::Downloaded {
-            automatic, version, ..
+            automatic,
+            confirmed: false,
+            version,
+            ..
         }) = &mut self.pending
             && *automatic
         {

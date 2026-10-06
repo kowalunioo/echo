@@ -4,6 +4,7 @@
 //! release), offers only newer versions, and verifies the package's minisign
 //! signature against the public key in `tauri.conf.json` while downloading.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use semver::Version;
@@ -22,17 +23,24 @@ pub struct PluginFeed<R: Runtime> {
     app: AppHandle<R>,
     /// Replaces the endpoints from `tauri.conf.json` (tests use a local server).
     endpoints: Option<Vec<Url>>,
+    /// Runs after the installer is ready and right before the plugin ends Echo.
+    on_before_exit: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 impl<R: Runtime> PluginFeed<R> {
-    pub fn new(app: AppHandle<R>) -> Self {
+    /// `on_before_exit` runs only when the installer really is about to end Echo.
+    pub fn new(app: AppHandle<R>, on_before_exit: impl Fn() + Send + Sync + 'static) -> Self {
         // Development builds can point the updater at a local feed to try the UI end to end.
         let endpoints = cfg!(debug_assertions)
             .then(|| std::env::var(DEV_ENDPOINT_ENV).ok())
             .flatten()
             .and_then(|url| url.parse().ok())
             .map(|url| vec![url]);
-        Self { app, endpoints }
+        Self {
+            app,
+            endpoints,
+            on_before_exit: Some(Arc::new(on_before_exit)),
+        }
     }
 
     #[cfg(test)]
@@ -40,6 +48,7 @@ impl<R: Runtime> PluginFeed<R> {
         Self {
             app,
             endpoints: Some(vec![endpoint]),
+            on_before_exit: None,
         }
     }
 
@@ -56,6 +65,10 @@ impl<R: Runtime> PluginFeed<R> {
             });
         if let Some(endpoints) = &self.endpoints {
             builder = builder.endpoints(endpoints.clone())?;
+        }
+        if let Some(on_before_exit) = &self.on_before_exit {
+            let on_before_exit = Arc::clone(on_before_exit);
+            builder = builder.on_before_exit(move || on_before_exit());
         }
         builder.build()
     }

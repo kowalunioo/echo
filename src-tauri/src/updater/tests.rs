@@ -1,6 +1,7 @@
 //! The updater's behaviour with a fake feed, installer and host (`updater.md`).
 
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 use std::time::Duration;
 
 use semver::Version;
@@ -16,6 +17,8 @@ struct FakeFeed {
     download: RefCell<Option<DownloadError>>,
     checks: Cell<usize>,
     downloads: Cell<usize>,
+    /// Sets the host's Idle to this value while the download runs (a Dictation starts or ends).
+    idle_during_download: RefCell<Option<(Rc<Cell<bool>>, bool)>>,
 }
 
 impl FakeFeed {
@@ -47,6 +50,9 @@ impl UpdateFeed for &FakeFeed {
         progress: &mut dyn FnMut(u64, Option<u64>),
     ) -> Result<String, DownloadError> {
         self.downloads.set(self.downloads.get() + 1);
+        if let Some((idle, value)) = &*self.idle_during_download.borrow() {
+            idle.set(*value);
+        }
         progress(50, Some(100));
         progress(100, Some(100));
         match self.download.borrow().clone() {
@@ -59,29 +65,38 @@ impl UpdateFeed for &FakeFeed {
 #[derive(Default)]
 struct FakeInstaller {
     installed: RefCell<Vec<String>>,
+    fails: Cell<bool>,
 }
 
 impl Installer<String, String> for &FakeInstaller {
     fn install(&self, _release: &String, package: String) -> Result<(), String> {
+        if self.fails.get() {
+            return Err("the installer did not start".into());
+        }
         self.installed.borrow_mut().push(package);
         Ok(())
     }
 }
 
 struct FakeHost {
-    idle: Cell<bool>,
+    idle: Rc<Cell<bool>>,
     automatic: Cell<bool>,
     prepared: RefCell<Vec<String>>,
+    failed_installs: Cell<usize>,
     published: RefCell<Vec<UpdateStatus>>,
+    /// A Dictation starts the moment "Installing" is published.
+    busy_when_installing: Cell<bool>,
 }
 
 impl Default for FakeHost {
     fn default() -> Self {
         Self {
-            idle: Cell::new(true),
+            idle: Rc::new(Cell::new(true)),
             automatic: Cell::new(true),
             prepared: RefCell::default(),
+            failed_installs: Cell::new(0),
             published: RefCell::default(),
+            busy_when_installing: Cell::new(false),
         }
     }
 }
@@ -96,7 +111,13 @@ impl Host for FakeHost {
     fn before_install(&self, version: &Version) {
         self.prepared.borrow_mut().push(version.to_string());
     }
+    fn install_failed(&self) {
+        self.failed_installs.set(self.failed_installs.get() + 1);
+    }
     fn publish(&self, status: &UpdateStatus) {
+        if self.busy_when_installing.get() && matches!(status, UpdateStatus::Installing { .. }) {
+            self.idle.set(false);
+        }
         self.published.borrow_mut().push(status.clone());
     }
 }
@@ -363,9 +384,12 @@ fn a_failed_automatic_download_is_silent_and_retried_at_the_next_check() {
     assert_eq!(updater.status(), &UpdateStatus::Idle);
 
     feed.download.replace(None);
-    // Idle all along: the retried download installs right away.
-    updater.tick(30 * SECOND + CHECK_INTERVAL, &host);
+    // Idle all along: the retried download installs once Echo has been Idle for 10 s after it.
+    let retry = 30 * SECOND + CHECK_INTERVAL;
+    run(&mut updater, &host, retry, retry + 10 * SECOND);
     assert_eq!(feed.downloads.get(), 2);
+    assert!(installer.installed.borrow().is_empty());
+    updater.tick(retry + 11 * SECOND, &host);
     assert_eq!(installer.installed.borrow().len(), 1);
 }
 
@@ -396,6 +420,7 @@ fn a_manual_check_offers_an_update_already_downloaded_without_asking_again() {
     updater.check_manually(&host);
     assert_eq!(feed.checks.get(), 1);
     assert_eq!(updater.status(), &available("0.2.0"));
+    host.idle.set(true);
     updater.install_confirmed(&host);
     assert_eq!(installer.installed.borrow().len(), 1);
 }
@@ -409,4 +434,117 @@ fn rule_11_the_environment_variable_disables_the_updater() {
     assert!(!disabled_by_env(env("0")));
     assert!(!disabled_by_env(env("FALSE")));
     assert!(!disabled_by_env(|_| None));
+}
+
+fn ready(version: &str) -> UpdateStatus {
+    UpdateStatus::Ready {
+        version: version.into(),
+    }
+}
+
+#[test]
+fn a_dictation_started_during_a_background_download_delays_the_install() {
+    let feed = FakeFeed::offering("0.2.0");
+    let installer = FakeInstaller::default();
+    let host = FakeHost::default();
+    // Idle when the automatic check starts; a Recording starts while the package downloads.
+    feed.idle_during_download
+        .replace(Some((Rc::clone(&host.idle), false)));
+    let mut updater = core(&feed, &installer);
+
+    run(&mut updater, &host, Duration::ZERO, 30 * SECOND);
+    assert_eq!(feed.downloads.get(), 1);
+    assert_eq!(updater.status(), &ready("0.2.0"));
+    run(&mut updater, &host, 31 * SECOND, 90 * SECOND);
+    assert!(installer.installed.borrow().is_empty());
+    assert!(host.prepared.borrow().is_empty());
+
+    host.idle.set(true);
+    run(&mut updater, &host, 91 * SECOND, 100 * SECOND);
+    assert!(installer.installed.borrow().is_empty());
+    updater.tick(101 * SECOND, &host);
+    assert_eq!(installer.installed.borrow().len(), 1);
+}
+
+#[test]
+fn a_confirmed_install_waits_for_idle_when_a_dictation_started_during_the_download() {
+    let feed = FakeFeed::offering("0.2.0");
+    let installer = FakeInstaller::default();
+    let host = FakeHost::default();
+    // The confirmed install proceeds even with automatic checks off.
+    host.automatic.set(false);
+    let mut updater = core(&feed, &installer);
+
+    updater.check_manually(&host);
+    feed.idle_during_download
+        .replace(Some((Rc::clone(&host.idle), false)));
+    updater.install_confirmed(&host);
+    assert!(installer.installed.borrow().is_empty());
+    assert_eq!(updater.status(), &ready("0.2.0"));
+
+    run(&mut updater, &host, SECOND, 60 * SECOND);
+    assert!(installer.installed.borrow().is_empty());
+    // A manual check while waiting does not take the confirmation back.
+    updater.check_manually(&host);
+    assert_eq!(updater.status(), &ready("0.2.0"));
+
+    host.idle.set(true);
+    run(&mut updater, &host, 61 * SECOND, 70 * SECOND);
+    assert!(installer.installed.borrow().is_empty());
+    updater.tick(71 * SECOND, &host);
+    assert_eq!(installer.installed.borrow().len(), 1);
+    assert_eq!(feed.downloads.get(), 1);
+}
+
+#[test]
+fn confirming_an_already_downloaded_update_while_dictating_waits_for_idle() {
+    let feed = FakeFeed::offering("0.2.0");
+    let installer = FakeInstaller::default();
+    let host = FakeHost::default();
+    host.idle.set(false);
+    let mut updater = core(&feed, &installer);
+    run(&mut updater, &host, Duration::ZERO, 30 * SECOND);
+    updater.check_manually(&host);
+
+    updater.install_confirmed(&host);
+    assert!(installer.installed.borrow().is_empty());
+    assert_eq!(updater.status(), &ready("0.2.0"));
+    host.idle.set(true);
+    run(&mut updater, &host, 31 * SECOND, 41 * SECOND);
+    assert_eq!(installer.installed.borrow().len(), 1);
+}
+
+#[test]
+fn idle_is_checked_again_right_before_installing() {
+    let feed = FakeFeed::offering("0.2.0");
+    let installer = FakeInstaller::default();
+    let host = FakeHost::default();
+    let mut updater = core(&feed, &installer);
+    run(&mut updater, &host, Duration::ZERO, 30 * SECOND);
+
+    // A Dictation starts just as the install begins: Echo does not install and waits again.
+    host.busy_when_installing.set(true);
+    run(&mut updater, &host, 31 * SECOND, 41 * SECOND);
+    assert!(installer.installed.borrow().is_empty());
+    assert!(host.prepared.borrow().is_empty());
+    assert_eq!(updater.status(), &ready("0.2.0"));
+
+    host.busy_when_installing.set(false);
+    host.idle.set(true);
+    run(&mut updater, &host, 42 * SECOND, 52 * SECOND);
+    assert_eq!(installer.installed.borrow().len(), 1);
+}
+
+#[test]
+fn a_failed_install_is_reported_to_the_host() {
+    let feed = FakeFeed::offering("0.2.0");
+    let installer = FakeInstaller::default();
+    installer.fails.set(true);
+    let host = FakeHost::default();
+    let mut updater = core(&feed, &installer);
+
+    updater.check_manually(&host);
+    updater.install_confirmed(&host);
+    assert_eq!(updater.status(), &UpdateStatus::InstallFailed);
+    assert_eq!(host.failed_installs.get(), 1);
 }

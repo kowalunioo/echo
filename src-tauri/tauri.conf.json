@@ -61,6 +61,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1MDQyMzY5Njg5OEFDMgpSV1RDaW9tV05rSlFESm90TXAybHpxbVBrV3NQZ3JleGJGTllYUFZCTVV4bG5PaklGNHF5S2luLwo=",
       "endpoints": ["https://github.com/kowalunioo/echo/releases/latest/download/latest.json"],
+      "requireSignedVersion": true,
       "windows": {
         "installMode": "passive"
       }

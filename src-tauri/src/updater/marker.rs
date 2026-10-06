@@ -1,5 +1,5 @@
-//! The restart marker (`updater.md` rule 6): written right before an update
-//! installs, read once on the next start to restore the main window's visibility
+//! The restart marker (`updater.md` rule 6): written right before the
+//! update installer ends Echo, read once on the next start to restore the main window's visibility
 //! and show "Echo was updated to <version>".
 
 use std::path::Path;
@@ -31,7 +31,36 @@ pub fn write(path: &Path, marker: &RestartMarker) -> std::io::Result<()> {
     write_atomic(path, &json)
 }
 
-/// Reads and removes the marker. `None` when there is none or it is unreadable.
+/// Writes the marker right before the installer ends Echo. A development build never
+/// installs, so it never writes one either.
+pub fn write_for_restart(
+    path: &Path,
+    marker: &RestartMarker,
+    development: bool,
+) -> std::io::Result<()> {
+    if development {
+        return Ok(());
+    }
+    write(path, marker)
+}
+
+/// Removes the marker: the install did not start, so the next start is an ordinary one.
+pub fn remove(path: &Path) {
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => log::warn!("Couldn't remove the update restart marker: {error}"),
+    }
+}
+
+/// Whether the main window counts as shown for the marker: a minimized window does not, so
+/// it is not brought back focused after the update.
+pub fn window_shown(visible: bool, minimized: bool) -> bool {
+    visible && !minimized
+}
+
+/// Reads and removes the marker. `None` when there is none, it is unreadable, or it is for
+/// another version than the running one (the install did not happen).
 pub fn take(path: &Path, running_version: &str) -> Option<AfterRestart> {
     let bytes = std::fs::read(path).ok()?;
     if let Err(error) = std::fs::remove_file(path) {
@@ -44,9 +73,16 @@ pub fn take(path: &Path, running_version: &str) -> Option<AfterRestart> {
             return None;
         }
     };
+    if marker.version != running_version {
+        log::warn!(
+            "Ignoring an update restart marker for {} while {running_version} runs",
+            marker.version
+        );
+        return None;
+    }
     Some(AfterRestart {
         show_window: marker.window_visible,
-        updated_to: (marker.version == running_version).then_some(marker.version),
+        updated_to: Some(marker.version),
     })
 }
 
@@ -88,11 +124,42 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_install_announces_nothing() {
+    fn a_marker_for_another_version_is_removed_and_ignored() {
+        // The install did not happen: the start is an ordinary one (show_at_launch decides).
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("update-restart.json");
         write(&path, &marker("0.2.0", true)).unwrap();
-        assert_eq!(take(&path, "0.1.0").unwrap().updated_to, None);
+        assert_eq!(take(&path, "0.1.0"), None);
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn the_marker_is_written_only_by_release_builds() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("update-restart.json");
+        write_for_restart(&path, &marker("0.2.0", true), true).unwrap();
+        assert!(!path.exists());
+        write_for_restart(&path, &marker("0.2.0", true), false).unwrap();
+        assert!(take(&path, "0.2.0").unwrap().show_window);
+    }
+
+    #[test]
+    fn remove_deletes_the_marker_after_a_failed_install() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("update-restart.json");
+        write(&path, &marker("0.2.0", true)).unwrap();
+        remove(&path);
+        assert!(!path.exists());
+        // Nothing to remove is fine too.
+        remove(&path);
+    }
+
+    #[test]
+    fn a_minimized_window_counts_as_hidden() {
+        assert!(window_shown(true, false));
+        assert!(!window_shown(true, true));
+        assert!(!window_shown(false, false));
+        assert!(!window_shown(false, true));
     }
 
     #[test]
