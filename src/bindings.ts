@@ -106,15 +106,21 @@ export const commands = {
 	 *  keyboard hook while Echo's window has focus, so the window forwards its keys here.
 	 */
 	ownWindowKey: (key: string, pressed: boolean) => __TAURI_INVOKE<void>("own_window_key", { key, pressed }),
+	/**  The current dictation status, for windows that open after it was published. */
+	getDictationStatus: () => __TAURI_INVOKE<DictationStatus>("get_dictation_status"),
+	/**  The main window is visible and focused: the tray error clears (rule 39c). */
+	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
+	/**  The user dismissed the error notices in the main window. */
+	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
 };
 
 /** Events */
 export const events = {
 	capturedKeyEvent: makeEvent<CapturedKeyEvent>("captured-key-event"),
+	dictationStatusChanged: makeEvent<DictationStatusChanged>("dictation-status-changed"),
 	historyChanged: makeEvent<HistoryChanged>("history-changed"),
 	modelProblemOccurred: makeEvent<ModelProblemOccurred>("model-problem-occurred"),
 	modelsChanged: makeEvent<ModelsChanged>("models-changed"),
-	recordIntentEvent: makeEvent<RecordIntentEvent>("record-intent-event"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
@@ -160,6 +166,47 @@ export type DeviceList = {
 	/**  Name of the Windows default recording device, if there is one. */
 	default: string | null,
 };
+
+/**  One Dictation error. */
+export type DictationProblem = {
+	/**
+	 *  Increases with every error, so consumers can tell a new error from one already shown
+	 *  (the Overlay shows each one once, for 2.5 s).
+	 */
+	id: number,
+	kind: ProblemKind,
+	/**  Technical detail in English (may be empty). */
+	detail: string,
+};
+
+/**  The state of the Dictation as the user sees it (rule 1). */
+export type DictationState = "idle" | "recording" | "transcribing" | "inserting";
+
+/**
+ *  Everything the Overlay, the tray and the main window need about dictation, published as one
+ *  event whenever any part changes.
+ */
+export type DictationStatus = {
+	state: DictationState,
+	/**
+	 *  During a Recording: audio has arrived from the device, so the Overlay shows "listening"
+	 *  rather than "getting ready" (rule 7). `false` in every other state.
+	 */
+	listening: boolean,
+	/**
+	 *  The tray's error: the most recent error, until the main window is seen or a Dictation
+	 *  succeeds (rule 39c). `None` means no red icon.
+	 */
+	error: DictationProblem | null,
+	/**  Errors for the main window, oldest first, until the user dismisses them (rule 39d). */
+	notices: DictationProblem[],
+};
+
+/**
+ *  The dictation status changed: state, "listening", tray error or main-window notices. The one
+ *  event the Overlay, the tray and the main window follow.
+ */
+export type DictationStatusChanged = DictationStatus;
 
 /**  Why a download failed, for a plain-language message in the UI. */
 export type DownloadFailure = {
@@ -312,20 +359,29 @@ export type ModelsState = {
 	dictationInProgress: boolean,
 };
 
-/**  What the Record Shortcut asks the dictation pipeline to do. */
-export type RecordIntent = 
-/**  Start a Recording (or, while busy, remember the request — `dictation-pipeline.md` 27–29). */
-"start" | 
-/**  Stop the Recording (or, while busy, forget the remembered request). */
-"stop";
-
+/**  What went wrong (rule 39a). The UI translates the kind; `detail` is technical English. */
+export type ProblemKind = 
+/**  No Model is active, so the Recording did not start (rule 5). */
+"noModel" | 
+/**  There is no microphone (rule 8). */
+"microphoneNotFound" | 
+/**  Windows privacy settings block the microphone (rule 8). */
+"microphoneAccessDenied" | 
 /**
- *  TEMPORARY (remove with #13): every Record Shortcut intent, so the hook can be checked by hand
- *  on the Dictation page until the dictation pipeline consumes the intents.
+ *  The microphone was lost during a Recording; what was captured is still transcribed
+ *  (`microphone.md` rule 10).
  */
-export type RecordIntentEvent = {
-	intent: RecordIntent,
-};
+"microphoneDisconnected" | 
+/**  Any other microphone failure (rule 8). */
+"microphoneFailed" | 
+/**  The Model could not be loaded for this Dictation (`models.md`). */
+"modelLoadFailed" | 
+/**  A Model download failed (`models.md`). */
+"modelDownloadFailed" | 
+/**  The Engine failed (rule 23). */
+"transcriptionFailed" | 
+/**  Insertion failed; the Transcript is in History (rule 36). */
+"insertionFailed";
 
 /**
  *  The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,

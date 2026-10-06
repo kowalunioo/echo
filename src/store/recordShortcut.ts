@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import { type RecordIntent, type ShortcutChangeError, commands } from "../bindings";
+import { type ShortcutChangeError, commands } from "../bindings";
 import { type CaptureState, captureKey, initialCapture } from "../shortcut/capture";
 import { useSettings } from "./settings";
 
@@ -23,21 +23,17 @@ interface RecordShortcutStore {
   /** Non-null while the shortcut-capture UI is active. */
   capture: CaptureState | null;
   feedback: ShortcutFeedback | null;
-  /** TEMPORARY (remove with #13): the last intent, for checking the hook by hand. */
-  lastIntent: RecordIntent | null;
 
   reset: () => Promise<void>;
   beginCapture: () => Promise<void>;
   /** Ends capture without changes (click outside, window lost focus, Escape). */
   endCapture: () => Promise<void>;
   captureKey: (key: string, pressed: boolean) => Promise<void>;
-  showIntent: (intent: RecordIntent) => void;
 }
 
 export const useRecordShortcut = create<RecordShortcutStore>()((set, get) => ({
   capture: null,
   feedback: null,
-  lastIntent: null,
 
   reset: async () => {
     await get().endCapture();
@@ -87,13 +83,9 @@ export const useRecordShortcut = create<RecordShortcutStore>()((set, get) => ({
       }
     }
   },
-
-  showIntent: (intent) => {
-    set({ lastIntent: intent });
-  },
 }));
 
 /** Forgets capture and feedback; for tests that start each case from scratch. */
 export function resetRecordShortcutStore() {
-  useRecordShortcut.setState({ capture: null, feedback: null, lastIntent: null });
+  useRecordShortcut.setState({ capture: null, feedback: null });
 }

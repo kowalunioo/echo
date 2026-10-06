@@ -278,13 +278,24 @@ export const pl: Translation = {
       toggleHint: "Pierwsze naciśnięcie rozpoczyna nagrywanie, kolejne je kończy.",
     },
   },
-  devIntent: {
-    badge: "Kontrola deweloperska",
-    note: "Tymczasowe: zniknie, gdy powstanie potok dyktowania (#13).",
-    label: "Ostatnie polecenie nagrywania",
-    none: "jeszcze brak",
-    start: "rozpocznij",
-    stop: "zatrzymaj",
+  dictationNotices: {
+    title: "Problemy z dyktowaniem",
+    dismiss: "Zamknij",
+    openModels: "Otwórz Modele",
+    openPrivacy: "Otwórz ustawienia prywatności",
+    detail: "Szczegóły: {{detail}}",
+    kinds: {
+      noModel: "Brak Modelu — pobierz go, aby dyktować.",
+      microphoneNotFound: "Nie znaleziono mikrofonu.",
+      microphoneAccessDenied:
+        "Dostęp do mikrofonu jest zablokowany w ustawieniach prywatności Windows.",
+      microphoneDisconnected: "Mikrofon odłączony — nagrywanie zatrzymane.",
+      microphoneFailed: "Nie udało się użyć mikrofonu.",
+      modelLoadFailed: "Nie udało się wczytać Modelu.",
+      modelDownloadFailed: "Pobieranie Modelu nie powiodło się.",
+      transcriptionFailed: "Transkrypcja nie powiodła się.",
+      insertionFailed: "Nie udało się wstawić tekstu — jest w Historii.",
+    },
   },
   keys: {
     Space: "Spacja",

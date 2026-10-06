@@ -177,8 +177,8 @@ describe("onboarding", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { level: 1, name: "Try it" })).toBeVisible();
-    expect(screen.getByText("Ctrl+Space").closest("p")).toHaveTextContent(
-      "Hold Ctrl+Space and speak",
+    expect(screen.getByText("Ctrl + Space").closest("p")).toHaveTextContent(
+      "Hold Ctrl + Space and speak",
     );
     expect(screen.getByRole("textbox", { name: "Test field" })).toBeVisible();
 

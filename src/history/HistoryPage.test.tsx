@@ -47,9 +47,18 @@ describe("History page", () => {
     await openHistory();
 
     expect(screen.getByText(/No Transcripts yet/)).toHaveTextContent(
-      "No Transcripts yet. Press Ctrl+Space and speak.",
+      "No Transcripts yet. Press Ctrl + Space and speak.",
     );
     expect(screen.queryByRole("button", { name: "Clear all" })).not.toBeInTheDocument();
+  });
+
+  it("shows the Record Shortcut actually set, in the UI Language", async () => {
+    backend.settings.recordShortcut = "RightAlt";
+    await openHistory();
+
+    expect(screen.getByText(/No Transcripts yet/)).toHaveTextContent(
+      "No Transcripts yet. Press Right Alt and speak.",
+    );
   });
 
   it("lists entries newest first with their local date and time", async () => {

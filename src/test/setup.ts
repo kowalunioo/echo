@@ -4,6 +4,7 @@ import { afterEach, beforeEach, vi } from "vitest";
 
 import { initI18n } from "../i18n";
 import { resetHistoryStore } from "../store/history";
+import { resetDictationStore } from "../store/dictation";
 import { resetModelsStore } from "../store/models";
 import { resetRecordShortcutStore } from "../store/recordShortcut";
 import { resetSettingsStore } from "../store/settings";
@@ -25,6 +26,7 @@ beforeEach(() => {
   resetSettingsStore();
   resetHistoryStore();
   resetModelsStore();
+  resetDictationStore();
   resetRecordShortcutStore();
 });
 

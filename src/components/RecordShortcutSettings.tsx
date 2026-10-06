@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { type ShortcutMode, events } from "../bindings";
 import { heldCombination, keysOf } from "../shortcut/capture";
+import { useKeyLabel } from "../shortcut/keyLabel";
 import {
   DEFAULT_RECORD_SHORTCUT,
   type ShortcutFeedback,
@@ -16,15 +17,11 @@ const MODES: readonly ShortcutMode[] = ["pushToTalk", "toggle"];
 export function RecordShortcutSettings() {
   const { t } = useTranslation();
   const captureKey = useRecordShortcut((s) => s.captureKey);
-  const showIntent = useRecordShortcut((s) => s.showIntent);
   const feedback = useRecordShortcut((s) => s.feedback);
 
   useEffect(() => {
     const subscriptions = [
       events.capturedKeyEvent.listen((e) => void captureKey(e.payload.key, e.payload.pressed)),
-      events.recordIntentEvent.listen((e) => {
-        showIntent(e.payload.intent);
-      }),
     ].map((subscription) =>
       subscription.catch((error: unknown) => {
         console.error("cannot listen for Record Shortcut events", error);
@@ -36,7 +33,7 @@ export function RecordShortcutSettings() {
         void subscription.then((unlisten) => unlisten?.());
       }
     };
-  }, [captureKey, showIntent]);
+  }, [captureKey]);
 
   return (
     <>
@@ -58,7 +55,6 @@ export function RecordShortcutSettings() {
         </div>
         <ModePicker />
       </section>
-      <DevIntent />
     </>
   );
 }
@@ -141,16 +137,6 @@ function KeyCaps({ combination }: { combination: string }) {
   );
 }
 
-/** Key names in the UI Language where they differ ("Spacja", "Prawy Alt"). */
-function useKeyLabel() {
-  const { t } = useTranslation();
-  const names: Partial<Record<string, string>> = t("keys", { returnObjects: true });
-  return (combination: string) =>
-    keysOf(combination)
-      .map((key) => names[key] ?? key)
-      .join(" + ");
-}
-
 function ResetButton() {
   const { t } = useTranslation();
   const reset = useRecordShortcut((s) => s.reset);
@@ -222,30 +208,5 @@ function ModePicker() {
         })}
       </div>
     </fieldset>
-  );
-}
-
-/** TEMPORARY (remove with #13): shows the last Record Shortcut intent for checking the hook. */
-function DevIntent() {
-  const { t } = useTranslation();
-  const intent = useRecordShortcut((s) => s.lastIntent);
-  return (
-    <section className="flex items-center justify-between gap-6 rounded-card border border-dashed border-line px-6 py-4">
-      <div className="flex flex-col items-start gap-1">
-        <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent-soft-fg">
-          {t("devIntent.badge")}
-        </span>
-        <span className="text-xs text-muted">{t("devIntent.note")}</span>
-      </div>
-      <p className="text-sm">
-        <span className="text-muted">{t("devIntent.label")}: </span>
-        <span
-          data-testid="dev-intent"
-          className={`font-medium ${intent === "start" ? "text-accent-strong" : ""}`}
-        >
-          {t(intent ? `devIntent.${intent}` : "devIntent.none")}
-        </span>
-      </p>
-    </section>
   );
 }

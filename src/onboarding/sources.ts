@@ -1,12 +1,11 @@
 import { commands } from "../bindings";
+import { useKeyLabel } from "../shortcut/keyLabel";
 import { useModels } from "../store/models";
+import { DEFAULT_RECORD_SHORTCUT } from "../store/recordShortcut";
+import { useSettings } from "../store/settings";
 import type { MicrophoneAccess } from "./steps";
 
-/*
- * Facts the onboarding needs from other slices. The ones still marked PLACEHOLDER have a fixed
- * answer; the owning slice replaces it with the real source and removes the placeholder controls
- * in Onboarding.tsx.
- */
+/* Facts the onboarding and the History empty state need from other slices. */
 
 /**
  * Whether Windows privacy settings let desktop apps use the Microphone (microphone.md rule 7).
@@ -27,9 +26,12 @@ export function useModelActive(): boolean {
 }
 
 /**
- * PLACEHOLDER until Record Shortcut (#14): the Record Shortcut as shown to the user, and whether
- * it is held (Push-to-Talk Mode) or pressed (Toggle Mode). These are the spec defaults.
+ * The Record Shortcut as shown to the user, in the UI Language, and whether it is held
+ * (Push-to-Talk Mode) or pressed (Toggle Mode) — from the settings.
  */
 export function useRecordShortcut(): { label: string; mode: "pushToTalk" | "toggle" } {
-  return { label: "Ctrl+Space", mode: "pushToTalk" };
+  const combination = useSettings((s) => s.settings?.recordShortcut ?? DEFAULT_RECORD_SHORTCUT);
+  const mode = useSettings((s) => s.settings?.shortcutMode ?? "pushToTalk");
+  const label = useKeyLabel();
+  return { label: label(combination), mode };
 }

@@ -1,6 +1,7 @@
 import type {
   AppInfo,
   DeviceList,
+  DictationStatus,
   HistoryEntry,
   MicrophoneAccess,
   ModelEntry,
@@ -73,6 +74,7 @@ export class FakeBackend {
   /** What the Windows microphone privacy check reports. */
   microphoneAccess: MicrophoneAccess = "allowed";
   models: ModelsState = freshModels();
+  dictation: DictationStatus = { state: "idle", listening: false, error: null, notices: [] };
   /** Whether Windows "Startup apps" has Echo's sign-in entry turned off. */
   autostartDisabledInWindows = false;
   /** Every command invoked, in order, with its arguments. */
@@ -126,6 +128,15 @@ export class FakeBackend {
     reinsert_history_entry: (args) => {
       const entry = this.history.find((e) => e.id === args.id);
       if (entry) this.reinserted.push(entry.text);
+      return null;
+    },
+    get_dictation_status: () => this.dictation,
+    dictation_window_seen: () => {
+      this.changeDictation({ error: null });
+      return null;
+    },
+    dismiss_dictation_notices: () => {
+      this.changeDictation({ notices: [] });
       return null;
     },
     open_log_folder: () => null,
@@ -188,6 +199,12 @@ export class FakeBackend {
     };
     this.changeHistory([entry, ...this.history]);
     return entry;
+  }
+
+  /** Changes the dictation status as the pipeline would and sends `dictation-status-changed`. */
+  changeDictation(patch: Partial<DictationStatus>) {
+    this.dictation = { ...this.dictation, ...patch };
+    this.emit("dictation-status-changed", this.dictation);
   }
 
   private changeHistory(entries: HistoryEntry[]) {
