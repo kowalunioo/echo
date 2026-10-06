@@ -47,6 +47,9 @@ vulkan = ["transcribe-cpp/vulkan"]
 
 [dev-dependencies]
 tempfile = "3"
+# The fixture acceptance normaliser (`tests/common/acceptance.rs`).
+regex = "1"
+unicode-normalization = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 # The keyboard hook (ADR 0002) and the Inserter's clipboard and keystrokes; 0.62 is the version

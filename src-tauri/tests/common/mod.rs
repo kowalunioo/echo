@@ -1,6 +1,9 @@
-//! Helpers shared by the integration tests: synthetic WAV files and event collection.
+//! Helpers shared by the integration tests: synthetic WAV files, event collection and the
+//! fixture acceptance tolerance.
 
 #![allow(dead_code)] // each test binary uses a different subset
+
+pub mod acceptance;
 
 use std::io::Cursor;
 use std::sync::mpsc::{self, Receiver};
