@@ -297,6 +297,12 @@ export const pl: Translation = {
       insertionFailed: "Nie udało się wstawić tekstu — jest w Historii.",
     },
   },
+  testAudio: {
+    title: "Dźwięk testowy",
+    badge: "DŹWIĘK TESTOWY",
+    description: "Dyktowanie nagrywa z pliku {{file}} zamiast z mikrofonu.",
+    windowTitle: "Echo — DŹWIĘK TESTOWY: {{file}}",
+  },
   keys: {
     Space: "Spacja",
     Escape: "Esc",

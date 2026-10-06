@@ -75,6 +75,8 @@ export class FakeBackend {
   microphoneAccess: MicrophoneAccess = "allowed";
   models: ModelsState = freshModels();
   dictation: DictationStatus = { state: "idle", listening: false, error: null, notices: [] };
+  /** The WAV file of fake-microphone mode, `null` in normal operation. */
+  testAudio: string | null = null;
   /** Whether Windows "Startup apps" has Echo's sign-in entry turned off. */
   autostartDisabledInWindows = false;
   /** Every command invoked, in order, with its arguments. */
@@ -131,6 +133,7 @@ export class FakeBackend {
       return null;
     },
     get_dictation_status: () => this.dictation,
+    get_test_audio: () => this.testAudio,
     dictation_window_seen: () => {
       this.changeDictation({ error: null });
       return null;

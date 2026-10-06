@@ -1,15 +1,18 @@
 //! The whole Dictation pipeline — WAV Audio Source, earshot voice-activity detection, the real
 //! Engine with Whisper large-v3-turbo, clean-up, History — with a fake Inserter, on the user's
-//! fixture recordings (`dictation-pipeline.md` acceptance tests 1–2 and rule 50 without Notepad).
+//! fixture recordings (`dictation-pipeline.md` acceptance tests 1, 2 and 17 without Notepad;
+//! rules 47–52 with the tolerance from `common::acceptance`).
 //!
 //! Ignored by default (slow, needs the Model). Run with
 //!
 //! ```text
-//! cargo test --release --test dictation_fixtures -- --ignored --nocapture
+//! cargo test --release --test dictation_fixtures -- --ignored --nocapture --test-threads 1
 //! ```
 //!
 //! Models come from `ECHO_MODELS_DIR` (default `<repo>/.toolchain/models`), fixtures from
 //! `ECHO_FIXTURES_DIR` (default `<repo>/tests/fixtures/audio`); anything missing is skipped.
+
+mod common;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -25,6 +28,8 @@ use echo_lib::engine::{DictationLanguage, FakeEngine, TranscribeCppEngine};
 use echo_lib::insertion::{FakeInserter, SharedInserter};
 use echo_lib::models::NoActiveModel;
 use echo_lib::shortcut::modes::RecordIntent;
+
+use common::acceptance;
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -68,8 +73,20 @@ struct Outcome {
     history: Vec<String>,
 }
 
-/// One Dictation of `wav` from press to Idle; the file's end stops the Recording.
+/// One Dictation of `wav` from press to Idle in `language` without Vocabulary.
 fn dictate(model: Arc<dyn DictationModel>, wav: &Path, language: &str) -> Outcome {
+    dictate_with(
+        model,
+        wav,
+        DictationContext {
+            language: DictationLanguage::Specific(language.to_owned()),
+            vocabulary: Vec::new(),
+        },
+    )
+}
+
+/// One Dictation of `wav` from press to Idle; the file's end stops the Recording.
+fn dictate_with(model: Arc<dyn DictationModel>, wav: &Path, context: DictationContext) -> Outcome {
     let source = WavAudioSource::open(
         wav,
         WavOptions {
@@ -83,17 +100,13 @@ fn dictate(model: Arc<dyn DictationModel>, wav: &Path, language: &str) -> Outcom
     shared.set(inserter.clone());
     let history = Arc::new(Mutex::new(Vec::new()));
     let stored = Arc::clone(&history);
-    let language = DictationLanguage::Specific(language.to_owned());
     let states = Arc::new(Mutex::new(Vec::new()));
     let seen = Arc::clone(&states);
     let dictation = Dictation::spawn(DictationDeps {
         models: Box::new(Fixed(model)),
         source: Box::new(source),
         detector: Box::new(|| Box::new(Earshot::new())),
-        context: Box::new(move || DictationContext {
-            language: language.clone(),
-            vocabulary: Vec::new(),
-        }),
+        context: Box::new(move || context.clone()),
         history: Box::new(move |entry| {
             stored.lock().unwrap().push(entry.text);
             Ok(())
@@ -137,43 +150,155 @@ fn cisza_never_reaches_the_engine() {
     assert!(outcome.history.is_empty());
 }
 
-/// `cisza.wav` and the speech fixtures through the real Engine: silence stays empty, speech is
-/// inserted and stored. Prints each Transcript for the WER report.
-#[test]
-#[ignore = "slow; needs the Model and the user's fixture recordings"]
-fn fixtures_through_the_real_engine() {
-    let models = dir("ECHO_MODELS_DIR", &[".toolchain", "models"]);
-    let Some(file) = existing(
-        models.join("whisper-large-v3-turbo-Q8_0.gguf"),
-        "Model whisper-large-v3-turbo",
-    ) else {
-        return;
-    };
-    let model: Arc<dyn DictationModel> = Arc::new(EngineModel::new(
-        "Whisper large-v3-turbo",
-        TranscribeCppEngine::new(file),
-    ));
+/// The default Model, as the user selects it for the threshold table (rule 50).
+const DEFAULT_MODEL: (&str, &str) = ("Whisper large-v3-turbo", "whisper-large-v3-turbo-Q8_0.gguf");
+/// The other Models of `models.md`: `cisza.wav` stays mandatory, WER is reported (rule 52).
+const OTHER_MODELS: [(&str, &str); 2] = [
+    ("Whisper small", "whisper-small-Q8_0.gguf"),
+    ("Parakeet TDT 0.6B v3", "parakeet-tdt-0.6b-v3-Q8_0.gguf"),
+];
 
-    if let Some(wav) = fixture("cisza.wav") {
-        let outcome = dictate(Arc::clone(&model), &wav, "pl");
-        eprintln!("cisza.wav -> {:?}", outcome.inserted);
-        assert!(outcome.inserted.is_empty(), "cisza.wav inserted text");
-        assert!(outcome.history.is_empty(), "cisza.wav reached History");
-    }
-    for (file, language) in [
-        ("pl-proste.wav", "pl"),
-        ("pl-interpunkcja.wav", "pl"),
-        ("pl-liczby.wav", "pl"),
-        ("pl-slownik.wav", "pl"),
-        ("en-proste.wav", "en"),
-    ] {
-        let Some(wav) = fixture(file) else {
+fn real_model((name, file): (&str, &str)) -> Option<Arc<dyn DictationModel>> {
+    let models = dir("ECHO_MODELS_DIR", &[".toolchain", "models"]);
+    let path = existing(models.join(file), &format!("Model {name}"))?;
+    Some(Arc::new(EngineModel::new(
+        name,
+        TranscribeCppEngine::new(path),
+    )))
+}
+
+/// Which Dictation Language a run uses.
+#[derive(Clone, Copy, PartialEq)]
+enum Language {
+    /// The row's language from the table (rule 50).
+    Table,
+    /// Automatic detection (rule 51).
+    Automatic,
+}
+
+/// Runs every fixture of the rule 50 table that is present through `model` and returns one
+/// report line per fixture plus the failures among the rows `mandatory` selects.
+fn run_table(
+    model: &Arc<dyn DictationModel>,
+    language: Language,
+    mandatory: impl Fn(&acceptance::Fixture) -> bool,
+) -> (Vec<String>, Vec<String>) {
+    let mut report = Vec::new();
+    let mut failures = Vec::new();
+    for row in acceptance::FIXTURES {
+        let Some(wav) = fixture(row.file) else {
             continue;
         };
-        let outcome = dictate(Arc::clone(&model), &wav, language);
-        eprintln!("{file} -> {:?}", outcome.inserted);
-        assert_eq!(outcome.inserted.len(), 1, "{file}: one Insertion");
-        assert_eq!(outcome.history, outcome.inserted, "{file}: History first");
-        assert!(!outcome.inserted[0].is_empty());
+        let context = DictationContext {
+            language: match language {
+                Language::Table => DictationLanguage::Specific(row.language.to_owned()),
+                Language::Automatic => DictationLanguage::Automatic,
+            },
+            vocabulary: row.vocabulary.iter().map(|t| (*t).to_owned()).collect(),
+        };
+        let outcome = dictate_with(Arc::clone(model), &wav, context);
+        let actual = outcome.inserted.join(" ");
+        let verdict = match row.accepts(&actual) {
+            Ok(()) => "ok".to_owned(),
+            Err(why) => why,
+        };
+        let wer = if row.expected.is_empty() {
+            String::from("   -  ")
+        } else {
+            format!("{:.3}", acceptance::wer(row.expected, &actual))
+        };
+        report.push(format!(
+            "{:<22} WER {wer}  {actual:?}  [{verdict}]",
+            row.file
+        ));
+
+        let mut problems = Vec::new();
+        if verdict != "ok" {
+            problems.push(verdict);
+        }
+        // History gets exactly what was inserted, and only non-empty Transcripts (rules 20, 38).
+        if outcome.history != outcome.inserted {
+            problems.push(format!(
+                "{}: History {:?} differs from the Insertions",
+                row.file, outcome.history
+            ));
+        }
+        if outcome.inserted.len() > 1 {
+            problems.push(format!(
+                "{}: {} Insertions",
+                row.file,
+                outcome.inserted.len()
+            ));
+        }
+        if mandatory(row) {
+            failures.extend(problems);
+        }
     }
+    (report, failures)
+}
+
+fn print_report(title: &str, report: &[String]) {
+    eprintln!("\n== {title}");
+    for line in report {
+        eprintln!("   {line}");
+    }
+}
+
+/// Acceptance test 17 without Notepad, and rule 50: every fixture through the whole pipeline
+/// with the default Model and the table's Dictation Language and Vocabulary meets its threshold;
+/// `cisza.wav` yields no Insertion and no History entry. Insertion into Notepad is checked by hand
+/// in fake-microphone mode (see the pull request of #37).
+#[test]
+#[ignore = "slow; needs the Model and the user's fixture recordings"]
+fn default_model_meets_the_fixture_thresholds() {
+    let Some(model) = real_model(DEFAULT_MODEL) else {
+        return;
+    };
+    let (report, failures) = run_table(&model, Language::Table, |_| true);
+    print_report(
+        "Whisper large-v3-turbo, table language (mandatory)",
+        &report,
+    );
+    assert!(
+        failures.is_empty(),
+        "rule 50 failures:\n{}",
+        failures.join("\n")
+    );
+}
+
+/// Rule 51: the same fixtures with automatic language detection; reported, not mandatory.
+#[test]
+#[ignore = "slow; needs the Model and the user's fixture recordings"]
+fn default_model_with_automatic_language_is_reported() {
+    let Some(model) = real_model(DEFAULT_MODEL) else {
+        return;
+    };
+    let (report, _) = run_table(&model, Language::Automatic, |_| false);
+    print_report(
+        "Whisper large-v3-turbo, automatic language (reported)",
+        &report,
+    );
+}
+
+/// Rule 52: the other Models must keep `cisza.wav` empty; their WER rows are reported only.
+#[test]
+#[ignore = "slow; needs the Models and the user's fixture recordings"]
+fn other_models_keep_silence_empty() {
+    let mut failures = Vec::new();
+    for spec in OTHER_MODELS {
+        let Some(model) = real_model(spec) else {
+            continue;
+        };
+        let (report, failed) = run_table(&model, Language::Table, |row| row.max_wer.is_none());
+        print_report(
+            &format!("{}, table language (cisza mandatory)", spec.0),
+            &report,
+        );
+        failures.extend(failed.into_iter().map(|f| format!("{}: {f}", spec.0)));
+    }
+    assert!(
+        failures.is_empty(),
+        "rule 52 failures:\n{}",
+        failures.join("\n")
+    );
 }
