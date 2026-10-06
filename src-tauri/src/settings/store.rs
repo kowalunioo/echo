@@ -385,6 +385,7 @@ mod tests {
                 "startWithWindows": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "dictationLanguage": "automatic",
             })
             .to_string(),
         )
@@ -406,6 +407,26 @@ mod tests {
     }
 
     #[test]
+    fn an_unknown_dictation_language_is_reset_to_automatic() {
+        let (_dir, path) = settings_path();
+        let mut stored = serde_json::to_value(defaults()).unwrap();
+        stored["version"] = json!(1);
+        stored["dictationLanguage"] = json!("klingon");
+        fs::write(&path, stored.to_string()).unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(
+            outcome,
+            LoadOutcome::Repaired {
+                reset: vec!["dictationLanguage".into()],
+                added: vec![]
+            }
+        );
+        assert_eq!(store.get().dictation_language.code(), None);
+    }
+
+    #[test]
     fn an_out_of_range_history_limit_is_reset_to_its_default() {
         let (_dir, path) = settings_path();
         fs::write(
@@ -424,6 +445,7 @@ mod tests {
                 "startWithWindows": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "dictationLanguage": "automatic",
             })
             .to_string(),
         )
@@ -547,6 +569,7 @@ mod tests {
                 "startWithWindows": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "dictationLanguage": "automatic",
             })
             .to_string(),
         )
@@ -602,6 +625,7 @@ mod tests {
                 reset: vec![],
                 added: vec![
                     "activeModel".into(),
+                    "dictationLanguage".into(),
                     "historyLimit".into(),
                     "microphone".into(),
                     "onboardingCompleted".into(),

@@ -9,6 +9,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
+use super::language::effective_language;
 use super::vad::Earshot;
 use super::{
     Dictation, DictationContext, DictationDeps, DictationModel, DictationModels, DictationStatus,
@@ -40,12 +41,23 @@ pub fn install(app: &AppHandle) {
     let history_app = app.clone();
     let shortcut_app = app.clone();
     let publish_app = app.clone();
+    let context_app = app.clone();
     let dictation = Dictation::spawn(DictationDeps {
         models: Box::new(AppModels(app.state::<ModelManager>().inner().clone())),
         source,
         detector: Box::new(|| Box::new(Earshot::new())),
-        // Dictation Language and Vocabulary have no settings yet; their specs' defaults apply.
-        context: Box::new(DictationContext::default),
+        // Read when a Recording starts, so a Dictation keeps the language it started with
+        // (`dictation-language.md` rule 9). Vocabulary has no setting yet: its default applies.
+        context: Box::new(move || DictationContext {
+            language: effective_language(
+                &context_app
+                    .state::<SettingsStore>()
+                    .get()
+                    .dictation_language,
+                context_app.state::<ModelManager>().state().active,
+            ),
+            vocabulary: Vec::new(),
+        }),
         history: Box::new(move |entry| {
             history_app
                 .state::<History>()

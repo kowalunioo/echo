@@ -4,6 +4,7 @@
 //! - [`machine`]: the state machine as pure logic.
 //! - [`vad`]: voice-activity detection with pre/post roll and padding.
 //! - [`cleanup`]: Transcript clean-up.
+//! - [`language`]: the Dictation Language setting and its resolution against the active Model.
 //! - [`indicator`]: error indication state for the Overlay, tray and main window.
 //! - [`runtime`]: the worker thread that runs the machine against the real (or fake) pieces.
 //! - `app`: Tauri wiring, commands and the `DictationStatusChanged` event.
@@ -11,6 +12,7 @@
 pub mod app;
 pub mod cleanup;
 pub mod indicator;
+pub mod language;
 pub mod machine;
 pub mod runtime;
 pub mod vad;

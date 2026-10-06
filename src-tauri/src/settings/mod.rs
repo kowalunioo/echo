@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::audio::microphone::MicrophoneChoice;
+use crate::dictation::language::DictationLanguageSetting;
 use crate::models::ModelId;
 use crate::overlay::OverlayPosition;
 use crate::shortcut::modes::ShortcutMode;
@@ -87,6 +88,9 @@ settings_model! {
     show_overlay: bool,
     /// Where the Overlay sits on the monitor (`overlay.md` rule 14).
     overlay_position: OverlayPosition,
+    /// The spoken language Dictations expect, or "automatic" (`dictation-language.md`). The
+    /// intent as chosen; it is resolved against the active Model for each Dictation.
+    dictation_language: DictationLanguageSetting,
 }
 
 impl Settings {
@@ -106,6 +110,7 @@ impl Settings {
             start_with_windows: false,
             show_overlay: true,
             overlay_position: OverlayPosition::Bottom,
+            dictation_language: DictationLanguageSetting::automatic(),
         }
     }
 }
