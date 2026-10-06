@@ -382,7 +382,9 @@ mod tests {
                 "unloadModelAfter": "never",
                 "recordShortcut": "Ctrl+Win",
                 "shortcutMode": "toggle",
+                "cancelShortcut": "Escape",
                 "startWithWindows": false,
+                "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
                 "dictationLanguage": "automatic",
@@ -442,7 +444,9 @@ mod tests {
                 "unloadModelAfter": "never",
                 "recordShortcut": "Ctrl+Space",
                 "shortcutMode": "pushToTalk",
+                "cancelShortcut": "Escape",
                 "startWithWindows": false,
+                "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
                 "dictationLanguage": "automatic",
@@ -566,7 +570,9 @@ mod tests {
                 "unloadModelAfter": "never",
                 "recordShortcut": "Space",
                 "shortcutMode": "toggle",
+                "cancelShortcut": "Escape",
                 "startWithWindows": false,
+                "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
                 "dictationLanguage": "automatic",
@@ -607,6 +613,38 @@ mod tests {
         assert_eq!(read_json(&path)["recordShortcut"], "Ctrl+Win");
     }
 
+    #[test]
+    fn a_cancel_shortcut_patch_must_be_an_allowed_combination() {
+        let (_dir, path) = settings_path();
+        let (store, _) = SettingsStore::open(&path, defaults());
+
+        let invalid: Result<SettingsPatch, _> =
+            serde_json::from_value(json!({ "cancelShortcut": "Q" }));
+        assert!(invalid.is_err());
+
+        let patch: SettingsPatch =
+            serde_json::from_value(json!({ "cancelShortcut": "Shift+Ctrl+Q" })).unwrap();
+        store.apply_patch(patch).unwrap();
+        assert_eq!(read_json(&path)["cancelShortcut"], "Ctrl+Shift+Q");
+    }
+
+    #[test]
+    fn a_stored_cancel_shortcut_that_is_not_allowed_is_reset() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({ "version": 1, "cancelShortcut": "Ctrl" }).to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert!(
+            matches!(outcome, LoadOutcome::Repaired { reset, .. } if reset == ["cancelShortcut"])
+        );
+        assert_eq!(String::from(store.get().cancel_shortcut), "Escape");
+    }
+
     // Rule 14: settings added in a newer version get their defaults.
     #[test]
     fn settings_missing_from_an_older_file_get_their_defaults() {
@@ -625,6 +663,7 @@ mod tests {
                 reset: vec![],
                 added: vec![
                     "activeModel".into(),
+                    "cancelShortcut".into(),
                     "dictationLanguage".into(),
                     "historyLimit".into(),
                     "microphone".into(),
@@ -635,6 +674,7 @@ mod tests {
                     "shortcutMode".into(),
                     "showOverlay".into(),
                     "startWithWindows".into(),
+                    "trayHintShown".into(),
                     "unloadModelAfter".into(),
                 ]
             }

@@ -6,6 +6,7 @@ import { DictationNotices } from "./components/DictationNotices";
 import { PageView } from "./components/PageView";
 import { TestAudioMarker } from "./components/TestAudioMarker";
 import { Sidebar } from "./components/Sidebar";
+import { TrayHint } from "./components/TrayHint";
 import { changeUiLanguage } from "./i18n";
 import { Onboarding } from "./onboarding/Onboarding";
 import { useOwnWindowKeys } from "./shortcut/useOwnWindowKeys";
@@ -30,7 +31,8 @@ export function App() {
     if (uiLanguage) void changeUiLanguage(uiLanguage);
   }, [uiLanguage]);
 
-  if (status === "loading") return null;
+  // Closing the window must work whatever it shows, even while loading (tray.md rule 13).
+  if (status === "loading") return <TrayHint />;
   return (
     <div className="flex h-full flex-col">
       <TestAudioMarker />
@@ -43,6 +45,7 @@ export function App() {
           <Onboarding />
         )}
       </div>
+      <TrayHint />
     </div>
   );
 }

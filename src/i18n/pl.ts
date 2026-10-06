@@ -19,7 +19,6 @@ export const pl: Translation = {
       title: "Dyktowanie",
       description:
         "Jak rozpoczynasz, kończysz i anulujesz dyktowanie oraz którego mikrofonu słucha Echo.",
-      upcoming: "Skrót anulowania.",
     },
     model: {
       title: "Model i język",
@@ -273,6 +272,7 @@ export const pl: Translation = {
       reservedByWindows:
         "Windows zatrzymuje {{shortcut}} dla siebie i nie przekazuje go aplikacjom.",
       sameAsCancel: "{{shortcut}} jest już skrótem anulowania.",
+      sameAsRecord: "{{shortcut}} jest już skrótem nagrywania.",
       invalid: "{{shortcut}} nie może być skrótem.",
     },
     activationFailed: "Echo nie może włączyć skrótu {{shortcut}}: {{reason}}",
@@ -284,6 +284,18 @@ export const pl: Translation = {
       toggle: "Naciśnij, aby zacząć, naciśnij ponownie, aby zakończyć",
       toggleHint: "Pierwsze naciśnięcie rozpoczyna nagrywanie, kolejne je kończy.",
     },
+  },
+  trayHint: {
+    title: "Echo działa dalej",
+    message:
+      "Echo nadal działa w zasobniku. Aby je zamknąć, wybierz Zakończ Echo z menu w zasobniku.",
+    ok: "OK",
+  },
+  cancelShortcut: {
+    label: "Skrót anulowania",
+    description: "Anuluje bieżące dyktowanie. Działa tylko podczas nagrywania lub transkrypcji.",
+    change: "Zmień skrót anulowania, obecnie {{shortcut}}",
+    captureHint: "Kliknięcie obok anuluje.",
   },
   dictationNotices: {
     title: "Problemy z dyktowaniem",

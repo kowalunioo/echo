@@ -95,6 +95,12 @@ export const commands = {
 	 */
 	setRecordShortcut: (combination: string) => typedError<Settings, ShortcutChangeError>(__TAURI_INVOKE("set_record_shortcut", { combination })),
 	/**
+	 *  Validates a new Cancel Shortcut given in canonical text form (`"Escape"`, `"Ctrl+Q"`) and
+	 *  saves it; it applies from the next Dictation (`cancel-shortcut.md` rules 11–12). On failure
+	 *  the previous one stays. Ends a capture in progress. Returns the new settings.
+	 */
+	setCancelShortcut: (combination: string) => typedError<Settings, ShortcutChangeError>(__TAURI_INVOKE("set_cancel_shortcut", { combination })),
+	/**
 	 *  Starts shortcut capture: the Record Shortcut is suspended and keys arrive as
 	 *  [`CapturedKeyEvent`]s instead of reaching applications.
 	 */
@@ -114,6 +120,8 @@ export const commands = {
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
 	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
+	/**  The user read the close-to-tray hint: it is not shown again, and the window hides. */
+	closeToTray: () => __TAURI_INVOKE<void>("close_to_tray"),
 	/**  What the Overlay shows now, for its window when it loads. */
 	getOverlayView: () => __TAURI_INVOKE<OverlayView>("get_overlay_view"),
 	/**  The Overlay's cancel button: the same Cancellation as the Cancel Shortcut (rule 10). */
@@ -143,6 +151,7 @@ export const events = {
 	overlayFrame: makeEvent<OverlayFrame>("overlay-frame"),
 	overlayViewChanged: makeEvent<OverlayViewChanged>("overlay-view-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
+	trayHintRequested: makeEvent<TrayHintRequested>("tray-hint-requested"),
 };
 
 /* Types */
@@ -170,6 +179,14 @@ export type AutostartStatus = {
 	 */
 	disabledInWindows: boolean,
 };
+
+/**
+ *  The Cancel Shortcut setting (`cancel-shortcut.md`): an allowed combination (rule 11) in
+ *  canonical text form, e.g. `"Escape"`. Like [`RecordShortcutCombination`] it accepts exactly
+ *  the allowed combinations; the check against the Record Shortcut is made where the shortcuts
+ *  are activated.
+ */
+export type CancelShortcutCombination = string;
 
 /**
  *  A key pressed or released during shortcut capture, by its capture name (`"LeftCtrl"`,
@@ -472,8 +489,9 @@ export type ProblemKind =
 /**
  *  The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,
  *  e.g. `"Ctrl+Space"`. Deserializing accepts exactly the allowed combinations, so an invalid
- *  stored value falls back to the default (`docs/settings.md`). The check against the current
- *  Cancel Shortcut uses its default until the Cancel Shortcut becomes a setting (#15).
+ *  stored value falls back to the default (`docs/settings.md`). Settings are checked one by one,
+ *  so the check against the Cancel Shortcut is made where the shortcuts are activated
+ *  (`shortcut::app`), not here.
  */
 export type RecordShortcutCombination = string;
 
@@ -511,8 +529,12 @@ export type Settings = {
 	recordShortcut: RecordShortcutCombination,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
 	shortcutMode: ShortcutMode,
+	/**  The key combination that cancels the current Dictation (`cancel-shortcut.md`). */
+	cancelShortcut: CancelShortcutCombination,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows: boolean,
+	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
+	trayHintShown: boolean,
 	/**
 	 *  Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
 	 *  rule 17).
@@ -561,8 +583,12 @@ export type SettingsPatch = {
 	recordShortcut?: RecordShortcutCombination | null,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
 	shortcutMode?: ShortcutMode | null,
+	/**  The key combination that cancels the current Dictation (`cancel-shortcut.md`). */
+	cancelShortcut?: CancelShortcutCombination | null,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows?: boolean | null,
+	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
+	trayHintShown?: boolean | null,
 	/**
 	 *  Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
 	 *  rule 17).
@@ -611,8 +637,16 @@ export type ShortcutProblem =
 "reservedByWindows" | 
 /**  The same combination as the Cancel Shortcut. */
 "sameAsCancel" | 
+/**  The same combination as the Record Shortcut (`cancel-shortcut.md` rule 11). */
+"sameAsRecord" | 
 /**  Not a combination Echo understands (unknown key name, two main keys, …). */
 "invalid";
+
+/**
+ *  The main window was closed for the first time: show the "still running in the tray" hint,
+ *  then call [`close_to_tray`] (rule 13).
+ */
+export type TrayHintRequested = null;
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";

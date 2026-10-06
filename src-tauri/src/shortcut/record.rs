@@ -20,27 +20,33 @@ use specta::Type;
 
 use super::modes::{RecordIntent, RecordModes, ShortcutMode};
 use super::validation::{
-    RecordShortcutCombination, ShortcutProblem, default_cancel_shortcut, default_record_shortcut,
-    validate_record_shortcut,
+    CancelShortcutCombination, RecordShortcutCombination, ShortcutProblem, default_cancel_shortcut,
+    default_record_shortcut, validate_cancel_shortcut, validate_record_shortcut,
 };
 use super::{
     CaptureSink, CapturedKey, KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutEvent,
     ShortcutListener, ShortcutSink,
 };
+use crate::dictation::DictationState;
 
-/// The Record Shortcut settings (`record-shortcut.md`, "Settings").
+/// The Record Shortcut settings (`record-shortcut.md`, "Settings") and the Cancel Shortcut
+/// (`cancel-shortcut.md`), which must differ from it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordShortcutConfig {
     pub combination: KeyCombination,
     pub mode: ShortcutMode,
+    /// The Cancel Shortcut for the next Dictation (`cancel-shortcut.md` rule 12).
+    pub cancel: KeyCombination,
 }
 
 impl Default for RecordShortcutConfig {
-    /// Ctrl+Space in Push-to-Talk Mode (rules 5, 18).
+    /// Ctrl+Space in Push-to-Talk Mode (rules 5, 18), Escape to cancel (`cancel-shortcut.md`
+    /// rule 10).
     fn default() -> Self {
         Self {
             combination: default_record_shortcut(),
             mode: ShortcutMode::default(),
+            cancel: default_cancel_shortcut(),
         }
     }
 }
@@ -59,15 +65,18 @@ pub enum ShortcutChangeError {
     ActivationFailed { reason: String },
 }
 
-/// The Record Shortcut logic around a [`ShortcutListener`].
+/// The Record Shortcut logic around a [`ShortcutListener`], and the Cancel Shortcut, which shares
+/// the listener and is bound only while a Dictation is Recording or Transcribing
+/// (`cancel-shortcut.md` rule 7).
 pub struct RecordShortcut {
     listener: Box<dyn ShortcutListener>,
     config: RecordShortcutConfig,
-    cancel: KeyCombination,
     modes: RecordModes,
     capturing: bool,
     /// Whether the shortcut is in force: only once first-run setup is finished (rule 17).
     active: bool,
+    /// Whether the Cancel Shortcut is bound now (during a Dictation).
+    cancel_bound: bool,
 }
 
 impl RecordShortcut {
@@ -81,9 +90,9 @@ impl RecordShortcut {
             listener,
             modes: RecordModes::new(config.mode),
             config,
-            cancel: default_cancel_shortcut(),
             capturing: false,
             active,
+            cancel_bound: false,
         }
     }
 
@@ -110,6 +119,62 @@ impl RecordShortcut {
             KeyAction::Pressed => self.modes.press(now),
             KeyAction::Released => self.modes.release(now),
         }
+    }
+
+    /// Whether `event` is a press of the Cancel Shortcut that must trigger Cancellation
+    /// (`cancel-shortcut.md` rule 6: presses only, never releases).
+    pub fn is_cancel(&self, event: ShortcutEvent) -> bool {
+        event.shortcut == Shortcut::Cancel
+            && event.action == KeyAction::Pressed
+            && self.cancel_bound
+            && !self.capturing
+    }
+
+    /// The Dictation's state changed: the Cancel Shortcut is bound while it is Recording or
+    /// Transcribing and unbound otherwise (`cancel-shortcut.md` rules 4 and 7). It is bound with
+    /// the combination in force when the Dictation began, so a change made during a Dictation
+    /// applies from the next one (rule 12).
+    pub fn dictation_state(&mut self, state: DictationState) {
+        let wanted = matches!(
+            state,
+            DictationState::Recording | DictationState::Transcribing
+        );
+        if wanted == self.cancel_bound {
+            return;
+        }
+        let binding = wanted.then(|| self.config.cancel.clone());
+        match self.listener.bind(Shortcut::Cancel, binding) {
+            Ok(()) => self.cancel_bound = wanted,
+            Err(error) => log::warn!("cannot (un)bind the Cancel Shortcut: {error}"),
+        }
+    }
+
+    /// Validates a new Cancel Shortcut given in text form (`cancel-shortcut.md` rule 11) and
+    /// returns it as the value to save; it applies from the next Dictation (rule 12). Ends a
+    /// capture in progress first.
+    pub fn set_cancel_combination(
+        &mut self,
+        text: &str,
+    ) -> Result<CancelShortcutCombination, ShortcutChangeError> {
+        self.end_capture();
+        let not_allowed = |problem| ShortcutChangeError::NotAllowed { problem };
+        let combination: KeyCombination = text.parse().map_err(not_allowed)?;
+        let setting =
+            CancelShortcutCombination::try_from(combination.clone()).map_err(not_allowed)?;
+        self.apply_cancel_combination(&combination)
+            .map_err(not_allowed)?;
+        Ok(setting)
+    }
+
+    /// Takes a Cancel Shortcut changed in the settings (e.g. by "Reset to default") for the next
+    /// Dictation, unless it is the Record Shortcut.
+    pub fn apply_cancel_combination(
+        &mut self,
+        combination: &KeyCombination,
+    ) -> Result<(), ShortcutProblem> {
+        validate_cancel_shortcut(combination, &self.config.combination)?;
+        self.config.cancel = combination.clone();
+        Ok(())
     }
 
     /// When [`tick`](Self::tick) must next be called (Push-to-Talk release grace).
@@ -155,7 +220,7 @@ impl RecordShortcut {
         self.end_capture();
         let not_allowed = |problem| ShortcutChangeError::NotAllowed { problem };
         let combination: KeyCombination = text.parse().map_err(not_allowed)?;
-        validate_record_shortcut(&combination, &self.cancel).map_err(not_allowed)?;
+        validate_record_shortcut(&combination, &self.config.cancel).map_err(not_allowed)?;
         let setting =
             RecordShortcutCombination::try_from(combination.clone()).map_err(not_allowed)?;
         self.apply_combination(&combination).map_err(|e| {
@@ -167,10 +232,17 @@ impl RecordShortcut {
     }
 
     /// Puts an already validated combination in force (e.g. one changed in the settings by
-    /// "Restore default"). On failure the previous combination stays in force.
+    /// "Restore default"). On failure, including a combination equal to the Cancel Shortcut
+    /// (rule 20), the previous combination stays in force.
     pub fn apply_combination(&mut self, combination: &KeyCombination) -> Result<(), ShortcutError> {
         if *combination == self.config.combination {
             return Ok(());
+        }
+        if *combination == self.config.cancel {
+            return Err(ShortcutError::Rejected {
+                combination: combination.to_string(),
+                reason: ShortcutProblem::SameAsCancel.to_string(),
+            });
         }
         if self.active && !self.capturing {
             self.listener
@@ -226,6 +298,10 @@ pub type IntentSink = Box<dyn FnMut(RecordIntent) + Send>;
 
 /// Receives captured keys for the shortcut-capture UI, on the shortcut worker thread.
 pub type CapturedKeySink = Box<dyn FnMut(CapturedKey) + Send>;
+
+/// Called on the shortcut worker thread when the Cancel Shortcut is pressed during a Dictation;
+/// the app triggers Cancellation (`Dictation::cancel`).
+pub type CancelSink = Box<dyn FnMut() + Send>;
 
 enum Input {
     Shortcut(ShortcutEvent),
@@ -292,15 +368,38 @@ impl RecordShortcutHandle {
     pub fn recording_ended(&self) {
         self.core().recording_ended();
     }
+
+    /// For the pipeline: the Dictation's state changed (see [`RecordShortcut::dictation_state`]).
+    pub fn dictation_state(&self, state: DictationState) {
+        self.core().dictation_state(state);
+    }
+
+    /// Validates a Cancel Shortcut captured by the user; returns the value to save.
+    pub fn set_cancel_combination(
+        &self,
+        text: &str,
+    ) -> Result<CancelShortcutCombination, ShortcutChangeError> {
+        self.core().set_cancel_combination(text)
+    }
+
+    /// Takes a Cancel Shortcut changed in the settings for the next Dictation.
+    pub fn apply_cancel_combination(
+        &self,
+        combination: &KeyCombination,
+    ) -> Result<(), ShortcutProblem> {
+        self.core().apply_cancel_combination(combination)
+    }
 }
 
 /// Starts `core` and a worker thread that turns its listener's events into intents for
-/// `intents` and forwards captured keys to `captured`. A listener that cannot start is
-/// reported as an error, but the handle still works for settings.
+/// `intents` and Cancel Shortcut presses into calls of `cancel`, and forwards captured keys to
+/// `captured`. A listener that cannot start is reported as an error, but the handle still works
+/// for settings.
 pub fn spawn(
     mut core: RecordShortcut,
     intents: IntentSink,
     captured: CapturedKeySink,
+    cancel: CancelSink,
 ) -> (RecordShortcutHandle, Result<(), ShortcutError>) {
     let (tx, rx) = mpsc::channel();
     let events = tx.clone();
@@ -315,7 +414,7 @@ pub fn spawn(
     let worker = handle.clone();
     std::thread::Builder::new()
         .name("echo-record-shortcut".into())
-        .spawn(move || run_worker(&worker, rx, intents, captured))
+        .spawn(move || run_worker(&worker, rx, intents, captured, cancel))
         .expect("spawn the Record Shortcut worker");
     (handle, started)
 }
@@ -325,6 +424,7 @@ fn run_worker(
     inputs: Receiver<Input>,
     mut intents: IntentSink,
     mut captured: CapturedKeySink,
+    mut cancel: CancelSink,
 ) {
     loop {
         let deadline = handle.core().next_deadline();
@@ -333,7 +433,15 @@ fn run_worker(
             None => inputs.recv().map_err(|_| RecvTimeoutError::Disconnected),
         };
         let intent = match input {
-            Ok(Input::Shortcut(event)) => handle.core().handle(event, Instant::now()),
+            Ok(Input::Shortcut(event)) => {
+                let is_cancel = handle.core().is_cancel(event);
+                if is_cancel {
+                    cancel();
+                    None
+                } else {
+                    handle.core().handle(event, Instant::now())
+                }
+            }
             Ok(Input::Captured(key)) => {
                 captured(key);
                 None
@@ -667,10 +775,12 @@ mod tests {
         );
         let (tx, intents) = mpsc::channel();
         let (key_tx, keys) = mpsc::channel();
+        let (cancel_tx, cancels) = mpsc::channel();
         let (handle, started) = spawn(
             core,
             Box::new(move |i| tx.send(i).unwrap()),
             Box::new(move |k| key_tx.send(k).unwrap()),
+            Box::new(move || cancel_tx.send(()).unwrap()),
         );
         started.unwrap();
         let wait = Duration::from_secs(5);
@@ -681,9 +791,140 @@ mod tests {
         // The stop arrives only after the 50 ms release grace.
         assert_eq!(intents.recv_timeout(wait), Ok(Stop));
 
+        handle.dictation_state(DictationState::Transcribing);
+        fake.press(Shortcut::Cancel);
+        assert_eq!(cancels.recv_timeout(wait), Ok(()));
+
         handle.begin_capture().unwrap();
         fake.capture_key("LeftCtrl", KeyAction::Pressed);
         assert_eq!(keys.recv_timeout(wait).unwrap().key, "LeftCtrl");
         handle.end_capture();
+    }
+
+    fn cancel_bound(rig: &Rig) -> Option<String> {
+        rig.fake.binding(Shortcut::Cancel).map(|c| c.to_string())
+    }
+
+    /// Delivers whatever the fake listener reported; returns how many asked for Cancellation.
+    fn cancellations(rig: &mut Rig) -> usize {
+        let events: Vec<_> = rig.events.try_iter().collect();
+        events
+            .into_iter()
+            .filter(|e| rig.core.is_cancel(*e))
+            .count()
+    }
+
+    // cancel-shortcut.md rule 7: active only while Recording or Transcribing, so Escape reaches
+    // applications whenever Echo is Idle (or Inserting, rule 4).
+    #[test]
+    fn the_cancel_shortcut_is_bound_only_while_recording_or_transcribing() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        assert_eq!(cancel_bound(&rig), None);
+
+        rig.core.dictation_state(DictationState::Recording);
+        assert_eq!(cancel_bound(&rig).as_deref(), Some("Escape"));
+        rig.core.dictation_state(DictationState::Transcribing);
+        assert_eq!(cancel_bound(&rig).as_deref(), Some("Escape"));
+        rig.core.dictation_state(DictationState::Inserting);
+        assert_eq!(cancel_bound(&rig), None);
+        rig.core.dictation_state(DictationState::Idle);
+        assert_eq!(cancel_bound(&rig), None);
+    }
+
+    // Rule 6: the press cancels, the release does nothing.
+    #[test]
+    fn a_cancel_press_asks_for_cancellation_and_its_release_does_not() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        rig.core.dictation_state(DictationState::Recording);
+
+        rig.fake.press(Shortcut::Cancel);
+        assert_eq!(cancellations(&mut rig), 1);
+        rig.fake.release(Shortcut::Cancel);
+        assert_eq!(cancellations(&mut rig), 0);
+    }
+
+    #[test]
+    fn a_cancel_press_while_idle_is_not_even_reported() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+
+        assert!(!rig.fake.press(Shortcut::Cancel));
+        assert_eq!(cancellations(&mut rig), 0);
+    }
+
+    // Acceptance tests 6 and 7 at the shortcut level: hold Record (Push-to-Talk), press Cancel,
+    // the pipeline reports the end; releasing Record then does nothing and the next press starts
+    // a fresh Recording.
+    #[test]
+    fn after_a_cancellation_the_release_does_nothing_and_the_next_press_starts_afresh() {
+        let mut rig = Rig::new(ShortcutMode::PushToTalk);
+        assert_eq!(rig.press(0), vec![Start]);
+        rig.core.dictation_state(DictationState::Recording);
+
+        rig.fake.press(Shortcut::Cancel);
+        assert_eq!(cancellations(&mut rig), 1);
+        rig.core.recording_ended();
+        rig.core.dictation_state(DictationState::Idle);
+
+        assert_eq!(rig.release(500), vec![]);
+        let later = rig.at(600);
+        assert_eq!(rig.core.tick(later), None);
+        assert_eq!(rig.press(1000), vec![Start]);
+    }
+
+    // Rule 12: a change made during a Dictation applies from the next one.
+    #[test]
+    fn a_cancel_shortcut_changed_during_a_dictation_applies_from_the_next_one() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        rig.core.dictation_state(DictationState::Recording);
+
+        let saved = rig.core.set_cancel_combination("Shift+Ctrl+Q").unwrap();
+        assert_eq!(String::from(saved), "Ctrl+Shift+Q");
+        rig.core.dictation_state(DictationState::Transcribing);
+        assert_eq!(cancel_bound(&rig).as_deref(), Some("Escape"));
+
+        rig.core.dictation_state(DictationState::Idle);
+        rig.core.dictation_state(DictationState::Recording);
+        assert_eq!(cancel_bound(&rig).as_deref(), Some("Ctrl+Shift+Q"));
+    }
+
+    // Acceptance test 8 and record-shortcut.md rule 20: the two shortcuts must differ.
+    #[test]
+    fn the_cancel_and_record_shortcuts_cannot_be_the_same() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+
+        assert_eq!(
+            rig.core.set_cancel_combination("Ctrl+Space"),
+            Err(ShortcutChangeError::NotAllowed {
+                problem: ShortcutProblem::SameAsRecord
+            })
+        );
+        assert_eq!(rig.core.config().cancel, default_cancel_shortcut());
+
+        rig.core.set_cancel_combination("F8").unwrap();
+        assert_eq!(
+            rig.core.set_combination("F8"),
+            Err(ShortcutChangeError::NotAllowed {
+                problem: ShortcutProblem::SameAsCancel
+            })
+        );
+        assert!(rig.core.apply_combination(&"F8".parse().unwrap()).is_err());
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
+        assert!(
+            rig.core
+                .apply_cancel_combination(&"Ctrl+Space".parse().unwrap())
+                .is_err()
+        );
+        assert_eq!(rig.core.config().cancel.to_string(), "F8");
+    }
+
+    #[test]
+    fn setting_the_cancel_shortcut_ends_the_capture() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        rig.core.begin_capture(Box::new(|_| {})).unwrap();
+
+        rig.core.set_cancel_combination("Escape").unwrap();
+
+        assert!(!rig.core.is_capturing());
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
     }
 }

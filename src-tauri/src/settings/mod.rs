@@ -22,7 +22,7 @@ use crate::dictation::language::DictationLanguageSetting;
 use crate::models::ModelId;
 use crate::overlay::OverlayPosition;
 use crate::shortcut::modes::ShortcutMode;
-use crate::shortcut::validation::RecordShortcutCombination;
+use crate::shortcut::validation::{CancelShortcutCombination, RecordShortcutCombination};
 
 /// Generates [`Settings`] and its all-optional twin [`SettingsPatch`] from one list of fields, so
 /// the two can never drift apart.
@@ -81,8 +81,12 @@ settings_model! {
     record_shortcut: RecordShortcutCombination,
     /// Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`).
     shortcut_mode: ShortcutMode,
+    /// The key combination that cancels the current Dictation (`cancel-shortcut.md`).
+    cancel_shortcut: CancelShortcutCombination,
     /// Start Echo, hidden, when the user signs in to Windows (`autostart.md`).
     start_with_windows: bool,
+    /// The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13).
+    tray_hint_shown: bool,
     /// Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
     /// rule 17).
     show_overlay: bool,
@@ -107,7 +111,9 @@ impl Settings {
             unload_model_after: UnloadModelAfter::Never,
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
+            cancel_shortcut: CancelShortcutCombination::default(),
             start_with_windows: false,
+            tray_hint_shown: false,
             show_overlay: true,
             overlay_position: OverlayPosition::Bottom,
             dictation_language: DictationLanguageSetting::automatic(),
@@ -259,6 +265,8 @@ mod tests {
             "Ctrl+Space"
         );
         assert_eq!(settings.shortcut_mode, ShortcutMode::PushToTalk);
+        // cancel-shortcut.md rule 10.
+        assert_eq!(settings.cancel_shortcut.combination().to_string(), "Escape");
     }
 
     // overlay.md "Settings".

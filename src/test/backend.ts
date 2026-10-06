@@ -28,7 +28,9 @@ export const DEFAULT_SETTINGS: Settings = {
   unloadModelAfter: "never",
   recordShortcut: "Ctrl+Space",
   shortcutMode: "pushToTalk",
+  cancelShortcut: "Escape",
   startWithWindows: false,
+  trayHintShown: false,
   showOverlay: true,
   overlayPosition: "bottom",
   dictationLanguage: "automatic",
@@ -178,6 +180,10 @@ export class FakeBackend {
       this.changeDictation({ notices: [] });
       return null;
     },
+    close_to_tray: () => {
+      this.changeSettings({ trayHintShown: true });
+      return null;
+    },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
     autostart_status: () => ({
@@ -197,6 +203,14 @@ export class FakeBackend {
       const rejection = this.rejectedShortcuts.get(combination);
       if (rejection !== undefined) throw new RejectedCommand(rejection);
       this.changeSettings({ recordShortcut: combination });
+      return this.settings;
+    },
+    // Cancel Shortcut: the same, with the same `rejectedShortcuts` list.
+    set_cancel_shortcut: (args) => {
+      const combination = args.combination as string;
+      const rejection = this.rejectedShortcuts.get(combination);
+      if (rejection !== undefined) throw new RejectedCommand(rejection);
+      this.changeSettings({ cancelShortcut: combination });
       return this.settings;
     },
     begin_shortcut_capture: () => null,

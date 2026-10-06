@@ -64,11 +64,26 @@ export function heldCombination(state: CaptureState): string {
   return canonical(modifiersOf(modifiers), state.main);
 }
 
+export interface CaptureOptions {
+  /**
+   * Escape alone is a value to capture (the Cancel Shortcut, cancel-shortcut.md "UI") rather
+   * than the way to end capture without changes (the Record Shortcut).
+   */
+  escapeIsKey?: boolean;
+}
+
 /** Feeds one key press or release into the capture. */
-export function captureKey(state: CaptureState, key: string, pressed: boolean): CaptureOutcome {
+export function captureKey(
+  state: CaptureState,
+  key: string,
+  pressed: boolean,
+  options: CaptureOptions = {},
+): CaptureOutcome {
   if (pressed) {
-    // Escape alone ends capture without changes.
-    if (key === "Escape" && state.held.length === 0) return { kind: "cancel" };
+    // Escape alone ends capture without changes, unless it is a value to capture.
+    if (key === "Escape" && state.held.length === 0 && !options.escapeIsKey) {
+      return { kind: "cancel" };
+    }
     if (state.held.includes(key)) return { kind: "continue", state };
     const held = [...state.held, key];
     if (isModifier(key)) {
