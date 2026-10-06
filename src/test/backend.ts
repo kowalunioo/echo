@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   recordShortcut: "Ctrl+Space",
   shortcutMode: "pushToTalk",
   startWithWindows: false,
+  trayHintShown: false,
 };
 
 /** The three Models as the backend lists them, none downloaded. */
@@ -137,6 +138,10 @@ export class FakeBackend {
     },
     dismiss_dictation_notices: () => {
       this.changeDictation({ notices: [] });
+      return null;
+    },
+    close_to_tray: () => {
+      this.changeSettings({ trayHintShown: true });
       return null;
     },
     open_log_folder: () => null,

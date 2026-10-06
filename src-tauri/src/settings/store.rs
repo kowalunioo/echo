@@ -383,6 +383,7 @@ mod tests {
                 "recordShortcut": "Ctrl+Win",
                 "shortcutMode": "toggle",
                 "startWithWindows": false,
+                "trayHintShown": false,
             })
             .to_string(),
         )
@@ -420,6 +421,7 @@ mod tests {
                 "recordShortcut": "Ctrl+Space",
                 "shortcutMode": "pushToTalk",
                 "startWithWindows": false,
+                "trayHintShown": false,
             })
             .to_string(),
         )
@@ -541,6 +543,7 @@ mod tests {
                 "recordShortcut": "Space",
                 "shortcutMode": "toggle",
                 "startWithWindows": false,
+                "trayHintShown": false,
             })
             .to_string(),
         )
@@ -603,6 +606,7 @@ mod tests {
                     "recordShortcut".into(),
                     "shortcutMode".into(),
                     "startWithWindows".into(),
+                    "trayHintShown".into(),
                     "unloadModelAfter".into(),
                 ]
             }

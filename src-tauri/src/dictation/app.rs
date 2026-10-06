@@ -62,6 +62,7 @@ pub fn install(app: &AppHandle) {
             }
         }),
         publish: Box::new(move |status| {
+            crate::tray::app::dictation_status_changed(&publish_app, status);
             if let Err(error) = DictationStatusChanged(status.clone()).emit(&publish_app) {
                 log::warn!("could not send the dictation status to the windows: {error}");
             }

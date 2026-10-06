@@ -1,9 +1,7 @@
 //! Main-window and process behaviour from `settings-and-first-run.md` rules 16–20: one process
 //! per user, hidden start on autostart, and a remembered size and position that never lands on a
 //! monitor that is gone. Light/dark follows Windows on its own (no theme is forced, rule 20).
-//!
-//! Closing the window to the tray (rule 17) arrives with the tray (#20): until Echo has a tray
-//! icon, hiding the window would leave it unreachable, so closing still quits.
+//! Closing the window hides it to the tray (rule 17); see `tray::app`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;

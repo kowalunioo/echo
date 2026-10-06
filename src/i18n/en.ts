@@ -282,6 +282,11 @@ export const en = {
       toggleHint: "One press starts the Recording, the next press stops it.",
     },
   },
+  trayHint: {
+    title: "Echo keeps running",
+    message: "Echo is still running in the tray. Use Quit Echo from the tray menu to exit.",
+    ok: "OK",
+  },
   dictationNotices: {
     title: "Dictation problems",
     dismiss: "Dismiss",

@@ -21,6 +21,7 @@ pub mod models;
 pub mod settings;
 pub mod shortcut;
 pub mod system;
+pub mod tray;
 pub mod window;
 
 use std::sync::Arc;
@@ -71,6 +72,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             dictation::app::get_dictation_status,
             dictation::app::dictation_window_seen,
             dictation::app::dismiss_dictation_notices,
+            tray::app::close_to_tray,
         ])
         .events(collect_events![
             SettingsChanged,
@@ -79,6 +81,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             HistoryChanged,
             shortcut::app::CapturedKeyEvent,
             dictation::app::DictationStatusChanged,
+            tray::app::TrayHintRequested,
         ])
 }
 
@@ -113,6 +116,7 @@ pub fn run() {
             dictation::app::install(app.handle());
             shortcut::app::install(app.handle());
             autostart::commands::install(app.handle());
+            tray::app::install(app.handle())?;
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
             let autostart = window::launched_by_autostart(std::env::args());
@@ -130,6 +134,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             if window.label() == window::MAIN_WINDOW {
                 window.state::<WindowTracker>().on_event(window, event);
+                tray::app::on_main_window_event(window, event);
             }
         })
         .build(tauri::generate_context!())

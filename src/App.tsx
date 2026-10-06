@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { DictationNotices } from "./components/DictationNotices";
 import { PageView } from "./components/PageView";
 import { Sidebar } from "./components/Sidebar";
+import { TrayHint } from "./components/TrayHint";
 import { changeUiLanguage } from "./i18n";
 import { Onboarding } from "./onboarding/Onboarding";
 import { useOwnWindowKeys } from "./shortcut/useOwnWindowKeys";
@@ -28,9 +29,16 @@ export function App() {
     if (uiLanguage) void changeUiLanguage(uiLanguage);
   }, [uiLanguage]);
 
-  if (status === "loading") return null;
-  if (status === "error") return <SettingsUnavailable />;
-  return onboardingCompleted ? <MainWindow /> : <Onboarding />;
+  let content = null;
+  if (status === "error") content = <SettingsUnavailable />;
+  else if (status !== "loading") content = onboardingCompleted ? <MainWindow /> : <Onboarding />;
+  return (
+    <>
+      {content}
+      {/* Closing the window must work whatever it shows (tray.md rule 13). */}
+      <TrayHint />
+    </>
+  );
 }
 
 function MainWindow() {

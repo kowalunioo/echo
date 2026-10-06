@@ -81,6 +81,8 @@ settings_model! {
     shortcut_mode: ShortcutMode,
     /// Start Echo, hidden, when the user signs in to Windows (`autostart.md`).
     start_with_windows: bool,
+    /// The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13).
+    tray_hint_shown: bool,
 }
 
 impl Settings {
@@ -98,6 +100,7 @@ impl Settings {
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
             start_with_windows: false,
+            tray_hint_shown: false,
         }
     }
 }

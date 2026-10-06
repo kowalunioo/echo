@@ -112,6 +112,8 @@ export const commands = {
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
 	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
+	/**  The user read the close-to-tray hint: it is not shown again, and the window hides. */
+	closeToTray: () => __TAURI_INVOKE<void>("close_to_tray"),
 };
 
 /** Events */
@@ -122,6 +124,7 @@ export const events = {
 	modelProblemOccurred: makeEvent<ModelProblemOccurred>("model-problem-occurred"),
 	modelsChanged: makeEvent<ModelsChanged>("models-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
+	trayHintRequested: makeEvent<TrayHintRequested>("tray-hint-requested"),
 };
 
 /* Types */
@@ -427,6 +430,8 @@ export type Settings = {
 	shortcutMode: ShortcutMode,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows: boolean,
+	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
+	trayHintShown: boolean,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -465,6 +470,8 @@ export type SettingsPatch = {
 	shortcutMode?: ShortcutMode | null,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows?: boolean | null,
+	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
+	trayHintShown?: boolean | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */
@@ -503,6 +510,12 @@ export type ShortcutProblem =
 "sameAsCancel" | 
 /**  Not a combination Echo understands (unknown key name, two main keys, …). */
 "invalid";
+
+/**
+ *  The main window was closed for the first time: show the "still running in the tray" hint,
+ *  then call [`close_to_tray`] (rule 13).
+ */
+export type TrayHintRequested = null;
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";
