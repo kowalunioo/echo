@@ -9,6 +9,8 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: "en",
   onboardingWelcomeDone: true,
   onboardingCompleted: true,
+  recordShortcut: "Ctrl+Space",
+  shortcutMode: "pushToTalk",
 };
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -43,7 +45,21 @@ export class FakeBackend {
     },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
+    // Record Shortcut: accepts any proposal unless the test lists it in `rejectedShortcuts`.
+    set_record_shortcut: (args) => {
+      const combination = args.combination as string;
+      const rejection = this.rejectedShortcuts.get(combination);
+      if (rejection !== undefined) throw new RejectedCommand(rejection);
+      this.changeSettings({ recordShortcut: combination });
+      return this.settings;
+    },
+    begin_shortcut_capture: () => null,
+    end_shortcut_capture: () => null,
+    own_window_key: () => null,
   };
+
+  /** Record Shortcut proposals `set_record_shortcut` rejects, with the error it rejects with. */
+  rejectedShortcuts = new Map<string, unknown>();
 
   /** Changes settings as the backend would (e.g. from the tray) and tells every listener. */
   changeSettings(patch: Partial<Settings>) {
@@ -66,7 +82,13 @@ export class FakeBackend {
     }
     const handler = this.handlers[command];
     if (!handler) return Promise.reject(new Error(`FakeBackend: unexpected command ${command}`));
-    return Promise.resolve(structuredClone(handler(args)));
+    try {
+      return Promise.resolve(structuredClone(handler(args)));
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- Tauri rejects with plain values
+      if (error instanceof RejectedCommand) return Promise.reject(error.value);
+      throw error;
+    }
   };
 
   listen = (event: string, callback: EventCallback): Promise<() => void> => {
@@ -78,6 +100,13 @@ export class FakeBackend {
 
   commandsCalled(command: string) {
     return this.calls.filter((call) => call.command === command);
+  }
+}
+
+/** Thrown by a handler to make its command reject with `value`, as a Rust `Err` does. */
+class RejectedCommand extends Error {
+  constructor(readonly value: unknown) {
+    super("rejected command");
   }
 }
 

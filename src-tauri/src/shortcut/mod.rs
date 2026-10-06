@@ -1,14 +1,27 @@
 //! The **ShortcutListener** seam: reports presses and releases of the Record Shortcut and the
 //! Cancel Shortcut from anywhere in Windows.
 //!
-//! The real listener is our own low-level keyboard hook (ADR 0002) and arrives in a later slice.
-//! [`FakeShortcutListener`] injects events in tests.
+//! The real listener is our own low-level keyboard hook (ADR 0002): [`matcher`] holds its
+//! decisions as testable logic, `windows_hook` the thin Windows layer around it.
+//! [`FakeShortcutListener`] injects events in tests. [`modes`] turns Record Shortcut presses into
+//! start/stop intents for the pipeline, and [`record`] ties listener, modes and settings together.
 
+pub mod app;
 mod fake;
+pub mod keys;
+pub mod matcher;
+pub mod modes;
+pub mod record;
+pub mod validation;
+#[cfg(windows)]
+mod windows_hook;
 
 use std::fmt;
 
 pub use fake::FakeShortcutListener;
+pub use matcher::CapturedKey;
+#[cfg(windows)]
+pub use windows_hook::{ECHO_INPUT_TAG, WindowsShortcutListener};
 
 /// The global shortcuts Echo listens for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -45,7 +58,8 @@ pub struct Modifiers {
 
 /// A key that is not one of the [`Modifiers`], by its canonical name: `"Space"`, `"D"`, `"F5"`,
 /// `"Escape"`, or a side-specific modifier used as a key on its own (`"RightAlt"`,
-/// `"RightCtrl"`). The Record Shortcut slice defines the full list and validation.
+/// `"RightCtrl"`). [`keys`] lists the names; [`validation`] decides which combinations are
+/// allowed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Key(pub String);
 
@@ -95,6 +109,10 @@ pub enum ShortcutError {
 /// forwards the event into a channel.
 pub type ShortcutSink = Box<dyn FnMut(ShortcutEvent) + Send>;
 
+/// Receives every key the user presses or releases while the shortcut-capture UI is active, on
+/// the listener's thread (same constraints as [`ShortcutSink`]).
+pub type CaptureSink = Box<dyn FnMut(CapturedKey) + Send>;
+
 /// Reports presses and releases of the bound shortcuts from anywhere in Windows.
 ///
 /// # Contract
@@ -112,6 +130,10 @@ pub type ShortcutSink = Box<dyn FnMut(ShortcutEvent) + Send>;
 ///   by the consumer, so they are testable with the fake.
 /// - While a bound combination is held, its keystrokes are swallowed; all other keystrokes pass
 ///   through unchanged (rule 12). Unbound combinations are never swallowed.
+/// - [`capture`](ShortcutListener::capture) with a sink starts shortcut capture: while one of
+///   Echo's windows is in the foreground, every key goes to the capture sink instead of to
+///   applications or Windows (so Win and Alt combinations can be captured without opening the
+///   Start menu), and no shortcut is matched. `None` ends it.
 pub trait ShortcutListener: Send {
     /// Starts delivering events of bound shortcuts to `sink`.
     fn start(&mut self, sink: ShortcutSink) -> Result<(), ShortcutError>;
@@ -122,6 +144,15 @@ pub trait ShortcutListener: Send {
         shortcut: Shortcut,
         combination: Option<KeyCombination>,
     ) -> Result<(), ShortcutError>;
+
+    /// Starts (`Some`) or ends (`None`) shortcut capture.
+    fn capture(&mut self, sink: Option<CaptureSink>) -> Result<(), ShortcutError>;
+
+    /// A key pressed or released in Echo's own window, by capture name (`"LeftCtrl"`,
+    /// `"Space"`). Windows does not call a process's low-level hook while that process's own
+    /// window has focus, so Echo's window forwards its keys here; they are matched (and captured)
+    /// exactly like hook keystrokes, so the shortcuts and capture work while Echo is in front.
+    fn own_window_key(&mut self, key: &str, action: KeyAction);
 }
 
 #[cfg(test)]

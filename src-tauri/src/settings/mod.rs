@@ -15,6 +15,9 @@ pub use store::{LoadOutcome, SETTINGS_FORMAT_VERSION, SettingsError, SettingsSto
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::shortcut::modes::ShortcutMode;
+use crate::shortcut::validation::RecordShortcutCombination;
+
 /// Generates [`Settings`] and its all-optional twin [`SettingsPatch`] from one list of fields, so
 /// the two can never drift apart.
 macro_rules! settings_model {
@@ -57,6 +60,10 @@ settings_model! {
     onboarding_welcome_done: bool,
     /// The user pressed "Finish" in the onboarding; it is never shown again (rule 5).
     onboarding_completed: bool,
+    /// The key combination that starts and stops a Recording (`record-shortcut.md`).
+    record_shortcut: RecordShortcutCombination,
+    /// Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`).
+    shortcut_mode: ShortcutMode,
 }
 
 impl Settings {
@@ -67,6 +74,8 @@ impl Settings {
             ui_language: UiLanguage::for_locale(system_locale),
             onboarding_welcome_done: false,
             onboarding_completed: false,
+            record_shortcut: RecordShortcutCombination::default(),
+            shortcut_mode: ShortcutMode::default(),
         }
     }
 }
@@ -120,6 +129,17 @@ mod tests {
             Settings::defaults(Some("de-DE")).ui_language,
             UiLanguage::En
         );
+    }
+
+    // record-shortcut.md rules 5 and 18.
+    #[test]
+    fn the_record_shortcut_defaults_to_ctrl_space_in_push_to_talk_mode() {
+        let settings = Settings::defaults(None);
+        assert_eq!(
+            settings.record_shortcut.combination().to_string(),
+            "Ctrl+Space"
+        );
+        assert_eq!(settings.shortcut_mode, ShortcutMode::PushToTalk);
     }
 
     #[test]

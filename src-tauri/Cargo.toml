@@ -48,6 +48,16 @@ vulkan = ["transcribe-cpp/vulkan"]
 [dev-dependencies]
 tempfile = "3"
 
+[target.'cfg(windows)'.dependencies]
+# The keyboard hook (ADR 0002); 0.62 is the version Tauri already pulls in.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
 [profile.dev.package."*"]
 # Audio resampling is unbearably slow unoptimised, even in tests.
 opt-level = 2

@@ -23,6 +23,7 @@ beforeEach(async () => {
   microphone.access = "allowed";
   microphone.checks = 0;
   backend.settings = {
+    ...backend.settings,
     uiLanguage: "en",
     onboardingWelcomeDone: false,
     onboardingCompleted: false,

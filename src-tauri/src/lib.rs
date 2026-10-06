@@ -40,8 +40,16 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             settings::commands::reset_setting,
             system::open_log_folder,
             system::open_microphone_privacy_settings,
+            shortcut::app::set_record_shortcut,
+            shortcut::app::begin_shortcut_capture,
+            shortcut::app::end_shortcut_capture,
+            shortcut::app::own_window_key,
         ])
-        .events(collect_events![SettingsChanged])
+        .events(collect_events![
+            SettingsChanged,
+            shortcut::app::CapturedKeyEvent,
+            shortcut::app::RecordIntentEvent,
+        ])
 }
 
 /// The exporter used for `src/bindings.ts`.
@@ -67,6 +75,7 @@ pub fn run() {
 
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
+            shortcut::app::install(app.handle());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
             let autostart = window::launched_by_autostart(std::env::args());

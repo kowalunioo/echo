@@ -28,10 +28,30 @@ export const commands = {
 	 *  onboarding's Microphone access step).
 	 */
 	openMicrophonePrivacySettings: () => typedError<null, string>(__TAURI_INVOKE("open_microphone_privacy_settings")),
+	/**
+	 *  Validates and activates a new Record Shortcut given in canonical text form (`"Ctrl+Space"`),
+	 *  then saves it. On failure the previous one stays active and saved. Ends a capture in progress.
+	 *  Returns the new settings (every window also receives them as a `SettingsChanged` event).
+	 */
+	setRecordShortcut: (combination: string) => typedError<Settings, ShortcutChangeError>(__TAURI_INVOKE("set_record_shortcut", { combination })),
+	/**
+	 *  Starts shortcut capture: the Record Shortcut is suspended and keys arrive as
+	 *  [`CapturedKeyEvent`]s instead of reaching applications.
+	 */
+	beginShortcutCapture: () => typedError<null, string>(__TAURI_INVOKE("begin_shortcut_capture")),
+	/**  Ends shortcut capture without changes. */
+	endShortcutCapture: () => __TAURI_INVOKE<void>("end_shortcut_capture"),
+	/**
+	 *  A key pressed or released in Echo's own window, by capture name. Windows does not run Echo's
+	 *  keyboard hook while Echo's window has focus, so the window forwards its keys here.
+	 */
+	ownWindowKey: (key: string, pressed: boolean) => __TAURI_INVOKE<void>("own_window_key", { key, pressed }),
 };
 
 /** Events */
 export const events = {
+	capturedKeyEvent: makeEvent<CapturedKeyEvent>("captured-key-event"),
+	recordIntentEvent: makeEvent<RecordIntentEvent>("record-intent-event"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
@@ -43,6 +63,38 @@ export type AppInfo = {
 	/**  The Windows display language as a BCP 47 tag, if Windows reports one. */
 	systemLocale: string | null,
 };
+
+/**
+ *  A key pressed or released during shortcut capture, by its capture name (`"LeftCtrl"`,
+ *  `"RightAlt"`, `"Space"`, `"F9"`).
+ */
+export type CapturedKeyEvent = {
+	key: string,
+	pressed: boolean,
+};
+
+/**  What the Record Shortcut asks the dictation pipeline to do. */
+export type RecordIntent = 
+/**  Start a Recording (or, while busy, remember the request — `dictation-pipeline.md` 27–29). */
+"start" | 
+/**  Stop the Recording (or, while busy, forget the remembered request). */
+"stop";
+
+/**
+ *  TEMPORARY (remove with #13): every Record Shortcut intent, so the hook can be checked by hand
+ *  on the Dictation page until the dictation pipeline consumes the intents.
+ */
+export type RecordIntentEvent = {
+	intent: RecordIntent,
+};
+
+/**
+ *  The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,
+ *  e.g. `"Ctrl+Space"`. Deserializing accepts exactly the allowed combinations, so an invalid
+ *  stored value falls back to the default (`docs/settings.md`). The check against the current
+ *  Cancel Shortcut uses its default until the Cancel Shortcut becomes a setting (#15).
+ */
+export type RecordShortcutCombination = string;
 
 /**
  *  Every persisted setting, one top-level field per setting. Each field is salvaged on
@@ -59,6 +111,10 @@ export type Settings = {
 	onboardingWelcomeDone: boolean,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted: boolean,
+	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
+	recordShortcut: RecordShortcutCombination,
+	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
+	shortcutMode: ShortcutMode,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -76,7 +132,48 @@ export type SettingsPatch = {
 	onboardingWelcomeDone?: boolean | null,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted?: boolean | null,
+	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
+	recordShortcut?: RecordShortcutCombination | null,
+	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
+	shortcutMode?: ShortcutMode | null,
 };
+
+/**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */
+export type ShortcutChangeError = 
+/**  The combination is not allowed (rule 20). */
+{ kind: "notAllowed"; problem: ShortcutProblem } | 
+/**  The combination is allowed but could not be activated (or saved). */
+{ kind: "activationFailed"; reason: string };
+
+/**  How the Record Shortcut starts and stops a Recording. */
+export type ShortcutMode = 
+/**  Hold to record (the default, rule 5). */
+"pushToTalk" | 
+/**  Press to start, press again to stop. */
+"toggle";
+
+/**
+ *  Why a proposed combination cannot be the Record Shortcut (rule 20). The interface shows a
+ *  message for each.
+ */
+export type ShortcutProblem = 
+/**  No keys at all. */
+"empty" | 
+/**
+ *  A character key, Space or another typing key without a modifier: it would stop working
+ *  for typing.
+ */
+"needsModifier" | 
+/**  A single modifier other than right Alt or right Ctrl. */
+"singleModifier" | 
+/**  Escape alone is reserved as the default Cancel Shortcut. */
+"escapeReserved" | 
+/**  Windows handles this combination itself and never delivers it to applications. */
+"reservedByWindows" | 
+/**  The same combination as the Cancel Shortcut. */
+"sameAsCancel" | 
+/**  Not a combination Echo understands (unknown key name, two main keys, …). */
+"invalid";
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";
