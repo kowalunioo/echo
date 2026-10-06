@@ -12,9 +12,9 @@ use tauri::{AppHandle, Manager, State, WebviewWindow};
 use tauri_specta::Event;
 
 use super::controller::{OverlayController, OverlaySettings, OverlaySurface};
-use super::placement::{self, Monitor, Rect};
 #[cfg(windows)]
 use super::placement::pill_region;
+use super::placement::{self, Monitor, Rect};
 use super::{MessageAction, OverlayPosition, OverlayView};
 use crate::dictation::{Dictation, DictationStatus};
 use crate::settings::{Settings, SettingsStore};
@@ -281,11 +281,7 @@ impl WindowSurface {
 
     /// Where the window goes now: the monitor under the pointer (rule 13); and the factor its
     /// content is drawn at there (monitor scaling × "Text size").
-    fn placement(
-        &self,
-        window: &WebviewWindow,
-        position: OverlayPosition,
-    ) -> Option<(Rect, f64)> {
+    fn placement(&self, window: &WebviewWindow, position: OverlayPosition) -> Option<(Rect, f64)> {
         let pointer = window.cursor_position().ok()?;
         let monitors: Vec<Monitor> = window
             .available_monitors()
@@ -410,7 +406,11 @@ pub fn overlay_shape(overlay: State<'_, Overlay>, window: WebviewWindow, width: 
     if let (Ok(hwnd), Ok(scale), Ok(size)) =
         (window.hwnd(), window.scale_factor(), window.outer_size())
     {
-        let region = pill_region((width, height), scale * text_scale(), (size.width, size.height));
+        let region = pill_region(
+            (width, height),
+            scale * text_scale(),
+            (size.width, size.height),
+        );
         super::native::set_shape(hwnd, region);
     }
     #[cfg(not(windows))]

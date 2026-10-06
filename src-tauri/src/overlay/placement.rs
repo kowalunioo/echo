@@ -116,7 +116,10 @@ mod tests {
         let (width, height) = (pill.0 * factor, pill.1 * factor);
         let centre = f64::from(window.width) / 2.0;
         assert!(f64::from(region.left) <= centre - width / 2.0, "{region:?}");
-        assert!(f64::from(region.right) >= centre + width / 2.0, "{region:?}");
+        assert!(
+            f64::from(region.right) >= centre + width / 2.0,
+            "{region:?}"
+        );
         assert!(region.right <= window.width as i32 + 1, "{region:?}");
         assert!(f64::from(region.bottom - region.top) >= height.min(f64::from(window.height)));
     }

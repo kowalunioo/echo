@@ -142,6 +142,7 @@ describe("Overlay", () => {
     // The stale answer (from before the change) arrives late and must not win.
     await act(async () => {
       answer({ kind: "hidden" });
+      await Promise.resolve();
     });
     expect(pill()).toHaveAttribute("data-visible", "true");
     expect(fetched).toHaveBeenCalledOnce();
