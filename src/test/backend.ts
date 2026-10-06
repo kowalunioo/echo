@@ -1,4 +1,11 @@
-import type { AppInfo, Settings, SettingsPatch } from "../bindings";
+import type {
+  AppInfo,
+  ModelEntry,
+  ModelId,
+  ModelsState,
+  Settings,
+  SettingsPatch,
+} from "../bindings";
 
 /**
  * An in-memory stand-in for the Rust side, used by every frontend test through the Tauri API
@@ -9,9 +16,42 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: "en",
   onboardingWelcomeDone: true,
   onboardingCompleted: true,
+  activeModel: null,
+  unloadModelAfter: "never",
   recordShortcut: "Ctrl+Space",
   shortcutMode: "pushToTalk",
 };
+
+/** The three Models as the backend lists them, none downloaded. */
+export function freshModels(): ModelsState {
+  const entry = (
+    id: ModelId,
+    name: string,
+    sizeBytes: number,
+    languages: number,
+    recommended: boolean,
+  ): ModelEntry => ({
+    id,
+    name,
+    sizeBytes,
+    languages,
+    recommended,
+    downloaded: false,
+    download: { state: "idle" },
+  });
+  return {
+    models: [
+      entry("whisperLargeV3Turbo", "Whisper large-v3-turbo", 886_381_760, 100, true),
+      entry("parakeetTdt06bV3", "Parakeet TDT 0.6B v3", 739_508_576, 25, false),
+      entry("whisperSmall", "Whisper small", 269_751_136, 99, false),
+    ],
+    active: null,
+    activeState: "none",
+    activating: null,
+    loadFailure: null,
+    dictationInProgress: false,
+  };
+}
 
 type Handler = (args: Record<string, unknown>) => unknown;
 type EventCallback = (event: { event: string; id: number; payload: unknown }) => void;
@@ -19,6 +59,7 @@ type EventCallback = (event: { event: string; id: number; payload: unknown }) =>
 export class FakeBackend {
   settings: Settings = { ...DEFAULT_SETTINGS };
   appInfo: AppInfo = { version: "0.1.0", systemLocale: "en-US" };
+  models: ModelsState = freshModels();
   /** Every command invoked, in order, with its arguments. */
   calls: { command: string; args: Record<string, unknown> }[] = [];
   /** Commands that never answer (to test loading states). */
@@ -45,6 +86,11 @@ export class FakeBackend {
     },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
+    get_models: () => this.models,
+    download_model: () => null,
+    cancel_model_download: () => null,
+    activate_model: () => null,
+    delete_model: () => null,
     // Record Shortcut: accepts any proposal unless the test lists it in `rejectedShortcuts`.
     set_record_shortcut: (args) => {
       const combination = args.combination as string;
@@ -60,6 +106,19 @@ export class FakeBackend {
 
   /** Record Shortcut proposals `set_record_shortcut` rejects, with the error it rejects with. */
   rejectedShortcuts = new Map<string, unknown>();
+
+  /** Changes one Model as the backend would and tells every listener. */
+  changeModel(id: ModelId, patch: Partial<ModelEntry>) {
+    this.changeModels({
+      models: this.models.models.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    });
+  }
+
+  /** Changes the Models state as the backend would and tells every listener. */
+  changeModels(patch: Partial<ModelsState>) {
+    this.models = { ...this.models, ...patch };
+    this.emit("models-changed", this.models);
+  }
 
   /** Changes settings as the backend would (e.g. from the tray) and tells every listener. */
   changeSettings(patch: Partial<Settings>) {

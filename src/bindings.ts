@@ -28,6 +28,19 @@ export const commands = {
 	 *  onboarding's Microphone access step).
 	 */
 	openMicrophonePrivacySettings: () => typedError<null, string>(__TAURI_INVOKE("open_microphone_privacy_settings")),
+	/**  Returns the Models and their state. */
+	getModels: () => __TAURI_INVOKE<ModelsState>("get_models"),
+	/**  Starts downloading a Model, or queues it behind the running download. */
+	downloadModel: (model: ModelId) => __TAURI_INVOKE<void>("download_model", { model }),
+	/**  Cancels a running or queued download; the partial file is kept for "Resume". */
+	cancelModelDownload: (model: ModelId) => __TAURI_INVOKE<void>("cancel_model_download", { model }),
+	/**
+	 *  Makes a downloaded Model active. Returns once loading has started; the result arrives as a
+	 *  `ModelsChanged` event (active, or a `loadFailure`).
+	 */
+	activateModel: (model: ModelId) => typedError<null, string>(__TAURI_INVOKE("activate_model", { model })),
+	/**  Deletes a downloaded Model or a paused download. */
+	deleteModel: (model: ModelId) => typedError<null, string>(__TAURI_INVOKE("delete_model", { model })),
 	/**
 	 *  Validates and activates a new Record Shortcut given in canonical text form (`"Ctrl+Space"`),
 	 *  then saves it. On failure the previous one stays active and saved. Ends a capture in progress.
@@ -51,11 +64,21 @@ export const commands = {
 /** Events */
 export const events = {
 	capturedKeyEvent: makeEvent<CapturedKeyEvent>("captured-key-event"),
+	modelProblemOccurred: makeEvent<ModelProblemOccurred>("model-problem-occurred"),
+	modelsChanged: makeEvent<ModelsChanged>("models-changed"),
 	recordIntentEvent: makeEvent<RecordIntentEvent>("record-intent-event"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
 /* Types */
+export type ActiveModelState = 
+/**  No Model is active. */
+"none" | "loading" | "ready" | 
+/**  Unloaded after inactivity; loads on the next Dictation (rule 24b). */
+"unloaded" | 
+/**  The active Model could not be loaded (e.g. at start); the next Dictation tries again. */
+"error";
+
 /**  Facts about the running app that the interface needs at start-up. */
 export type AppInfo = {
 	/**  Echo's version, e.g. `0.1.0`. */
@@ -71,6 +94,108 @@ export type AppInfo = {
 export type CapturedKeyEvent = {
 	key: string,
 	pressed: boolean,
+};
+
+/**  Why a download failed, for a plain-language message in the UI. */
+export type DownloadFailure = {
+	kind: FailureKind,
+	/**  Technical detail (in English) shown under the message. */
+	detail: string,
+	/**  For [`FailureKind::DiskSpace`]: the free space needed, in bytes. */
+	neededBytes: number | null,
+};
+
+/**
+ *  Where a Model's download stands. `Idle` covers both "not downloaded" and "downloaded";
+ *  [`ModelEntry::downloaded`] tells them apart.
+ */
+export type DownloadState = { state: "idle" } | 
+/**  Waiting for another download to finish (rule 7). */
+{ state: "queued" } | { state: "downloading"; downloaded: number; total: number; bytesPerSecond: number } | 
+/**  "Verifying…" (rule 13). */
+{ state: "verifying" } | 
+/**  "Paused — X% downloaded", with Resume and Delete (rule 14). */
+{ state: "paused"; downloaded: number; total: number } | 
+/**
+ *  A failed download with its reason and "Retry" (rule 16). `downloaded` is what the partial
+ *  file kept for the retry.
+ */
+{ state: "failed"; failure: DownloadFailure; downloaded: number; total: number };
+
+export type FailureKind = "network" | "stalled" | "badRange" | "sizeMismatch" | 
+/**  "Download was corrupted — please try again" (rule 12). */
+"corrupted" | "storage" | "diskSpace";
+
+export type LoadFailure = {
+	model: ModelId,
+	reason: string,
+};
+
+/**
+ *  One Model as shown on its card. Byte counts are `u32`: every 0.1.0 Model is under 4 GiB, and
+ *  TypeScript numbers carry them exactly.
+ */
+export type ModelEntry = {
+	id: ModelId,
+	name: string,
+	sizeBytes: number,
+	languages: number,
+	recommended: boolean,
+	/**  The verified file is present (rule 5). */
+	downloaded: boolean,
+	download: DownloadState,
+};
+
+/**
+ *  One of the Models Echo offers. The order of [`ModelId::ALL`] is the list order used in the UI
+ *  and for every "first downloaded Model in list order" fallback (rules 23 and 26).
+ */
+export type ModelId = "whisperLargeV3Turbo" | "parakeetTdt06bV3" | "whisperSmall";
+
+/**
+ *  A download or load failure, for the error indication of `dictation-pipeline.md` rules
+ *  39a–39d (Overlay message, red tray icon, window notice).
+ */
+export type ModelProblem = {
+	kind: ModelProblemKind,
+	model: ModelId,
+	/**  The Model's name, for the tray tooltip. */
+	modelName: string,
+	/**  Technical detail in English. */
+	detail: string,
+};
+
+export type ModelProblemKind = "download" | "load";
+
+/**
+ *  Sent when a Model download or load fails (the error indication, `dictation-pipeline.md`
+ *  rules 39a–39d).
+ */
+export type ModelProblemOccurred = ModelProblem;
+
+/**
+ *  Sent to every window after any change to the Models: downloads and their progress, the
+ *  active Model and its state.
+ */
+export type ModelsChanged = ModelsState;
+
+/**  Everything the Models page, the Model indicator and the onboarding show. */
+export type ModelsState = {
+	/**  The three Models in list order. */
+	models: ModelEntry[],
+	/**  The active Model, if any (rule 17). */
+	active: ModelId | null,
+	/**  Whether the active Model is in memory. */
+	activeState: ActiveModelState,
+	/**  The Model being loaded to become active ("Loading <Model>…", rule 18). */
+	activating: ModelId | null,
+	/**  The latest failed load ("Couldn't load <Model>", rule 19), until the next successful one. */
+	loadFailure: LoadFailure | null,
+	/**
+	 *  A Dictation is Recording or Transcribing: switching and deleting are disabled
+	 *  (rules 20, 27).
+	 */
+	dictationInProgress: boolean,
 };
 
 /**  What the Record Shortcut asks the dictation pipeline to do. */
@@ -111,6 +236,17 @@ export type Settings = {
 	onboardingWelcomeDone: boolean,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted: boolean,
+	/**
+	 *  The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
+	 *  change it with the `activate_model` command, which loads the Model first and keeps the
+	 *  previous one if loading fails — never through `update_settings`.
+	 */
+	activeModel: ModelId | null,
+	/**
+	 *  Unload the active Model from memory after this much time without a Dictation
+	 *  (`models.md` rule 24a).
+	 */
+	unloadModelAfter: UnloadModelAfter,
 	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
 	recordShortcut: RecordShortcutCombination,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
@@ -132,6 +268,17 @@ export type SettingsPatch = {
 	onboardingWelcomeDone?: boolean | null,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted?: boolean | null,
+	/**
+	 *  The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
+	 *  change it with the `activate_model` command, which loads the Model first and keeps the
+	 *  previous one if loading fails — never through `update_settings`.
+	 */
+	activeModel?: ModelId | null,
+	/**
+	 *  Unload the active Model from memory after this much time without a Dictation
+	 *  (`models.md` rule 24a).
+	 */
+	unloadModelAfter?: UnloadModelAfter | null,
 	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
 	recordShortcut?: RecordShortcutCombination | null,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
@@ -177,6 +324,9 @@ export type ShortcutProblem =
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";
+
+/**  The "Unload Model after inactivity" choices (`models.md` "Settings"). */
+export type UnloadModelAfter = "never" | "minutes2" | "minutes5" | "minutes10" | "minutes15" | "minutes60";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

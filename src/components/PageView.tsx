@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Page } from "../store/shell";
+import { NoModelPanel } from "../models/ModelIndicator";
+import { ModelsSection } from "../models/ModelsSection";
 import { AppSettings } from "./AppSettings";
 import { RecordShortcutSettings } from "./RecordShortcutSettings";
 
@@ -16,6 +18,9 @@ export function PageView({ page }: { page: Page }) {
         <p className="text-muted">{t(`pages.${page}.description`)}</p>
       </header>
 
+      <NoModelPanel onModelsPage={page === "model"} />
+
+      {page === "model" && <ModelsSection />}
       {page === "dictation" && <RecordShortcutSettings />}
       {page === "app" && <AppSettings />}
 

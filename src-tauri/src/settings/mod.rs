@@ -12,9 +12,12 @@ mod store;
 pub use commands::SettingsChanged;
 pub use store::{LoadOutcome, SETTINGS_FORMAT_VERSION, SettingsError, SettingsStore};
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::models::ModelId;
 use crate::shortcut::modes::ShortcutMode;
 use crate::shortcut::validation::RecordShortcutCombination;
 
@@ -60,6 +63,13 @@ settings_model! {
     onboarding_welcome_done: bool,
     /// The user pressed "Finish" in the onboarding; it is never shown again (rule 5).
     onboarding_completed: bool,
+    /// The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
+    /// change it with the `activate_model` command, which loads the Model first and keeps the
+    /// previous one if loading fails — never through `update_settings`.
+    active_model: Option<ModelId>,
+    /// Unload the active Model from memory after this much time without a Dictation
+    /// (`models.md` rule 24a).
+    unload_model_after: UnloadModelAfter,
     /// The key combination that starts and stops a Recording (`record-shortcut.md`).
     record_shortcut: RecordShortcutCombination,
     /// Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`).
@@ -74,9 +84,38 @@ impl Settings {
             ui_language: UiLanguage::for_locale(system_locale),
             onboarding_welcome_done: false,
             onboarding_completed: false,
+            active_model: None,
+            unload_model_after: UnloadModelAfter::Never,
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
         }
+    }
+}
+
+/// The "Unload Model after inactivity" choices (`models.md` "Settings").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum UnloadModelAfter {
+    Never,
+    Minutes2,
+    Minutes5,
+    Minutes10,
+    Minutes15,
+    Minutes60,
+}
+
+impl UnloadModelAfter {
+    /// How long the Model may sit unused, or `None` for Never.
+    pub fn duration(self) -> Option<Duration> {
+        let minutes = match self {
+            Self::Never => return None,
+            Self::Minutes2 => 2,
+            Self::Minutes5 => 5,
+            Self::Minutes10 => 10,
+            Self::Minutes15 => 15,
+            Self::Minutes60 => 60,
+        };
+        Some(Duration::from_secs(minutes * 60))
     }
 }
 
@@ -147,5 +186,22 @@ mod tests {
         let settings = Settings::defaults(None);
         assert!(!settings.onboarding_welcome_done);
         assert!(!settings.onboarding_completed);
+    }
+
+    // models.md acceptance test 21, and "none until first download".
+    #[test]
+    fn fresh_settings_have_no_active_model_and_never_unload() {
+        let settings = Settings::defaults(None);
+        assert_eq!(settings.active_model, None);
+        assert_eq!(settings.unload_model_after, UnloadModelAfter::Never);
+        assert_eq!(UnloadModelAfter::Never.duration(), None);
+        assert_eq!(
+            UnloadModelAfter::Minutes5.duration(),
+            Some(Duration::from_secs(300))
+        );
+        assert_eq!(
+            UnloadModelAfter::Minutes60.duration(),
+            Some(Duration::from_secs(3600))
+        );
     }
 }
