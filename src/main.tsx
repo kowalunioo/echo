@@ -1,8 +1,10 @@
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import { App } from "./App";
 import { initI18n, uiLanguageForLocale } from "./i18n";
+import { OverlayApp } from "./overlay/OverlayApp";
 import { useSettings } from "./store/settings";
 import "./styles.css";
 
@@ -14,8 +16,8 @@ initI18n(useSettings.getState().settings?.uiLanguage ?? uiLanguageForLocale(navi
 const root = document.getElementById("root");
 if (!root) throw new Error("#root is missing from index.html");
 
-createRoot(root).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+// One page serves both the main window and the Overlay window (overlay.md).
+const overlay = getCurrentWindow().label === "overlay";
+if (overlay) document.documentElement.classList.add("overlay-window");
+
+createRoot(root).render(<StrictMode>{overlay ? <OverlayApp /> : <App />}</StrictMode>);

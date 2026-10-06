@@ -103,3 +103,39 @@
     outline-offset: 2px;
   }
 }
+
+/*
+ * The Overlay window (overlay.md): transparent around the pill. The pill fades and slides in
+ * (~180 ms), fades out (300 ms) and animates its width between states; with Windows "Show
+ * animations" off (prefers-reduced-motion) it only fades.
+ */
+.overlay-window,
+.overlay-window body {
+  background: transparent;
+}
+
+.overlay-pill {
+  transition:
+    opacity 180ms ease-out,
+    translate 180ms ease-out,
+    width 200ms ease-in-out;
+}
+
+.overlay-pill[data-visible="false"] {
+  opacity: 0;
+  translate: 0 6px;
+  transition-duration: 300ms, 300ms, 200ms;
+}
+
+.overlay-pill[data-visible="false"][data-position="top"] {
+  translate: 0 -6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .overlay-pill,
+  .overlay-pill[data-visible="false"],
+  .overlay-pill[data-visible="false"][data-position="top"] {
+    translate: none;
+    transition-property: opacity;
+  }
+}

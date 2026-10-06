@@ -112,6 +112,17 @@ export const commands = {
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
 	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
+	/**  What the Overlay shows now, for its window when it loads. */
+	getOverlayView: () => __TAURI_INVOKE<OverlayView>("get_overlay_view"),
+	/**  The Overlay's cancel button: the same Cancellation as the Cancel Shortcut (rule 10). */
+	overlayCancel: () => __TAURI_INVOKE<void>("overlay_cancel"),
+	/**  The user clicked the Overlay's message (rule 5). */
+	overlayMessageClicked: () => __TAURI_INVOKE<void>("overlay_message_clicked"),
+	/**
+	 *  The pill's size in CSS pixels changed: only the pill takes clicks; beside it they go to the
+	 *  windows beneath (rule 11).
+	 */
+	overlayShape: (width: number | null, height: number | null) => __TAURI_INVOKE<void>("overlay_shape", { width, height }),
 };
 
 /** Events */
@@ -119,8 +130,11 @@ export const events = {
 	capturedKeyEvent: makeEvent<CapturedKeyEvent>("captured-key-event"),
 	dictationStatusChanged: makeEvent<DictationStatusChanged>("dictation-status-changed"),
 	historyChanged: makeEvent<HistoryChanged>("history-changed"),
+	mainPageRequested: makeEvent<MainPageRequested>("main-page-requested"),
 	modelProblemOccurred: makeEvent<ModelProblemOccurred>("model-problem-occurred"),
 	modelsChanged: makeEvent<ModelsChanged>("models-changed"),
+	overlayFrame: makeEvent<OverlayFrame>("overlay-frame"),
+	overlayViewChanged: makeEvent<OverlayViewChanged>("overlay-view-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
@@ -277,6 +291,12 @@ export type LoadFailure = {
 	reason: string,
 };
 
+/**  The main-window sections, for requests to show one. */
+export type MainPage = "dictation" | "model" | "vocabulary" | "history" | "app";
+
+/**  Asks the main window to switch to a page (e.g. Models, after a "No Model" message is clicked). */
+export type MainPageRequested = MainPage;
+
 /**  Whether Windows privacy settings let desktop apps use the Microphone (rule 7). */
 export type MicrophoneAccess = "allowed" | "denied";
 
@@ -359,6 +379,47 @@ export type ModelsState = {
 	dictationInProgress: boolean,
 };
 
+/**  One level-meter and timer frame while recording. */
+export type OverlayFrame = {
+	/**  The loudest input since the last frame, `0..=1` on a decibel scale. */
+	level: number | null,
+	/**  Time since the Recording was requested. */
+	elapsedMs: number,
+};
+
+/**  A message the Overlay shows. */
+export type OverlayMessage = 
+/**  A Dictation error (`dictation-pipeline.md` rule 39a). */
+{ kind: "problem"; problem: ProblemKind } | 
+/**  "Selected microphone not found — using the default microphone" (`microphone.md` rule 5). */
+{ kind: "microphoneFallback" };
+
+/**  Where on the monitor the Overlay sits (the "Overlay position" setting). */
+export type OverlayPosition = 
+/**  12 logical pixels above the bottom of the work area, clear of the taskbar (rule 14). */
+"bottom" | 
+/**  Just below the top of the work area. */
+"top";
+
+/**  What the Overlay shows (rules 1–5). The frontend draws it; the backend decides it. */
+export type OverlayView = 
+/**  Nothing: the window fades out and hides (rules 1 and 6). */
+{ kind: "hidden" } | 
+/**  A Recording was requested but no audio has arrived yet (rule 2). */
+{ kind: "gettingReady" } | 
+/**  Recording with audio flowing: level meter, timer and cancel button (rule 3). */
+{ kind: "listening" } | 
+/**
+ *  From the end of the Recording until Insertion completes (rule 4). The cancel button shows
+ *  only while Transcribing, not once Inserting starts.
+ */
+{ kind: "transcribing"; cancellable: boolean } | 
+/**  One short line of text for 2.5 s (rule 5). `actionable`: clicking it does something. */
+{ kind: "message"; message: OverlayMessage; actionable: boolean };
+
+/**  What the Overlay shows changed. */
+export type OverlayViewChanged = OverlayView;
+
 /**  What went wrong (rule 39a). The UI translates the kind; `detail` is technical English. */
 export type ProblemKind = 
 /**  No Model is active, so the Recording did not start (rule 5). */
@@ -427,6 +488,13 @@ export type Settings = {
 	shortcutMode: ShortcutMode,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows: boolean,
+	/**
+	 *  Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
+	 *  rule 17).
+	 */
+	showOverlay: boolean,
+	/**  Where the Overlay sits on the monitor (`overlay.md` rule 14). */
+	overlayPosition: OverlayPosition,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -465,6 +533,13 @@ export type SettingsPatch = {
 	shortcutMode?: ShortcutMode | null,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows?: boolean | null,
+	/**
+	 *  Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
+	 *  rule 17).
+	 */
+	showOverlay?: boolean | null,
+	/**  Where the Overlay sits on the monitor (`overlay.md` rule 14). */
+	overlayPosition?: OverlayPosition | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */

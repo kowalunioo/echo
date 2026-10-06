@@ -14,11 +14,12 @@ use super::{
     Dictation, DictationContext, DictationDeps, DictationModel, DictationModels, DictationStatus,
     ProblemKind, runtime::MAX_RECORDING,
 };
-use crate::audio::microphone::Microphones;
+use crate::audio::microphone::{MicrophoneNotice, Microphones};
 use crate::engine::{EngineError, TranscriptionRequest};
 use crate::history::History;
 use crate::insertion::SharedInserter;
 use crate::models::{DictationGuard, ModelManager, ModelProblemKind, NoActiveModel};
+use crate::overlay::app::Overlay;
 use crate::settings::SettingsStore;
 use crate::shortcut::record::RecordShortcutHandle;
 
@@ -34,10 +35,20 @@ pub fn install(app: &AppHandle) {
 
     let settings_app = app.clone();
     let microphones = app.state::<Microphones>();
+    let overlay = app.try_state::<Overlay>().map(|o| o.inner().clone());
+    let notice_overlay = overlay.clone();
     let source = microphones.source(
         move || settings_app.state::<SettingsStore>().get().microphone,
-        // The Overlay (#21) will show this; until then it is logged.
-        |notice| log::info!("microphone notice: {notice:?}"),
+        move |notice| {
+            log::info!("microphone notice: {notice:?}");
+            match notice {
+                MicrophoneNotice::SelectedNotFound { .. } => {
+                    if let Some(overlay) = &notice_overlay {
+                        overlay.microphone_fallback();
+                    }
+                }
+            }
+        },
     );
     let history_app = app.clone();
     let shortcut_app = app.clone();
@@ -62,6 +73,9 @@ pub fn install(app: &AppHandle) {
             }
         }),
         publish: Box::new(move |status| {
+            if let Some(overlay) = &overlay {
+                overlay.status(status);
+            }
             if let Err(error) = DictationStatusChanged(status.clone()).emit(&publish_app) {
                 log::warn!("could not send the dictation status to the windows: {error}");
             }
