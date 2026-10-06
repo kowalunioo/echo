@@ -12,18 +12,26 @@ pub mod audio;
 pub mod commands;
 pub mod data_dir;
 pub mod engine;
+pub mod history;
 pub mod insertion;
 pub mod logging;
+pub mod models;
 pub mod settings;
 pub mod shortcut;
 pub mod system;
 pub mod window;
+
+use std::sync::Arc;
 
 use specta_typescript::Typescript;
 use tauri::Manager;
 use tauri_specta::{Builder, Event, collect_commands, collect_events};
 
 use data_dir::DataDir;
+use history::{History, HistoryChanged, OpenOutcome};
+use insertion::SharedInserter;
+use models::commands::{AppModelSettings, ModelProblemOccurred, ModelsChanged};
+use models::{ModelManager, ModelStorage};
 use settings::{LoadOutcome, Settings, SettingsChanged, SettingsStore};
 use window::WindowTracker;
 
@@ -38,8 +46,20 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             settings::commands::get_settings,
             settings::commands::update_settings,
             settings::commands::reset_setting,
+            history::commands::list_history,
+            history::commands::delete_history_entry,
+            history::commands::restore_history_entry,
+            history::commands::clear_history,
+            history::commands::reinsert_history_entry,
             system::open_log_folder,
             system::open_microphone_privacy_settings,
+            audio::microphone::commands::list_microphones,
+            audio::microphone::commands::microphone_access,
+            models::commands::get_models,
+            models::commands::download_model,
+            models::commands::cancel_model_download,
+            models::commands::activate_model,
+            models::commands::delete_model,
             shortcut::app::set_record_shortcut,
             shortcut::app::begin_shortcut_capture,
             shortcut::app::end_shortcut_capture,
@@ -47,6 +67,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
         ])
         .events(collect_events![
             SettingsChanged,
+            ModelsChanged,
+            ModelProblemOccurred,
+            HistoryChanged,
             shortcut::app::CapturedKeyEvent,
             shortcut::app::RecordIntentEvent,
         ])
@@ -75,6 +98,11 @@ pub fn run() {
 
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
+            open_history(app.handle(), &data_dir);
+            // Empty until the real Inserter is registered (dictation pipeline).
+            app.manage(SharedInserter::new());
+            app.manage(audio::microphone::Microphones::system());
+            open_models(app.handle(), &data_dir);
             shortcut::app::install(app.handle());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
@@ -100,6 +128,7 @@ pub fn run() {
         .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 app.state::<WindowTracker>().save();
+                app.state::<ModelManager>().shutdown();
                 log::info!("Echo exiting");
             }
         });
@@ -130,6 +159,82 @@ fn open_settings(app: &tauri::AppHandle, data_dir: &DataDir) {
         }
     });
     app.manage(store);
+}
+
+/// Opens History, keeps its limit in step with the settings, and forwards every change to the
+/// frontend as a [`HistoryChanged`] event.
+fn open_history(app: &tauri::AppHandle, data_dir: &DataDir) {
+    let settings = app.state::<SettingsStore>();
+    let (history, outcome) =
+        History::open(&data_dir.history_file(), settings.get().history_limit.get());
+    match outcome {
+        OpenOutcome::Opened => log::info!("History opened"),
+        OpenOutcome::Replaced { renamed_to, error } => {
+            log::warn!("History database was unusable ({error}); moved to {renamed_to:?}")
+        }
+        OpenOutcome::InMemory { error } => {
+            log::error!("History database cannot be used ({error}); History is not saved this time")
+        }
+    }
+    let handle = app.clone();
+    history.subscribe(move |entries| {
+        if let Err(error) = HistoryChanged(entries.to_vec()).emit(&handle) {
+            log::warn!("could not send History to the windows: {error}");
+        }
+    });
+    let handle = app.clone();
+    settings.subscribe(move |old, new| {
+        if old.history_limit != new.history_limit {
+            let limit = new.history_limit.get();
+            if let Err(error) = handle.state::<History>().set_limit(limit) {
+                log::error!("could not apply the History limit: {error}");
+            }
+        }
+    });
+    app.manage(history);
+}
+
+/// Starts the Model manager: forwards its state and problems to the windows, follows the
+/// "Unload Model after inactivity" setting, and checks the inactivity timer every second.
+fn open_models(app: &tauri::AppHandle, data_dir: &DataDir) {
+    let manager = ModelManager::new(
+        ModelStorage::new(data_dir.models_dir()),
+        Arc::new(AppModelSettings(app.clone())),
+        Arc::new(models::TranscribeCppEngines),
+        Arc::new(models::SystemDiskSpace),
+        Arc::new(models::SystemClock::default()),
+        models::download::DownloadConfig::default(),
+    );
+    let handle = app.clone();
+    manager.subscribe(move |state| {
+        if let Err(error) = ModelsChanged(state.clone()).emit(&handle) {
+            log::warn!("could not send the Models to the windows: {error}");
+        }
+    });
+    let handle = app.clone();
+    manager.on_problem(move |problem| {
+        if let Err(error) = ModelProblemOccurred(problem.clone()).emit(&handle) {
+            log::warn!("could not report a Model problem to the windows: {error}");
+        }
+    });
+    let listener = manager.clone();
+    app.state::<SettingsStore>().subscribe(move |old, new| {
+        if old.unload_model_after != new.unload_model_after {
+            listener.unload_setting_changed();
+        }
+    });
+    let ticker = manager.clone();
+    std::thread::Builder::new()
+        .name("echo-model-idle".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+                ticker.tick();
+            }
+        })
+        .expect("the idle timer thread starts");
+    app.manage(manager.clone());
+    manager.start();
 }
 
 #[cfg(test)]

@@ -21,12 +21,12 @@ export const en = {
       title: "Dictation",
       description:
         "How you start, stop and cancel a Dictation, and which Microphone Echo listens to.",
-      upcoming: "Cancel Shortcut and Microphone selection.",
+      upcoming: "The Cancel Shortcut.",
     },
     model: {
       title: "Model & language",
       description: "The speech Model that turns your voice into text, and the language you speak.",
-      upcoming: "Downloading and choosing a Model, and the Dictation Language.",
+      upcoming: "The Dictation Language.",
     },
     vocabulary: {
       title: "Vocabulary",
@@ -70,6 +70,18 @@ export const en = {
       open: "Open log folder",
       failed: "The log folder could not be opened.",
     },
+    microphone: {
+      label: "Microphone",
+      description:
+        "The input device Echo listens to while you dictate. A change applies from the next Recording.",
+      defaultOption: "Default ({{name}})",
+      defaultUnknown: "Default",
+      notConnected: "{{name}} (not connected)",
+      loading: "Looking for microphones…",
+      listFailed: "The list of microphones could not be loaded.",
+      none: "No microphone found. Connect one to dictate.",
+      reset: "Use default",
+    },
   },
   onboarding: {
     progress: "Setup steps",
@@ -100,9 +112,7 @@ export const en = {
     model: {
       title: "Choose a Model",
       lead: "The Model turns your speech into text. It is downloaded once and stays on this computer.",
-      upcoming:
-        "The three Models with their sizes, Whisper large-v3-turbo recommended, and the download with its progress.",
-      continueWithout: "Continue without a Model",
+      choose: "Models",
     },
     tryIt: {
       title: "Try it",
@@ -115,8 +125,125 @@ export const en = {
       finish: "Finish",
     },
   },
+  history: {
+    limit: {
+      label: "History limit",
+      decrease: "Keep fewer Transcripts",
+      increase: "Keep more Transcripts",
+      keeps_zero: "Keeps nothing: new Transcripts are not saved",
+      keeps_one: "Keeps the last Transcript",
+      keeps_few: "Keeps the last {{count}} Transcripts",
+      keeps_many: "Keeps the last {{count}} Transcripts",
+      keeps_other: "Keeps the last {{count}} Transcripts",
+    },
+    list: "Transcripts",
+    empty: "No Transcripts yet. Press <kbd>{{shortcut}}</kbd> and speak.",
+    off: "History is off. Raise the limit to keep your Transcripts.",
+    loadFailed: "History could not be loaded.",
+    copy: "Copy",
+    reinsert: "Re-insert",
+    delete: "Delete",
+    showMore: "Show more",
+    showLess: "Show less",
+    copied: "Copied",
+    copyFailed: "Couldn't copy the text.",
+    deleted: "Transcript deleted",
+    undo: "Undo",
+    reinsertFailed: "Couldn't insert the text.",
+    clearAll: {
+      button: "Clear all",
+      title: "Delete all Transcripts?",
+      body: "Every Transcript in History will be deleted permanently. This can't be undone.",
+      confirm: "Delete all",
+      cancel: "Cancel",
+    },
+  },
+  models: {
+    listLabel: "Models",
+    recommended: "Recommended",
+    active: "Active",
+    languages: "{{count}} languages",
+    descriptions: {
+      whisperLargeV3Turbo: "Best accuracy; slower without a graphics card.",
+      parakeetTdt06bV3:
+        "Fast and accurate in 25 European languages; always detects the language itself.",
+      whisperSmall: "Small and fast; lower accuracy.",
+    },
+    languagesOf: {
+      whisperLargeV3Turbo: "100 languages",
+      parakeetTdt06bV3: "25 European languages",
+      whisperSmall: "99 languages",
+    },
+    size: "{{size}} MB",
+    actions: {
+      download: "Download ({{size}} MB)",
+      cancel: "Cancel",
+      resume: "Resume",
+      retry: "Retry",
+      use: "Use this Model",
+      delete: "Delete",
+    },
+    state: {
+      queued: "Waiting for the current download…",
+      downloading: "{{percent}}% · {{speed}} MB/s",
+      verifying: "Verifying…",
+      paused: "Paused — {{percent}}% downloaded",
+      loading: "Loading…",
+      downloaded: "Downloaded",
+    },
+    progress: "Download progress of {{model}}",
+    failure: {
+      network: "The download failed: Echo could not reach the server.",
+      stalled: "The download stopped: no data arrived for a minute.",
+      badRange:
+        "The server could not continue the download. Retry to download it from the beginning.",
+      sizeMismatch: "The server sent a file of the wrong size.",
+      corrupted: "Download was corrupted — please try again",
+      storage: "The Model file could not be saved on this computer.",
+      diskSpace: "Not enough disk space: {{needed}} MB of free space is needed.",
+    },
+    loadFailed: "Couldn't load {{model}}: {{reason}}",
+    busy: "You can switch or delete Models once the Dictation has ended.",
+    confirmDelete: {
+      title: "Delete {{model}}?",
+      body: "This frees {{size}} MB on this computer. You can download the Model again later.",
+      confirm: "Delete",
+      cancel: "Keep",
+    },
+    unload: {
+      label: "Unload Model after inactivity",
+      description:
+        "Frees memory when you haven't dictated for a while. The next Dictation then takes a few seconds longer to start.",
+      never: "Never",
+      minutes: "{{count}} minutes",
+    },
+    indicator: {
+      label: "Model",
+      none: "Download a Model to start",
+      ready: "Ready",
+      loading: "Loading…",
+      unloaded: "Unloaded (loads on next Dictation)",
+      error: "Couldn't load",
+      downloading: "Downloading {{percent}}%",
+      open: "Open Model settings",
+    },
+    start: {
+      title: "Download a Model to start",
+      body: "Echo needs a speech Model before you can dictate. It is downloaded once and stays on this computer.",
+      action: "Choose a Model",
+    },
+  },
   errors: {
     settingsUnavailable: "Echo could not load its settings. Please restart Echo.",
+  },
+  /** Microphone messages for the Overlay and error notices (microphone.md, dictation-pipeline.md rule 8). */
+  microphone: {
+    fallback: "Selected microphone not found — using the default microphone",
+    notFound: "No microphone found",
+    accessDenied: "Microphone access is blocked in Windows privacy settings",
+    disconnected: "Microphone disconnected — recording stopped",
+    failed: "The microphone could not be opened: {{detail}}",
+    openPrivacySettings: "Open Windows privacy settings",
   },
   recordShortcut: {
     label: "Record Shortcut",
@@ -176,7 +303,6 @@ export const en = {
   },
   status: {
     label: "Status",
-    noModel: "No Model yet",
   },
   languages: {
     pl: "Polski",

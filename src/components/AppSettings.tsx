@@ -45,7 +45,7 @@ export function AppSettings() {
   );
 }
 
-function Row({
+export function Row({
   label,
   description,
   children,

@@ -12,9 +12,13 @@ mod store;
 pub use commands::SettingsChanged;
 pub use store::{LoadOutcome, SETTINGS_FORMAT_VERSION, SettingsError, SettingsStore};
 
+use std::time::Duration;
+
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::audio::microphone::MicrophoneChoice;
+use crate::models::ModelId;
 use crate::shortcut::modes::ShortcutMode;
 use crate::shortcut::validation::RecordShortcutCombination;
 
@@ -60,6 +64,17 @@ settings_model! {
     onboarding_welcome_done: bool,
     /// The user pressed "Finish" in the onboarding; it is never shown again (rule 5).
     onboarding_completed: bool,
+    /// How many Transcripts History keeps (`history.md` rules 6–9).
+    history_limit: HistoryLimit,
+    /// The input device Recordings listen to (`microphone.md`).
+    microphone: MicrophoneChoice,
+    /// The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
+    /// change it with the `activate_model` command, which loads the Model first and keeps the
+    /// previous one if loading fails — never through `update_settings`.
+    active_model: Option<ModelId>,
+    /// Unload the active Model from memory after this much time without a Dictation
+    /// (`models.md` rule 24a).
+    unload_model_after: UnloadModelAfter,
     /// The key combination that starts and stops a Recording (`record-shortcut.md`).
     record_shortcut: RecordShortcutCombination,
     /// Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`).
@@ -74,9 +89,40 @@ impl Settings {
             ui_language: UiLanguage::for_locale(system_locale),
             onboarding_welcome_done: false,
             onboarding_completed: false,
+            history_limit: HistoryLimit::default(),
+            microphone: MicrophoneChoice::Default,
+            active_model: None,
+            unload_model_after: UnloadModelAfter::Never,
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
         }
+    }
+}
+
+/// The "Unload Model after inactivity" choices (`models.md` "Settings").
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub enum UnloadModelAfter {
+    Never,
+    Minutes2,
+    Minutes5,
+    Minutes10,
+    Minutes15,
+    Minutes60,
+}
+
+impl UnloadModelAfter {
+    /// How long the Model may sit unused, or `None` for Never.
+    pub fn duration(self) -> Option<Duration> {
+        let minutes = match self {
+            Self::Never => return None,
+            Self::Minutes2 => 2,
+            Self::Minutes5 => 5,
+            Self::Minutes10 => 10,
+            Self::Minutes15 => 15,
+            Self::Minutes60 => 60,
+        };
+        Some(Duration::from_secs(minutes * 60))
     }
 }
 
@@ -100,6 +146,48 @@ impl UiLanguage {
         } else {
             Self::En
         }
+    }
+}
+
+/// How many entries History keeps: an integer 0–100, default 5; 0 keeps nothing (`history.md`
+/// rules 6–9). Deserialising rejects anything outside the range, so invalid stored values are
+/// salvaged to the default and invalid patches are refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(try_from = "u32", into = "u32")]
+#[specta(transparent)]
+pub struct HistoryLimit(u8);
+
+impl HistoryLimit {
+    pub const MAX: u8 = 100;
+    pub const DEFAULT: u8 = 5;
+
+    /// The number of entries to keep.
+    pub fn get(self) -> u32 {
+        u32::from(self.0)
+    }
+}
+
+impl Default for HistoryLimit {
+    fn default() -> Self {
+        Self(Self::DEFAULT)
+    }
+}
+
+impl TryFrom<u32> for HistoryLimit {
+    type Error = String;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        u8::try_from(value)
+            .ok()
+            .filter(|v| *v <= Self::MAX)
+            .map(Self)
+            .ok_or_else(|| format!("History limit must be 0–{}, got {value}", Self::MAX))
+    }
+}
+
+impl From<HistoryLimit> for u32 {
+    fn from(limit: HistoryLimit) -> Self {
+        limit.get()
     }
 }
 
@@ -131,6 +219,21 @@ mod tests {
         );
     }
 
+    // history.md acceptance test 7.
+    #[test]
+    fn the_history_limit_accepts_0_to_100_only() {
+        let parse = |v: serde_json::Value| serde_json::from_value::<HistoryLimit>(v);
+        assert_eq!(parse(serde_json::json!(0)).unwrap().get(), 0);
+        assert_eq!(parse(serde_json::json!(100)).unwrap().get(), 100);
+        assert!(parse(serde_json::json!(-1)).is_err());
+        assert!(parse(serde_json::json!(101)).is_err());
+        assert!(parse(serde_json::json!(2.5)).is_err());
+        assert_eq!(Settings::defaults(None).history_limit.get(), 5);
+        let patch =
+            serde_json::from_value::<SettingsPatch>(serde_json::json!({"historyLimit": 101}));
+        assert!(patch.is_err());
+    }
+
     // record-shortcut.md rules 5 and 18.
     #[test]
     fn the_record_shortcut_defaults_to_ctrl_space_in_push_to_talk_mode() {
@@ -147,5 +250,22 @@ mod tests {
         let settings = Settings::defaults(None);
         assert!(!settings.onboarding_welcome_done);
         assert!(!settings.onboarding_completed);
+    }
+
+    // models.md acceptance test 21, and "none until first download".
+    #[test]
+    fn fresh_settings_have_no_active_model_and_never_unload() {
+        let settings = Settings::defaults(None);
+        assert_eq!(settings.active_model, None);
+        assert_eq!(settings.unload_model_after, UnloadModelAfter::Never);
+        assert_eq!(UnloadModelAfter::Never.duration(), None);
+        assert_eq!(
+            UnloadModelAfter::Minutes5.duration(),
+            Some(Duration::from_secs(300))
+        );
+        assert_eq!(
+            UnloadModelAfter::Minutes60.duration(),
+            Some(Duration::from_secs(3600))
+        );
     }
 }

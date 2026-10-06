@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { changeUiLanguage } from "../i18n";
-import { backend } from "../test/backend";
+import { DEFAULT_SETTINGS, backend } from "../test/backend";
 import type { MicrophoneAccess } from "./steps";
 
 const microphone = vi.hoisted(() => {
@@ -23,10 +23,11 @@ beforeEach(async () => {
   microphone.access = "allowed";
   microphone.checks = 0;
   backend.settings = {
-    ...backend.settings,
+    ...DEFAULT_SETTINGS,
     uiLanguage: "en",
     onboardingWelcomeDone: false,
     onboardingCompleted: false,
+    microphone: { kind: "default" },
   };
   await changeUiLanguage("en");
 });
@@ -120,11 +121,60 @@ describe("onboarding", () => {
     expect(await screen.findByRole("heading", { level: 1, name: "Choose a Model" })).toBeVisible();
   });
 
-  it("shows the Record Shortcut on Try it and finishes into the main settings", async () => {
+  // Acceptance test 3: Download on the recommended Model; once it is active, "Try it" follows.
+  it("downloads the recommended Model and continues to Try it once it is active", async () => {
     backend.settings.onboardingWelcomeDone = true;
     render(<App />);
-    // PLACEHOLDER link until the Models slice makes a Model active.
-    await userEvent.click(await screen.findByRole("button", { name: "Continue without a Model" }));
+
+    const recommended = await screen.findByRole("radio", { name: /Whisper large-v3-turbo/ });
+    expect(recommended).toBeChecked();
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    await userEvent.click(screen.getByRole("button", { name: "Download (845 MB)" }));
+    expect(backend.commandsCalled("download_model")).toEqual([
+      { command: "download_model", args: { model: "whisperLargeV3Turbo" } },
+    ]);
+
+    act(() => {
+      backend.changeModel("whisperLargeV3Turbo", {
+        download: {
+          state: "downloading",
+          downloaded: 443_190_880,
+          total: 886_381_760,
+          bytesPerSecond: 12_582_912,
+        },
+      });
+    });
+    expect(await screen.findByText("50% · 12.0 MB/s")).toBeVisible();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(backend.commandsCalled("cancel_model_download")).toHaveLength(1);
+
+    act(() => {
+      backend.changeModel("whisperLargeV3Turbo", { downloaded: true, download: { state: "idle" } });
+      backend.changeModels({ active: "whisperLargeV3Turbo", activeState: "ready" });
+    });
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Try it" })).toBeVisible();
+  });
+
+  it("offers Use this Model for a Model downloaded earlier", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    backend.changeModel("whisperSmall", { downloaded: true });
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("radio", { name: /Whisper small/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Use this Model" }));
+
+    expect(backend.commandsCalled("activate_model")).toEqual([
+      { command: "activate_model", args: { model: "whisperSmall" } },
+    ]);
+    expect(screen.queryByRole("button", { name: /Continue without/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the Record Shortcut on Try it and finishes into the main settings", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    backend.models.active = "whisperSmall";
+    render(<App />);
 
     expect(await screen.findByRole("heading", { level: 1, name: "Try it" })).toBeVisible();
     expect(screen.getByText("Ctrl+Space").closest("p")).toHaveTextContent(

@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 
+import { ModelIndicator } from "../models/ModelIndicator";
 import { PAGES, useShell } from "../store/shell";
 import { EchoMark, PageIcon } from "./icons";
 
@@ -56,11 +57,8 @@ export function Sidebar() {
 function StatusArea() {
   const { t } = useTranslation();
   return (
-    <section aria-label={t("status.label")} className="mt-auto px-3">
-      <p className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-xs text-muted">
-        <span className="size-2 rounded-full bg-muted/50" aria-hidden="true" />
-        {t("status.noModel")}
-      </p>
+    <section aria-label={t("status.label")} className="mt-auto px-1">
+      <ModelIndicator />
     </section>
   );
 }

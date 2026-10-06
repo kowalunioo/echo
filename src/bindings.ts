@@ -18,6 +18,36 @@ export const commands = {
 	updateSettings: (patch: SettingsPatch) => typedError<Settings, string>(__TAURI_INVOKE("update_settings", { patch })),
 	/**  Puts the setting `key` (e.g. `"uiLanguage"`) back to its default. */
 	resetSetting: (key: string) => typedError<Settings, string>(__TAURI_INVOKE("reset_setting", { key })),
+	/**  Every History entry, newest first. */
+	listHistory: () => typedError<HistoryEntry[], string>(__TAURI_INVOKE("list_history")),
+	/**
+	 *  Permanently deletes one entry and returns it (or `null` if it was already gone), so the
+	 *  window can offer Undo for 5 s (rule 12).
+	 */
+	deleteHistoryEntry: (id: number) => typedError<{
+	/**  Unique and never reused, even after the entry is deleted. */
+	id: number,
+	/**
+	 *  When the entry was created, in milliseconds since the Unix epoch (UTC). Shown in local
+	 *  time.
+	 */
+	createdAt: number,
+	/**  The Transcript exactly as inserted. */
+	text: string,
+	/**  The id of the Model that produced it (`models.md`). */
+	model: string,
+	/**  The effective Dictation Language. */
+	language: EntryLanguage,
+} | null, string>(__TAURI_INVOKE("delete_history_entry", { id })),
+	/**  Puts back an entry returned by `delete_history_entry`, with its original id and time (Undo). */
+	restoreHistoryEntry: (entry: HistoryEntry) => typedError<null, string>(__TAURI_INVOKE("restore_history_entry", { entry })),
+	/**  Deletes every entry; the window asks for confirmation first (rule 14). */
+	clearHistory: () => typedError<null, string>(__TAURI_INVOKE("clear_history")),
+	/**
+	 *  Hides Echo's window and inserts the entry's text into the application that had focus before
+	 *  (rule 13). If Insertion fails, the window comes back so the user sees the error.
+	 */
+	reinsertHistoryEntry: (id: number) => typedError<null, string>(__TAURI_INVOKE("reinsert_history_entry", { id })),
 	/**
 	 *  Opens the folder with Echo's log files in File Explorer (the "Open log folder" link in the
 	 *  App section, `settings-and-first-run.md` "UI").
@@ -28,6 +58,29 @@ export const commands = {
 	 *  onboarding's Microphone access step).
 	 */
 	openMicrophonePrivacySettings: () => typedError<null, string>(__TAURI_INVOKE("open_microphone_privacy_settings")),
+	/**
+	 *  A fresh list of the input devices and the current Windows default. The Microphone picker
+	 *  asks for it every time it opens (`microphone.md` rule 8).
+	 */
+	listMicrophones: () => typedError<DeviceList, string>(__TAURI_INVOKE("list_microphones")),
+	/**
+	 *  Whether Windows privacy settings let desktop apps use the Microphone (`microphone.md` rule 7;
+	 *  the onboarding's Microphone access step).
+	 */
+	microphoneAccess: () => __TAURI_INVOKE<MicrophoneAccess>("microphone_access"),
+	/**  Returns the Models and their state. */
+	getModels: () => __TAURI_INVOKE<ModelsState>("get_models"),
+	/**  Starts downloading a Model, or queues it behind the running download. */
+	downloadModel: (model: ModelId) => __TAURI_INVOKE<void>("download_model", { model }),
+	/**  Cancels a running or queued download; the partial file is kept for "Resume". */
+	cancelModelDownload: (model: ModelId) => __TAURI_INVOKE<void>("cancel_model_download", { model }),
+	/**
+	 *  Makes a downloaded Model active. Returns once loading has started; the result arrives as a
+	 *  `ModelsChanged` event (active, or a `loadFailure`).
+	 */
+	activateModel: (model: ModelId) => typedError<null, string>(__TAURI_INVOKE("activate_model", { model })),
+	/**  Deletes a downloaded Model or a paused download. */
+	deleteModel: (model: ModelId) => typedError<null, string>(__TAURI_INVOKE("delete_model", { model })),
 	/**
 	 *  Validates and activates a new Record Shortcut given in canonical text form (`"Ctrl+Space"`),
 	 *  then saves it. On failure the previous one stays active and saved. Ends a capture in progress.
@@ -51,11 +104,22 @@ export const commands = {
 /** Events */
 export const events = {
 	capturedKeyEvent: makeEvent<CapturedKeyEvent>("captured-key-event"),
+	historyChanged: makeEvent<HistoryChanged>("history-changed"),
+	modelProblemOccurred: makeEvent<ModelProblemOccurred>("model-problem-occurred"),
+	modelsChanged: makeEvent<ModelsChanged>("models-changed"),
 	recordIntentEvent: makeEvent<RecordIntentEvent>("record-intent-event"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
 /* Types */
+export type ActiveModelState = 
+/**  No Model is active. */
+"none" | "loading" | "ready" | 
+/**  Unloaded after inactivity; loads on the next Dictation (rule 24b). */
+"unloaded" | 
+/**  The active Model could not be loaded (e.g. at start); the next Dictation tries again. */
+"error";
+
 /**  Facts about the running app that the interface needs at start-up. */
 export type AppInfo = {
 	/**  Echo's version, e.g. `0.1.0`. */
@@ -71,6 +135,165 @@ export type AppInfo = {
 export type CapturedKeyEvent = {
 	key: string,
 	pressed: boolean,
+};
+
+/**  The input devices present right now. */
+export type DeviceList = {
+	/**  Names of every input device, in the order Windows lists them. */
+	devices: string[],
+	/**  Name of the Windows default recording device, if there is one. */
+	default: string | null,
+};
+
+/**  Why a download failed, for a plain-language message in the UI. */
+export type DownloadFailure = {
+	kind: FailureKind,
+	/**  Technical detail (in English) shown under the message. */
+	detail: string,
+	/**  For [`FailureKind::DiskSpace`]: the free space needed, in bytes. */
+	neededBytes: number | null,
+};
+
+/**
+ *  Where a Model's download stands. `Idle` covers both "not downloaded" and "downloaded";
+ *  [`ModelEntry::downloaded`] tells them apart.
+ */
+export type DownloadState = { state: "idle" } | 
+/**  Waiting for another download to finish (rule 7). */
+{ state: "queued" } | { state: "downloading"; downloaded: number; total: number; bytesPerSecond: number } | 
+/**  "Verifying…" (rule 13). */
+{ state: "verifying" } | 
+/**  "Paused — X% downloaded", with Resume and Delete (rule 14). */
+{ state: "paused"; downloaded: number; total: number } | 
+/**
+ *  A failed download with its reason and "Retry" (rule 16). `downloaded` is what the partial
+ *  file kept for the retry.
+ */
+{ state: "failed"; failure: DownloadFailure; downloaded: number; total: number };
+
+/**  The effective Dictation Language of a stored Transcript. */
+export type EntryLanguage = 
+/**  Automatic detection, with the language the Engine detected if it reported one. */
+{ kind: "automatic"; detected: string | null } | 
+/**  A chosen language: an ISO 639-1 code such as `"pl"`. */
+{ kind: "specific"; code: string };
+
+export type FailureKind = "network" | "stalled" | "badRange" | "sizeMismatch" | 
+/**  "Download was corrupted — please try again" (rule 12). */
+"corrupted" | "storage" | "diskSpace";
+
+/**  Sent to every window after any change to History, with every entry, newest first (rule 16). */
+export type HistoryChanged = HistoryEntry[];
+
+/**  One stored Transcript (rule 3). */
+export type HistoryEntry = {
+	/**  Unique and never reused, even after the entry is deleted. */
+	id: number,
+	/**
+	 *  When the entry was created, in milliseconds since the Unix epoch (UTC). Shown in local
+	 *  time.
+	 */
+	createdAt: number,
+	/**  The Transcript exactly as inserted. */
+	text: string,
+	/**  The id of the Model that produced it (`models.md`). */
+	model: string,
+	/**  The effective Dictation Language. */
+	language: EntryLanguage,
+};
+
+/**
+ *  How many entries History keeps: an integer 0–100, default 5; 0 keeps nothing (`history.md`
+ *  rules 6–9). Deserialising rejects anything outside the range, so invalid stored values are
+ *  salvaged to the default and invalid patches are refused.
+ */
+export type HistoryLimit = number;
+
+export type LoadFailure = {
+	model: ModelId,
+	reason: string,
+};
+
+/**  Whether Windows privacy settings let desktop apps use the Microphone (rule 7). */
+export type MicrophoneAccess = "allowed" | "denied";
+
+/**
+ *  The Microphone setting (`microphone.md` rules 1–2): follow the Windows default recording
+ *  device, or one specific device identified by its name as Windows reports it.
+ * 
+ *  Stored as `{"kind": "default"}` or `{"kind": "device", "name": "Microphone (USB Audio)"}`.
+ */
+export type MicrophoneChoice = 
+/**  Whatever Windows considers the default recording device when a Recording starts. */
+{ kind: "default" } | 
+/**  One specific device, by name. */
+{ kind: "device"; name: string };
+
+/**
+ *  One Model as shown on its card. Byte counts are `u32`: every 0.1.0 Model is under 4 GiB, and
+ *  TypeScript numbers carry them exactly.
+ */
+export type ModelEntry = {
+	id: ModelId,
+	name: string,
+	sizeBytes: number,
+	languages: number,
+	recommended: boolean,
+	/**  The verified file is present (rule 5). */
+	downloaded: boolean,
+	download: DownloadState,
+};
+
+/**
+ *  One of the Models Echo offers. The order of [`ModelId::ALL`] is the list order used in the UI
+ *  and for every "first downloaded Model in list order" fallback (rules 23 and 26).
+ */
+export type ModelId = "whisperLargeV3Turbo" | "parakeetTdt06bV3" | "whisperSmall";
+
+/**
+ *  A download or load failure, for the error indication of `dictation-pipeline.md` rules
+ *  39a–39d (Overlay message, red tray icon, window notice).
+ */
+export type ModelProblem = {
+	kind: ModelProblemKind,
+	model: ModelId,
+	/**  The Model's name, for the tray tooltip. */
+	modelName: string,
+	/**  Technical detail in English. */
+	detail: string,
+};
+
+export type ModelProblemKind = "download" | "load";
+
+/**
+ *  Sent when a Model download or load fails (the error indication, `dictation-pipeline.md`
+ *  rules 39a–39d).
+ */
+export type ModelProblemOccurred = ModelProblem;
+
+/**
+ *  Sent to every window after any change to the Models: downloads and their progress, the
+ *  active Model and its state.
+ */
+export type ModelsChanged = ModelsState;
+
+/**  Everything the Models page, the Model indicator and the onboarding show. */
+export type ModelsState = {
+	/**  The three Models in list order. */
+	models: ModelEntry[],
+	/**  The active Model, if any (rule 17). */
+	active: ModelId | null,
+	/**  Whether the active Model is in memory. */
+	activeState: ActiveModelState,
+	/**  The Model being loaded to become active ("Loading <Model>…", rule 18). */
+	activating: ModelId | null,
+	/**  The latest failed load ("Couldn't load <Model>", rule 19), until the next successful one. */
+	loadFailure: LoadFailure | null,
+	/**
+	 *  A Dictation is Recording or Transcribing: switching and deleting are disabled
+	 *  (rules 20, 27).
+	 */
+	dictationInProgress: boolean,
 };
 
 /**  What the Record Shortcut asks the dictation pipeline to do. */
@@ -111,6 +334,21 @@ export type Settings = {
 	onboardingWelcomeDone: boolean,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted: boolean,
+	/**  How many Transcripts History keeps (`history.md` rules 6–9). */
+	historyLimit: HistoryLimit,
+	/**  The input device Recordings listen to (`microphone.md`). */
+	microphone: MicrophoneChoice,
+	/**
+	 *  The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
+	 *  change it with the `activate_model` command, which loads the Model first and keeps the
+	 *  previous one if loading fails — never through `update_settings`.
+	 */
+	activeModel: ModelId | null,
+	/**
+	 *  Unload the active Model from memory after this much time without a Dictation
+	 *  (`models.md` rule 24a).
+	 */
+	unloadModelAfter: UnloadModelAfter,
 	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
 	recordShortcut: RecordShortcutCombination,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
@@ -132,6 +370,21 @@ export type SettingsPatch = {
 	onboardingWelcomeDone?: boolean | null,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted?: boolean | null,
+	/**  How many Transcripts History keeps (`history.md` rules 6–9). */
+	historyLimit?: HistoryLimit | null,
+	/**  The input device Recordings listen to (`microphone.md`). */
+	microphone?: MicrophoneChoice | null,
+	/**
+	 *  The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
+	 *  change it with the `activate_model` command, which loads the Model first and keeps the
+	 *  previous one if loading fails — never through `update_settings`.
+	 */
+	activeModel?: ModelId | null,
+	/**
+	 *  Unload the active Model from memory after this much time without a Dictation
+	 *  (`models.md` rule 24a).
+	 */
+	unloadModelAfter?: UnloadModelAfter | null,
 	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
 	recordShortcut?: RecordShortcutCombination | null,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
@@ -177,6 +430,9 @@ export type ShortcutProblem =
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";
+
+/**  The "Unload Model after inactivity" choices (`models.md` "Settings"). */
+export type UnloadModelAfter = "never" | "minutes2" | "minutes5" | "minutes10" | "minutes15" | "minutes60";
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {
