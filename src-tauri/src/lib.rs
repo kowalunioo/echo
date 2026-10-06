@@ -76,6 +76,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             overlay::app::overlay_cancel,
             overlay::app::overlay_message_clicked,
             overlay::app::overlay_shape,
+            dictation::app::get_test_audio,
         ])
         .events(collect_events![
             SettingsChanged,

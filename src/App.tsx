@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { events } from "./bindings";
 import { DictationNotices } from "./components/DictationNotices";
 import { PageView } from "./components/PageView";
+import { TestAudioMarker } from "./components/TestAudioMarker";
 import { Sidebar } from "./components/Sidebar";
 import { changeUiLanguage } from "./i18n";
 import { Onboarding } from "./onboarding/Onboarding";
@@ -30,8 +31,20 @@ export function App() {
   }, [uiLanguage]);
 
   if (status === "loading") return null;
-  if (status === "error") return <SettingsUnavailable />;
-  return onboardingCompleted ? <MainWindow /> : <Onboarding />;
+  return (
+    <div className="flex h-full flex-col">
+      <TestAudioMarker />
+      <div className="min-h-0 flex-1">
+        {status === "error" ? (
+          <SettingsUnavailable />
+        ) : onboardingCompleted ? (
+          <MainWindow />
+        ) : (
+          <Onboarding />
+        )}
+      </div>
+    </div>
+  );
 }
 
 function MainWindow() {

@@ -123,6 +123,11 @@ export const commands = {
 	 *  windows beneath (rule 11).
 	 */
 	overlayShape: (width: number | null, height: number | null) => __TAURI_INVOKE<void>("overlay_shape", { width, height }),
+	/**
+	 *  The test-audio marker (rule 41): the name of the WAV file that replaces the Microphone, or
+	 *  `null` in normal operation.
+	 */
+	getTestAudio: () => __TAURI_INVOKE<string | null>("get_test_audio"),
 };
 
 /** Events */
