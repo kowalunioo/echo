@@ -36,12 +36,13 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 # source with CMake. Default features are off to drop Metal (Apple only); GPU support comes from
 # Echo's own `vulkan` feature below.
 transcribe-cpp = { version = "0.3.1", default-features = false }
+# Model downloads (`models.md`). TLS through Windows' own Schannel (native-tls), so no extra
+# crypto library is compiled in; the system proxy is honoured like any Windows app.
+reqwest = { version = "0.13", default-features = false, features = ["native-tls", "system-proxy"] }
+sha2 = "0.10"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
 # Microphone capture through WASAPI (`docs/specs/microphone.md`).
 cpal = "0.18"
-
-[target.'cfg(windows)'.dependencies]
-# Reads the Windows microphone privacy switches (`microphone.md` rule 7).
-windows-registry = "0.6"
 
 [features]
 # Vulkan GPU acceleration with automatic CPU fallback (`docs/specs/models.md` rule 29). On by
@@ -53,6 +54,18 @@ vulkan = ["transcribe-cpp/vulkan"]
 
 [dev-dependencies]
 tempfile = "3"
+
+[target.'cfg(windows)'.dependencies]
+# The keyboard hook (ADR 0002); 0.62 is the version Tauri already pulls in.
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+# Reads the Windows microphone privacy switches (`microphone.md` rule 7).
+windows-registry = "0.6"
 
 [profile.dev.package."*"]
 # Audio resampling is unbearably slow unoptimised, even in tests.

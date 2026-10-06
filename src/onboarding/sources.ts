@@ -1,4 +1,5 @@
 import { commands } from "../bindings";
+import { useModels } from "../store/models";
 import type { MicrophoneAccess } from "./steps";
 
 /*
@@ -20,12 +21,9 @@ export async function checkMicrophoneAccess(): Promise<MicrophoneAccess> {
   }
 }
 
-/**
- * PLACEHOLDER until Models (#12): whether a Model is active. Always false for now; the Choose a
- * Model step offers a temporary "Continue without a Model" link instead.
- */
+/** Whether a Model is active (models.md rule 17): the Choose a Model step is then complete. */
 export function useModelActive(): boolean {
-  return false;
+  return useModels((s) => s.state?.active != null);
 }
 
 /**

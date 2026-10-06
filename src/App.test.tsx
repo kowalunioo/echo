@@ -115,4 +115,21 @@ describe("app shell", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("could not load its settings");
   });
+
+  // Windows does not run Echo's keyboard hook while Echo has focus, so the window forwards keys.
+  it("forwards keys pressed in Echo's window to the backend, in order", async () => {
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Sections" });
+
+    await userEvent.keyboard("{Control>}{ }{/Control}");
+
+    await waitFor(() => {
+      expect(backend.commandsCalled("own_window_key").map((call) => call.args)).toEqual([
+        { key: "LeftCtrl", pressed: true },
+        { key: "Space", pressed: true },
+        { key: "Space", pressed: false },
+        { key: "LeftCtrl", pressed: false },
+      ]);
+    });
+  });
 });

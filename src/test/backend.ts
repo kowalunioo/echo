@@ -1,4 +1,13 @@
-import type { AppInfo, DeviceList, MicrophoneAccess, Settings, SettingsPatch } from "../bindings";
+import type {
+  AppInfo,
+  DeviceList,
+  MicrophoneAccess,
+  ModelEntry,
+  ModelId,
+  ModelsState,
+  Settings,
+  SettingsPatch,
+} from "../bindings";
 
 /**
  * An in-memory stand-in for the Rust side, used by every frontend test through the Tauri API
@@ -10,7 +19,42 @@ export const DEFAULT_SETTINGS: Settings = {
   onboardingWelcomeDone: true,
   onboardingCompleted: true,
   microphone: { kind: "default" },
+  activeModel: null,
+  unloadModelAfter: "never",
+  recordShortcut: "Ctrl+Space",
+  shortcutMode: "pushToTalk",
 };
+
+/** The three Models as the backend lists them, none downloaded. */
+export function freshModels(): ModelsState {
+  const entry = (
+    id: ModelId,
+    name: string,
+    sizeBytes: number,
+    languages: number,
+    recommended: boolean,
+  ): ModelEntry => ({
+    id,
+    name,
+    sizeBytes,
+    languages,
+    recommended,
+    downloaded: false,
+    download: { state: "idle" },
+  });
+  return {
+    models: [
+      entry("whisperLargeV3Turbo", "Whisper large-v3-turbo", 886_381_760, 100, true),
+      entry("parakeetTdt06bV3", "Parakeet TDT 0.6B v3", 739_508_576, 25, false),
+      entry("whisperSmall", "Whisper small", 269_751_136, 99, false),
+    ],
+    active: null,
+    activeState: "none",
+    activating: null,
+    loadFailure: null,
+    dictationInProgress: false,
+  };
+}
 
 type Handler = (args: Record<string, unknown>) => unknown;
 type EventCallback = (event: { event: string; id: number; payload: unknown }) => void;
@@ -25,6 +69,7 @@ export class FakeBackend {
   };
   /** What the Windows microphone privacy check reports. */
   microphoneAccess: MicrophoneAccess = "allowed";
+  models: ModelsState = freshModels();
   /** Every command invoked, in order, with its arguments. */
   calls: { command: string; args: Record<string, unknown> }[] = [];
   /** Commands that never answer (to test loading states). */
@@ -53,7 +98,39 @@ export class FakeBackend {
     open_microphone_privacy_settings: () => null,
     list_microphones: () => this.microphones,
     microphone_access: () => this.microphoneAccess,
+    get_models: () => this.models,
+    download_model: () => null,
+    cancel_model_download: () => null,
+    activate_model: () => null,
+    delete_model: () => null,
+    // Record Shortcut: accepts any proposal unless the test lists it in `rejectedShortcuts`.
+    set_record_shortcut: (args) => {
+      const combination = args.combination as string;
+      const rejection = this.rejectedShortcuts.get(combination);
+      if (rejection !== undefined) throw new RejectedCommand(rejection);
+      this.changeSettings({ recordShortcut: combination });
+      return this.settings;
+    },
+    begin_shortcut_capture: () => null,
+    end_shortcut_capture: () => null,
+    own_window_key: () => null,
   };
+
+  /** Record Shortcut proposals `set_record_shortcut` rejects, with the error it rejects with. */
+  rejectedShortcuts = new Map<string, unknown>();
+
+  /** Changes one Model as the backend would and tells every listener. */
+  changeModel(id: ModelId, patch: Partial<ModelEntry>) {
+    this.changeModels({
+      models: this.models.models.map((m) => (m.id === id ? { ...m, ...patch } : m)),
+    });
+  }
+
+  /** Changes the Models state as the backend would and tells every listener. */
+  changeModels(patch: Partial<ModelsState>) {
+    this.models = { ...this.models, ...patch };
+    this.emit("models-changed", this.models);
+  }
 
   /** Changes settings as the backend would (e.g. from the tray) and tells every listener. */
   changeSettings(patch: Partial<Settings>) {
@@ -76,7 +153,13 @@ export class FakeBackend {
     }
     const handler = this.handlers[command];
     if (!handler) return Promise.reject(new Error(`FakeBackend: unexpected command ${command}`));
-    return Promise.resolve(structuredClone(handler(args)));
+    try {
+      return Promise.resolve(structuredClone(handler(args)));
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- Tauri rejects with plain values
+      if (error instanceof RejectedCommand) return Promise.reject(error.value);
+      throw error;
+    }
   };
 
   listen = (event: string, callback: EventCallback): Promise<() => void> => {
@@ -88,6 +171,13 @@ export class FakeBackend {
 
   commandsCalled(command: string) {
     return this.calls.filter((call) => call.command === command);
+  }
+}
+
+/** Thrown by a handler to make its command reject with `value`, as a Rust `Err` does. */
+class RejectedCommand extends Error {
+  constructor(readonly value: unknown) {
+    super("rejected command");
   }
 }
 
