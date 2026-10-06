@@ -21,7 +21,6 @@ export const en = {
       title: "Dictation",
       description:
         "How you start, stop and cancel a Dictation, and which Microphone Echo listens to.",
-      upcoming: "The Cancel Shortcut.",
     },
     model: {
       title: "Model & language",

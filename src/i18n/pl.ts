@@ -19,7 +19,6 @@ export const pl: Translation = {
       title: "Dyktowanie",
       description:
         "Jak rozpoczynasz, kończysz i anulujesz dyktowanie oraz którego mikrofonu słucha Echo.",
-      upcoming: "Skrót anulowania.",
     },
     model: {
       title: "Model i język",
