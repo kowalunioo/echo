@@ -13,6 +13,8 @@ use tauri_specta::Event;
 
 use super::controller::{OverlayController, OverlaySettings, OverlaySurface};
 use super::placement::{self, Monitor, Rect};
+#[cfg(windows)]
+use super::placement::pill_region;
 use super::{MessageAction, OverlayPosition, OverlayView};
 use crate::dictation::{Dictation, DictationStatus};
 use crate::settings::{Settings, SettingsStore};
@@ -66,7 +68,12 @@ enum Msg {
 pub struct Overlay {
     tx: Sender<Msg>,
     view: Arc<Mutex<OverlayView>>,
+    pill: PillSize,
 }
+
+/// The pill's last reported size in CSS pixels, to clip the window again whenever it is shown at
+/// another size or scaling (rule 11).
+type PillSize = Arc<Mutex<Option<(f64, f64)>>>;
 
 impl Overlay {
     /// The dictation status changed.
@@ -115,10 +122,12 @@ pub fn install(app: &AppHandle) {
         }
     });
 
+    let pill = PillSize::default();
     let surface = WindowSurface {
         app: app.clone(),
         window,
         view: Arc::clone(&view),
+        pill: Arc::clone(&pill),
     };
     let controller = OverlayController::new(surface, settings, &DictationStatus::default());
     let thread_app = app.clone();
@@ -130,7 +139,7 @@ pub fn install(app: &AppHandle) {
     if preview {
         spawn_preview(tx.clone());
     }
-    app.manage(Overlay { tx, view });
+    app.manage(Overlay { tx, view, pill });
 }
 
 /// Developer aid, debug builds only: with `ECHO_OVERLAY_PREVIEW` set, the Overlay cycles through
@@ -247,6 +256,7 @@ struct WindowSurface {
     app: AppHandle,
     window: Option<WebviewWindow>,
     view: Arc<Mutex<OverlayView>>,
+    pill: PillSize,
 }
 
 impl WindowSurface {
@@ -269,8 +279,13 @@ impl WindowSurface {
         }
     }
 
-    /// Where the window goes now: the monitor under the pointer (rule 13).
-    fn placement(&self, window: &WebviewWindow, position: OverlayPosition) -> Option<Rect> {
+    /// Where the window goes now: the monitor under the pointer (rule 13); and the factor its
+    /// content is drawn at there (monitor scaling × "Text size").
+    fn placement(
+        &self,
+        window: &WebviewWindow,
+        position: OverlayPosition,
+    ) -> Option<(Rect, f64)> {
         let pointer = window.cursor_position().ok()?;
         let monitors: Vec<Monitor> = window
             .available_monitors()
@@ -293,7 +308,11 @@ impl WindowSurface {
             })
             .collect();
         let monitor = placement::monitor_at(&monitors, (pointer.x as i32, pointer.y as i32))?;
-        Some(placement::place(&monitor, position, text_scale()))
+        let text_scale = text_scale();
+        Some((
+            placement::place(&monitor, position, text_scale),
+            monitor.scale * text_scale,
+        ))
     }
 }
 
@@ -309,19 +328,26 @@ impl OverlaySurface for WindowSurface {
         let Some(window) = &self.window else {
             return;
         };
-        let Some(rect) = self.placement(window, position) else {
+        let Some((rect, factor)) = self.placement(window, position) else {
             log::warn!("no monitor to show the Overlay on");
             return;
         };
         // Rule 15: the Windows "Text size" setting enlarges the Overlay's content too.
         let _ = window.set_zoom(text_scale());
+        let pill = Arc::clone(&self.pill);
         self.on_window(move |_window| {
             #[cfg(windows)]
             if let Ok(hwnd) = _window.hwnd() {
-                super::native::show(hwnd, rect);
+                // The pill was last measured at another size or scaling, perhaps: clip the
+                // window for the size it is shown at now (rule 11).
+                let region = pill
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .map(|size| pill_region(size, factor, (rect.width, rect.height)));
+                super::native::show(hwnd, rect, region);
             }
             #[cfg(not(windows))]
-            let _ = rect;
+            let _ = (rect, factor, pill);
         });
     }
 
@@ -378,12 +404,15 @@ pub fn overlay_message_clicked(overlay: State<'_, Overlay>) {
 /// windows beneath (rule 11).
 #[tauri::command]
 #[specta::specta]
-pub fn overlay_shape(window: WebviewWindow, width: f64, height: f64) {
+pub fn overlay_shape(overlay: State<'_, Overlay>, window: WebviewWindow, width: f64, height: f64) {
+    *overlay.pill.lock().unwrap_or_else(PoisonError::into_inner) = Some((width, height));
     #[cfg(windows)]
-    if let (Ok(hwnd), Ok(scale)) = (window.hwnd(), window.scale_factor()) {
-        let factor = scale * text_scale();
-        super::native::set_shape(hwnd, width * factor, height * factor);
+    if let (Ok(hwnd), Ok(scale), Ok(size)) =
+        (window.hwnd(), window.scale_factor(), window.outer_size())
+    {
+        let region = pill_region((width, height), scale * text_scale(), (size.width, size.height));
+        super::native::set_shape(hwnd, region);
     }
     #[cfg(not(windows))]
-    let _ = (window, width, height);
+    let _ = window;
 }

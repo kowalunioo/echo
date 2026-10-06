@@ -341,6 +341,8 @@ impl Worker {
         self.seq += 1;
         self.had_error = false;
         self.failure = None;
+        // A peak left over from the last Recording must not make the new meter jump.
+        self.level.take();
         let model = match self.deps.models.begin() {
             Ok(model) => model,
             Err(NoActiveModel) => {

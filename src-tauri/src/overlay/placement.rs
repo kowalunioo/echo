@@ -78,9 +78,83 @@ pub fn place(monitor: &Monitor, position: OverlayPosition, text_scale: f64) -> R
     }
 }
 
+/// The window region that clips the Overlay to its pill (rule 11), in physical pixels relative
+/// to the window: GDI's exclusive `right`/`bottom`, and the corner ellipse's diameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PillRegion {
+    pub left: i32,
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+    pub corner: i32,
+}
+
+/// The region for a pill of `pill` (width, height) CSS pixels drawn at `factor` (monitor scaling
+/// × "Text size") in a window of `window` (width, height) physical pixels: centred, with a pixel
+/// to spare all round so the pill's anti-aliased edge stays visible, never beyond the window.
+pub fn pill_region(pill: (f64, f64), factor: f64, window: (u32, u32)) -> PillRegion {
+    let (window_width, window_height) = (window.0 as i32, window.1 as i32);
+    let width = ((pill.0 * factor).ceil() as i32 + 2).min(window_width);
+    let height = ((pill.1 * factor).ceil() as i32 + 2).min(window_height);
+    let left = (window_width - width) / 2;
+    let top = (window_height - height) / 2;
+    PillRegion {
+        left,
+        top,
+        right: left + width + 1,
+        bottom: top + height + 1,
+        corner: height,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The region covers the scaled pill, centred in the window.
+    fn assert_covers(region: PillRegion, pill: (f64, f64), factor: f64, window: Rect) {
+        let (width, height) = (pill.0 * factor, pill.1 * factor);
+        let centre = f64::from(window.width) / 2.0;
+        assert!(f64::from(region.left) <= centre - width / 2.0, "{region:?}");
+        assert!(f64::from(region.right) >= centre + width / 2.0, "{region:?}");
+        assert!(region.right <= window.width as i32 + 1, "{region:?}");
+        assert!(f64::from(region.bottom - region.top) >= height.min(f64::from(window.height)));
+    }
+
+    // Rule 11 with rule 15: at "Text size" 125 % the region grows with the window it is shown in.
+    #[test]
+    fn the_pill_region_follows_text_size() {
+        let window = place(&PRIMARY, OverlayPosition::Bottom, 1.25);
+        let region = pill_region((258.0, 44.0), 1.25, (window.width, window.height));
+        assert_covers(region, (258.0, 44.0), 1.25, window);
+        assert_eq!(region.left, (650 - 325) / 2);
+        assert_eq!(region.right - region.left, 326);
+    }
+
+    // Rule 11 with rule 15: on a 150 % monitor the region matches that monitor's scaling.
+    #[test]
+    fn the_pill_region_follows_monitor_scaling() {
+        let window = place(&LEFT, OverlayPosition::Bottom, 1.0);
+        let region = pill_region((258.0, 44.0), 1.5, (window.width, window.height));
+        assert_covers(region, (258.0, 44.0), 1.5, window);
+        assert_eq!((region.left, region.right), (195, 195 + 389 + 1));
+        assert_eq!((region.top, region.bottom, region.corner), (0, 67, 66));
+    }
+
+    #[test]
+    fn the_pill_region_never_exceeds_the_window() {
+        let region = pill_region((900.0, 80.0), 1.0, (520, 44));
+        assert_eq!(
+            region,
+            PillRegion {
+                left: 0,
+                top: 0,
+                right: 521,
+                bottom: 45,
+                corner: 44
+            }
+        );
+    }
 
     const PRIMARY: Monitor = Monitor {
         bounds: Rect {

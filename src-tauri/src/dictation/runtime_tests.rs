@@ -293,6 +293,23 @@ fn the_overlay_gets_the_input_level() {
     assert_eq!(rig.dictation.take_input_level(), 0.0, "taking resets it");
 }
 
+// A peak left over from the previous Recording must not make the next meter jump.
+#[test]
+fn a_new_recording_starts_the_input_level_from_silence() {
+    let source = ScriptedSource::default();
+    let rig = Setup::new(FakeEngine::returning("x"), source.clone()).spawn();
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    source.tone(100);
+    rig.wait("listening", |s| s.listening);
+    rig.dictation.cancel();
+    rig.wait_state(DictationState::Idle);
+
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    assert_eq!(rig.dictation.take_input_level(), 0.0);
+}
+
 #[test]
 fn the_meter_level_is_on_a_decibel_scale() {
     use super::meter_level;

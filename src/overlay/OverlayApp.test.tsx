@@ -1,12 +1,14 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { type OverlayView, commands } from "../bindings";
 import { changeUiLanguage } from "../i18n";
 import { backend } from "../test/backend";
 import { OverlayApp } from "./OverlayApp";
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await changeUiLanguage("en");
 });
 
@@ -121,6 +123,28 @@ describe("Overlay", () => {
     });
     expect(pill()).toHaveAttribute("data-visible", "false");
     expect(screen.getByRole("status")).toHaveTextContent("Transcribing…");
+  });
+
+  it("keeps a change that arrives before the first view is fetched", async () => {
+    let answer: (view: OverlayView) => void = () => undefined;
+    const fetched = vi.spyOn(commands, "getOverlayView").mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    render(<OverlayApp />);
+    await act(async () => {});
+    act(() => {
+      backend.changeOverlay({ kind: "transcribing", cancellable: false });
+    });
+    expect(await screen.findByRole("status")).toHaveTextContent("Transcribing…");
+
+    // The stale answer (from before the change) arrives late and must not win.
+    await act(async () => {
+      answer({ kind: "hidden" });
+    });
+    expect(pill()).toHaveAttribute("data-visible", "true");
+    expect(fetched).toHaveBeenCalledOnce();
   });
 
   // Rule 18.

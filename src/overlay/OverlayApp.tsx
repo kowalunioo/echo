@@ -218,18 +218,20 @@ function CancelButton() {
   );
 }
 
-/** The backend's view: fetched once, then followed. */
+/** The backend's view: fetched once, then followed. A change that arrives first wins. */
 function useOverlayView(): OverlayView {
   const [view, setView] = useState<OverlayView>(HIDDEN);
   useEffect(() => {
     let live = true;
+    let changed = false;
     const stop = events.overlayViewChanged.listen((event) => {
+      changed = true;
       setView(event.payload);
     });
     commands
       .getOverlayView()
       .then((current) => {
-        if (live) setView(current);
+        if (live && !changed) setView(current);
       })
       .catch((error: unknown) => {
         console.error("get_overlay_view failed", error);

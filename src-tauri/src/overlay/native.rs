@@ -5,19 +5,67 @@
 //! `SWP_NOACTIVATE` (never Tauri's `show`, which activates). `WS_EX_TOOLWINDOW` keeps it out of
 //! the taskbar and Alt+Tab; `WS_EX_TOPMOST` plus a periodic re-assert keeps it above other
 //! windows. A window region the size of the pill lets clicks beside it through.
+//!
+//! Clicks land in WebView2's child windows, not the top-level one, so the window and every child
+//! of it this thread owns are also subclassed to answer `WM_MOUSEACTIVATE` with `MA_NOACTIVATE`.
 
-use windows::Win32::Foundation::{HWND, RECT};
-use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, SetWindowRgn};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Graphics::Gdi::{CreateRoundRectRgn, DeleteObject, SetWindowRgn};
+use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GWL_EXSTYLE, GetWindowLongPtrW, GetWindowRect, HWND_TOPMOST, SW_HIDE, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetWindowLongPtrW, SetWindowPos,
-    ShowWindow, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
+    EnumChildWindows, GWL_EXSTYLE, GetWindowLongPtrW, HWND_TOPMOST, MA_NOACTIVATE, SW_HIDE,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SetWindowLongPtrW,
+    SetWindowPos, ShowWindow, WM_MOUSEACTIVATE, WM_NCDESTROY, WS_EX_APPWINDOW, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST,
 };
+use windows::core::BOOL;
 
-use super::placement::Rect;
+use super::placement::{PillRegion, Rect};
+
+/// The id of the no-activate subclass.
+const NO_ACTIVATE: usize = 0x4543_484f; // "ECHO"
+
+unsafe extern "system" fn no_activate(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+    _id: usize,
+    _data: usize,
+) -> LRESULT {
+    match msg {
+        WM_MOUSEACTIVATE => LRESULT(MA_NOACTIVATE as isize),
+        WM_NCDESTROY => {
+            // SAFETY: removing our own subclass from the window being destroyed.
+            unsafe {
+                let _ = RemoveWindowSubclass(hwnd, Some(no_activate), NO_ACTIVATE);
+                DefSubclassProc(hwnd, msg, wparam, lparam)
+            }
+        }
+        // SAFETY: passes the message on down the subclass chain.
+        _ => unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) },
+    }
+}
+
+unsafe extern "system" fn subclass_child(child: HWND, _: LPARAM) -> BOOL {
+    // SAFETY: fails harmlessly for windows of other threads or processes (WebView2's renderer).
+    let _ = unsafe { SetWindowSubclass(child, Some(no_activate), NO_ACTIVATE, 0) };
+    BOOL(1)
+}
+
+/// Makes clicks on the window or its children never activate it. Idempotent; call it on the
+/// window's thread whenever children may have appeared.
+fn guard_activation(hwnd: HWND) {
+    // SAFETY: as in `prepare`; the callback only subclasses.
+    unsafe {
+        let _ = SetWindowSubclass(hwnd, Some(no_activate), NO_ACTIVATE, 0);
+        let _ = EnumChildWindows(Some(hwnd), Some(subclass_child), LPARAM(0));
+    }
+}
 
 /// Gives the window the Overlay's extended styles.
 pub fn prepare(hwnd: HWND) {
+    guard_activation(hwnd);
     // SAFETY: plain Win32 calls on a window handle owned by this process.
     unsafe {
         let style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
@@ -36,9 +84,13 @@ pub fn prepare(hwnd: HWND) {
     }
 }
 
-/// Places the window and shows it without activating it.
-pub fn show(hwnd: HWND, rect: Rect) {
+/// Places the window and shows it without activating it, clipped to `pill` (computed for this
+/// size and scaling) when the pill's size is known.
+pub fn show(hwnd: HWND, rect: Rect, pill: Option<PillRegion>) {
     prepare(hwnd);
+    if let Some(pill) = pill {
+        set_shape(hwnd, pill);
+    }
     // Twice: moving onto a monitor with other scaling makes Windows resize the window for the
     // new DPI; the second call restores the exact size computed for that monitor (rule 15).
     for _ in 0..2 {
@@ -78,30 +130,27 @@ pub fn keep_on_top(hwnd: HWND) {
     };
 }
 
-/// Clips the window to a pill of `width` × `height` physical pixels, centred horizontally and
-/// vertically, with a pixel to spare so the pill's anti-aliased edge stays visible.
-pub fn set_shape(hwnd: HWND, width: f64, height: f64) {
-    let mut window = RECT::default();
-    // SAFETY: as above; `window` outlives the call.
-    if unsafe { GetWindowRect(hwnd, &mut window) }.is_err() {
-        return;
-    }
-    let (window_width, window_height) = (window.right - window.left, window.bottom - window.top);
-    let width = (width.ceil() as i32 + 2).min(window_width);
-    let height = (height.ceil() as i32 + 2).min(window_height);
-    let left = (window_width - width) / 2;
-    let top = (window_height - height) / 2;
-    // SAFETY: as above. The system owns the region after SetWindowRgn succeeds.
+/// Clips the window to the pill (rule 11).
+pub fn set_shape(hwnd: HWND, pill: PillRegion) {
+    // SAFETY: as above. The system owns the region once SetWindowRgn succeeds; until then it is
+    // ours to delete.
     unsafe {
         let region = CreateRoundRectRgn(
-            left,
-            top,
-            left + width + 1,
-            top + height + 1,
-            height,
-            height,
+            pill.left,
+            pill.top,
+            pill.right,
+            pill.bottom,
+            pill.corner,
+            pill.corner,
         );
-        SetWindowRgn(hwnd, Some(region), true);
+        if region.is_invalid() {
+            log::warn!("could not create the Overlay's window region");
+            return;
+        }
+        if SetWindowRgn(hwnd, Some(region), true) == 0 {
+            log::warn!("could not set the Overlay's window region");
+            let _ = DeleteObject(region.into());
+        }
     }
 }
 
