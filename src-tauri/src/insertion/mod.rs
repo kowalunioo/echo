@@ -1,13 +1,19 @@
 //! The **Inserter** seam: Insertion of a Transcript into the application that has keyboard
 //! focus.
 //!
-//! The real Inserter (clipboard paste with restore, typing fallback —
-//! `docs/specs/dictation-pipeline.md` rules 31–37) arrives in a later slice. [`FakeInserter`]
-//! records what it was given.
+//! The real Inserter pastes through the clipboard and restores it once the target has read the
+//! Transcript, typing the text as the fallback (`docs/specs/dictation-pipeline.md` rules 31–37).
+//! Its decisions live in [`paste`] behind small clipboard/keyboard seams; the Windows calls in
+//! `win32`. Build it with [`system_inserter`]. [`FakeInserter`] records what it was given.
 
 mod fake;
+pub mod paste;
+#[cfg(windows)]
+mod win32;
 
 pub use fake::FakeInserter;
+#[cfg(windows)]
+pub use win32::{WindowsInserter, system_inserter};
 
 /// Why an Insertion failed. Either way the Transcript is already in History and the user is told
 /// "Couldn't insert the text — it is in History" (rule 36).
