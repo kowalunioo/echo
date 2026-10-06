@@ -15,7 +15,7 @@ use tauri_specta::Event;
 use super::record::{
     RecordShortcut, RecordShortcutConfig, RecordShortcutHandle, ShortcutChangeError, spawn,
 };
-use super::validation::RecordShortcutCombination;
+use super::validation::{CancelShortcutCombination, RecordShortcutCombination};
 use super::{KeyAction, ShortcutListener};
 use crate::dictation::Dictation;
 use crate::settings::{Settings, SettingsStore};
@@ -33,7 +33,32 @@ fn config_of(settings: &Settings) -> RecordShortcutConfig {
     RecordShortcutConfig {
         combination: settings.record_shortcut.combination(),
         mode: settings.shortcut_mode,
+        cancel: settings.cancel_shortcut.combination(),
     }
+}
+
+/// A shortcut setting put back to the value in force because the new one could not be used.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum PutBack {
+    Record(RecordShortcutCombination),
+    Cancel(CancelShortcutCombination),
+}
+
+impl PutBack {
+    fn apply(self, settings: &mut Settings) {
+        match self {
+            Self::Record(value) => settings.record_shortcut = value,
+            Self::Cancel(value) => settings.cancel_shortcut = value,
+        }
+    }
+}
+
+/// Settings saved with the Cancel Shortcut equal to the Record Shortcut (only possible by editing
+/// the file) are repaired by putting the Cancel Shortcut back to its default, Escape, which the
+/// Record Shortcut can never be (`record-shortcut.md` rule 20).
+fn without_conflict(settings: &Settings) -> Option<CancelShortcutCombination> {
+    (settings.cancel_shortcut.combination() == settings.record_shortcut.combination())
+        .then(CancelShortcutCombination::default)
 }
 
 /// Starts the Record Shortcut from the settings (the [`SettingsStore`] must already be managed):
@@ -47,6 +72,12 @@ pub fn install(app: &AppHandle) {
     let listener: Box<dyn ShortcutListener> = Box::new(super::FakeShortcutListener::new());
 
     let store = app.state::<SettingsStore>();
+    if let Some(repaired) = without_conflict(&store.get()) {
+        log::warn!("the Cancel Shortcut was the Record Shortcut; it is reset to Escape");
+        if let Err(error) = store.update(|s| s.cancel_shortcut = repaired) {
+            log::warn!("cannot save the repaired Cancel Shortcut: {error}");
+        }
+    }
     let settings = store.get();
     let core = RecordShortcut::new(
         listener,
@@ -54,6 +85,7 @@ pub fn install(app: &AppHandle) {
         settings.onboarding_completed,
     );
     let intents_app = app.clone();
+    let cancel_app = app.clone();
     let keys_app = app.clone();
     let (handle, started) = spawn(
         core,
@@ -70,6 +102,12 @@ pub fn install(app: &AppHandle) {
             }
             .emit(&keys_app);
         }),
+        // The same Cancellation as the Overlay's cancel button (cancel-shortcut.md rule 13).
+        Box::new(move || {
+            if let Some(dictation) = cancel_app.try_state::<Dictation>() {
+                dictation.cancel();
+            }
+        }),
     );
     if let Err(error) = started {
         log::error!("the Record Shortcut is unavailable: {error}");
@@ -78,24 +116,25 @@ pub fn install(app: &AppHandle) {
     let follower = handle.clone();
     let settings_app = app.clone();
     store.subscribe(move |old, new| {
-        follow_settings(&follower, old, new, |in_force| {
+        for value in follow_settings(&follower, old, new) {
             let store = settings_app.state::<SettingsStore>();
-            if let Err(error) = store.update(|s| s.record_shortcut = in_force) {
-                log::warn!("cannot put the Record Shortcut setting back: {error}");
+            if let Err(error) = store.update(|s| value.apply(s)) {
+                log::warn!("cannot put a shortcut setting back: {error}");
             }
-        });
+        }
     });
     app.manage(handle);
 }
 
-/// Applies a settings change to the running Record Shortcut. A combination that cannot be
-/// activated is put back in the settings, so the settings always show what is in force.
+/// Applies a settings change to the running Record Shortcut and Cancel Shortcut. A combination
+/// that cannot be used (it cannot be activated, or it is the other shortcut) is returned to be
+/// put back in the settings, so the settings always show what is in force.
 fn follow_settings(
     shortcut: &RecordShortcutHandle,
     old: &Settings,
     new: &Settings,
-    put_back: impl FnOnce(RecordShortcutCombination),
-) {
+) -> Vec<PutBack> {
+    let mut put_back = Vec::new();
     if old.shortcut_mode != new.shortcut_mode {
         shortcut.set_mode(new.shortcut_mode);
     }
@@ -104,7 +143,15 @@ fn follow_settings(
     {
         log::warn!("cannot activate {:?}: {error}", new.record_shortcut);
         if let Ok(in_force) = shortcut.config().combination.try_into() {
-            put_back(in_force);
+            put_back.push(PutBack::Record(in_force));
+        }
+    }
+    if old.cancel_shortcut != new.cancel_shortcut
+        && let Err(problem) = shortcut.apply_cancel_combination(&new.cancel_shortcut.combination())
+    {
+        log::warn!("cannot use {:?}: {problem}", new.cancel_shortcut);
+        if let Ok(in_force) = shortcut.config().cancel.try_into() {
+            put_back.push(PutBack::Cancel(in_force));
         }
     }
     if old.onboarding_completed != new.onboarding_completed
@@ -112,6 +159,7 @@ fn follow_settings(
     {
         log::warn!("cannot (de)activate the Record Shortcut: {error}");
     }
+    put_back
 }
 
 /// Validates and activates a new Record Shortcut given in canonical text form (`"Ctrl+Space"`),
@@ -126,6 +174,24 @@ pub fn set_record_shortcut(
 ) -> Result<Settings, ShortcutChangeError> {
     let accepted = shortcut.set_combination(&combination)?;
     store.update(|s| s.record_shortcut = accepted).map_err(|e| {
+        ShortcutChangeError::ActivationFailed {
+            reason: e.to_string(),
+        }
+    })
+}
+
+/// Validates a new Cancel Shortcut given in canonical text form (`"Escape"`, `"Ctrl+Q"`) and
+/// saves it; it applies from the next Dictation (`cancel-shortcut.md` rules 11–12). On failure
+/// the previous one stays. Ends a capture in progress. Returns the new settings.
+#[tauri::command]
+#[specta::specta]
+pub fn set_cancel_shortcut(
+    shortcut: State<'_, RecordShortcutHandle>,
+    store: State<'_, SettingsStore>,
+    combination: String,
+) -> Result<Settings, ShortcutChangeError> {
+    let accepted = shortcut.set_cancel_combination(&combination)?;
+    store.update(|s| s.cancel_shortcut = accepted).map_err(|e| {
         ShortcutChangeError::ActivationFailed {
             reason: e.to_string(),
         }
@@ -162,22 +228,23 @@ pub fn end_shortcut_capture(shortcut: State<'_, RecordShortcutHandle>) {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
-
     use super::super::modes::ShortcutMode;
     use super::super::{FakeShortcutListener, Shortcut};
     use super::*;
 
-    fn running(active: bool) -> (FakeShortcutListener, RecordShortcutHandle) {
+    fn running_with(
+        config: RecordShortcutConfig,
+        active: bool,
+    ) -> (FakeShortcutListener, RecordShortcutHandle) {
         let fake = FakeShortcutListener::new();
-        let core = RecordShortcut::new(
-            Box::new(fake.clone()),
-            RecordShortcutConfig::default(),
-            active,
-        );
-        let (handle, started) = spawn(core, Box::new(|_| {}), Box::new(|_| {}));
+        let core = RecordShortcut::new(Box::new(fake.clone()), config, active);
+        let (handle, started) = spawn(core, Box::new(|_| {}), Box::new(|_| {}), Box::new(|| {}));
         started.unwrap();
         (fake, handle)
+    }
+
+    fn running(active: bool) -> (FakeShortcutListener, RecordShortcutHandle) {
+        running_with(RecordShortcutConfig::default(), active)
     }
 
     fn bound(fake: &FakeShortcutListener) -> Option<String> {
@@ -198,16 +265,22 @@ mod tests {
         }
     }
 
+    fn with_cancel(settings: &Settings, text: &str) -> Settings {
+        Settings {
+            cancel_shortcut: text.to_owned().try_into().unwrap(),
+            ..settings.clone()
+        }
+    }
+
     // Rule 24 via the settings: "Restore default" (or any other change) is rebound at once.
     #[test]
     fn a_combination_changed_in_the_settings_is_rebound() {
         let (fake, handle) = running(true);
         let old = finished_setup();
 
-        follow_settings(&handle, &old, &with_shortcut(&old, "F9"), |_| {
-            panic!("nothing to put back")
-        });
+        let put_back = follow_settings(&handle, &old, &with_shortcut(&old, "F9"));
 
+        assert_eq!(put_back, vec![]);
         assert_eq!(bound(&fake).as_deref(), Some("F9"));
     }
 
@@ -216,13 +289,13 @@ mod tests {
         let (fake, handle) = running(true);
         fake.reject_binds(Some("in use"));
         let old = finished_setup();
-        let put_back = RefCell::new(None);
 
-        follow_settings(&handle, &old, &with_shortcut(&old, "F9"), |value| {
-            *put_back.borrow_mut() = Some(String::from(value));
-        });
+        let put_back = follow_settings(&handle, &old, &with_shortcut(&old, "F9"));
 
-        assert_eq!(put_back.into_inner().as_deref(), Some("Ctrl+Space"));
+        assert_eq!(
+            put_back,
+            vec![PutBack::Record(RecordShortcutCombination::default())]
+        );
         assert_eq!(bound(&fake).as_deref(), Some("Ctrl+Space"));
     }
 
@@ -235,7 +308,7 @@ mod tests {
             ..old.clone()
         };
 
-        follow_settings(&handle, &old, &new, |_| {});
+        follow_settings(&handle, &old, &new);
 
         assert_eq!(handle.config().mode, ShortcutMode::Toggle);
     }
@@ -246,13 +319,66 @@ mod tests {
         let (fake, handle) = running(false);
         assert_eq!(bound(&fake), None);
 
-        follow_settings(
-            &handle,
-            &Settings::defaults(None),
-            &finished_setup(),
-            |_| {},
-        );
+        follow_settings(&handle, &Settings::defaults(None), &finished_setup());
 
         assert_eq!(bound(&fake).as_deref(), Some("Ctrl+Space"));
+    }
+
+    // cancel-shortcut.md rule 12 via the settings ("Reset to default" and the like).
+    #[test]
+    fn a_cancel_shortcut_changed_in_the_settings_is_used_for_the_next_dictation() {
+        let (_fake, handle) = running(true);
+        let old = finished_setup();
+
+        let put_back = follow_settings(&handle, &old, &with_cancel(&old, "Ctrl+Q"));
+
+        assert_eq!(put_back, vec![]);
+        assert_eq!(handle.config().cancel.to_string(), "Ctrl+Q");
+    }
+
+    // cancel-shortcut.md rule 11: a Cancel Shortcut equal to the Record Shortcut is put back.
+    #[test]
+    fn a_cancel_shortcut_equal_to_the_record_shortcut_is_put_back() {
+        let (_fake, handle) = running(true);
+        let old = finished_setup();
+
+        let put_back = follow_settings(&handle, &old, &with_cancel(&old, "Ctrl+Space"));
+
+        assert_eq!(
+            put_back,
+            vec![PutBack::Cancel(CancelShortcutCombination::default())]
+        );
+        assert_eq!(handle.config().cancel.to_string(), "Escape");
+    }
+
+    // record-shortcut.md rule 24: "Reset to default" is subject to the same validation, so a
+    // reset to Ctrl+Space while that is the Cancel Shortcut keeps the current one.
+    #[test]
+    fn a_record_shortcut_reset_onto_the_cancel_shortcut_is_put_back() {
+        let config = RecordShortcutConfig {
+            combination: "F9".parse().unwrap(),
+            cancel: "Ctrl+Space".parse().unwrap(),
+            ..RecordShortcutConfig::default()
+        };
+        let (fake, handle) = running_with(config, true);
+        let old = with_cancel(&with_shortcut(&finished_setup(), "F9"), "Ctrl+Space");
+
+        let put_back = follow_settings(&handle, &old, &with_shortcut(&old, "Ctrl+Space"));
+
+        assert_eq!(
+            put_back,
+            vec![PutBack::Record("F9".to_owned().try_into().unwrap())]
+        );
+        assert_eq!(bound(&fake).as_deref(), Some("F9"));
+    }
+
+    #[test]
+    fn stored_settings_with_both_shortcuts_equal_get_the_default_cancel_shortcut() {
+        let settings = with_cancel(&with_shortcut(&finished_setup(), "F9"), "F9");
+        assert_eq!(
+            without_conflict(&settings),
+            Some(CancelShortcutCombination::default())
+        );
+        assert_eq!(without_conflict(&finished_setup()), None);
     }
 }
