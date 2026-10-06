@@ -1,6 +1,11 @@
 //! The Record Shortcut as a whole: keeps the configured combination bound on the
-//! [`ShortcutListener`], validates changes, suspends it during shortcut capture, and turns its
-//! presses into [`RecordIntent`]s through [`RecordModes`].
+//! [`ShortcutListener`] while the shortcut is active, validates changes, suspends it during
+//! shortcut capture, and turns its presses into [`RecordIntent`]s through [`RecordModes`].
+//!
+//! The combination and mode are settings (`settings::Settings::record_shortcut` and
+//! `shortcut_mode`); this module does not store them. `app.rs` saves accepted changes and feeds
+//! changes made elsewhere back in through [`RecordShortcutHandle::apply_combination`],
+//! [`set_mode`](RecordShortcutHandle::set_mode) and [`set_active`](RecordShortcutHandle::set_active).
 //!
 //! [`RecordShortcut`] is synchronous and takes time as an argument, so tests drive it with the
 //! fake listener and a controllable clock. [`spawn`] runs it for the app: a worker thread feeds
@@ -15,7 +20,8 @@ use specta::Type;
 
 use super::modes::{RecordIntent, RecordModes, ShortcutMode};
 use super::validation::{
-    ShortcutProblem, default_cancel_shortcut, default_record_shortcut, validate_record_shortcut,
+    RecordShortcutCombination, ShortcutProblem, default_cancel_shortcut, default_record_shortcut,
+    validate_record_shortcut,
 };
 use super::{
     CaptureSink, CapturedKey, KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutEvent,
@@ -39,39 +45,6 @@ impl Default for RecordShortcutConfig {
     }
 }
 
-/// Where the Record Shortcut settings are kept.
-///
-/// Temporary seam: the settings store (#23) is being built in parallel; until it lands, the app
-/// uses [`InMemoryConfigStore`] and settings reset to the defaults on restart.
-pub trait RecordShortcutConfigStore: Send {
-    fn load(&self) -> RecordShortcutConfig;
-    fn save(&mut self, config: &RecordShortcutConfig);
-}
-
-/// Keeps the settings in memory only.
-#[derive(Debug, Clone, Default)]
-pub struct InMemoryConfigStore(pub RecordShortcutConfig);
-
-impl RecordShortcutConfigStore for InMemoryConfigStore {
-    fn load(&self) -> RecordShortcutConfig {
-        self.0.clone()
-    }
-    fn save(&mut self, config: &RecordShortcutConfig) {
-        self.0 = config.clone();
-    }
-}
-
-/// What the interface shows about the Record Shortcut.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RecordShortcutState {
-    /// The current combination in canonical text form, e.g. `"Ctrl+Space"`.
-    pub combination: String,
-    pub mode: ShortcutMode,
-    /// The combination "Reset to default" restores.
-    pub default_combination: String,
-}
-
 /// Why a new Record Shortcut was not taken; the previous one stays active (rule 23).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, thiserror::Error)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -80,7 +53,7 @@ pub enum ShortcutChangeError {
     #[error("{problem}")]
     #[serde(rename_all = "camelCase")]
     NotAllowed { problem: ShortcutProblem },
-    /// The combination is allowed but could not be activated.
+    /// The combination is allowed but could not be activated (or saved).
     #[error("cannot activate the shortcut: {reason}")]
     #[serde(rename_all = "camelCase")]
     ActivationFailed { reason: String },
@@ -89,47 +62,48 @@ pub enum ShortcutChangeError {
 /// The Record Shortcut logic around a [`ShortcutListener`].
 pub struct RecordShortcut {
     listener: Box<dyn ShortcutListener>,
-    store: Box<dyn RecordShortcutConfigStore>,
     config: RecordShortcutConfig,
     cancel: KeyCombination,
     modes: RecordModes,
     capturing: bool,
+    /// Whether the shortcut is in force: only once first-run setup is finished (rule 17).
+    active: bool,
 }
 
 impl RecordShortcut {
+    /// A Record Shortcut with the given settings; `active` says whether first-run setup is done.
     pub fn new(
         listener: Box<dyn ShortcutListener>,
-        store: Box<dyn RecordShortcutConfigStore>,
+        config: RecordShortcutConfig,
+        active: bool,
     ) -> Self {
-        let config = store.load();
         Self {
             listener,
-            store,
             modes: RecordModes::new(config.mode),
             config,
             cancel: default_cancel_shortcut(),
             capturing: false,
+            active,
         }
     }
 
-    /// Starts the listener and binds the configured combination.
+    /// Starts the listener and, if the shortcut is active, binds the configured combination.
     pub fn start(&mut self, sink: ShortcutSink) -> Result<(), ShortcutError> {
         self.listener.start(sink)?;
-        self.listener
-            .bind(Shortcut::Record, Some(self.config.combination.clone()))
+        self.rebind()
     }
 
-    pub fn state(&self) -> RecordShortcutState {
-        RecordShortcutState {
-            combination: self.config.combination.to_string(),
-            mode: self.config.mode,
-            default_combination: default_record_shortcut().to_string(),
-        }
+    pub fn config(&self) -> &RecordShortcutConfig {
+        &self.config
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active
     }
 
     /// Feeds one listener event at `now`; returns what the pipeline should do.
     pub fn handle(&mut self, event: ShortcutEvent, now: Instant) -> Option<RecordIntent> {
-        if event.shortcut != Shortcut::Record || self.capturing {
+        if event.shortcut != Shortcut::Record || self.capturing || !self.active {
             return None;
         }
         match event.action {
@@ -154,36 +128,56 @@ impl RecordShortcut {
     }
 
     /// Changes the mode at once, even during a Recording (rule 4).
-    pub fn set_mode(&mut self, mode: ShortcutMode) -> RecordShortcutState {
+    pub fn set_mode(&mut self, mode: ShortcutMode) {
         self.modes.set_mode(mode);
         self.config.mode = mode;
-        self.store.save(&self.config);
-        self.state()
     }
 
-    /// Validates and activates a new combination given in text form (rules 20–23). Ends a
-    /// capture in progress first.
+    /// Turns the shortcut on or off: it is off until first-run setup is finished (rule 17).
+    pub fn set_active(&mut self, active: bool) -> Result<(), ShortcutError> {
+        if active == self.active {
+            return Ok(());
+        }
+        self.active = active;
+        if !active {
+            self.modes.recording_ended();
+        }
+        self.rebind()
+    }
+
+    /// Validates and activates a new combination given in text form (rules 20–23) and returns
+    /// it as the value to save. Ends a capture in progress first. If it fails, the previous
+    /// combination stays in force.
     pub fn set_combination(
         &mut self,
         text: &str,
-    ) -> Result<RecordShortcutState, ShortcutChangeError> {
+    ) -> Result<RecordShortcutCombination, ShortcutChangeError> {
         self.end_capture();
         let not_allowed = |problem| ShortcutChangeError::NotAllowed { problem };
         let combination: KeyCombination = text.parse().map_err(not_allowed)?;
         validate_record_shortcut(&combination, &self.cancel).map_err(not_allowed)?;
-        self.listener
-            .bind(Shortcut::Record, Some(combination.clone()))
-            .map_err(|e| ShortcutChangeError::ActivationFailed {
+        let setting =
+            RecordShortcutCombination::try_from(combination.clone()).map_err(not_allowed)?;
+        self.apply_combination(&combination).map_err(|e| {
+            ShortcutChangeError::ActivationFailed {
                 reason: e.to_string(),
-            })?;
-        self.config.combination = combination;
-        self.store.save(&self.config);
-        Ok(self.state())
+            }
+        })?;
+        Ok(setting)
     }
 
-    /// Restores Ctrl+Space, subject to the same validation (rule 24).
-    pub fn reset(&mut self) -> Result<RecordShortcutState, ShortcutChangeError> {
-        self.set_combination(&default_record_shortcut().to_string())
+    /// Puts an already validated combination in force (e.g. one changed in the settings by
+    /// "Restore default"). On failure the previous combination stays in force.
+    pub fn apply_combination(&mut self, combination: &KeyCombination) -> Result<(), ShortcutError> {
+        if *combination == self.config.combination {
+            return Ok(());
+        }
+        if self.active && !self.capturing {
+            self.listener
+                .bind(Shortcut::Record, Some(combination.clone()))?;
+        }
+        self.config.combination = combination.clone();
+        Ok(())
     }
 
     /// Starts shortcut capture: the Record Shortcut is suspended (rule 14) and keys go to `sink`.
@@ -204,11 +198,8 @@ impl RecordShortcut {
         }
         self.capturing = false;
         let _ = self.listener.capture(None);
-        if let Err(error) = self
-            .listener
-            .bind(Shortcut::Record, Some(self.config.combination.clone()))
-        {
-            eprintln!("Echo: cannot reactivate the Record Shortcut: {error}");
+        if let Err(error) = self.rebind() {
+            log::warn!("cannot reactivate the Record Shortcut: {error}");
         }
     }
 
@@ -220,6 +211,12 @@ impl RecordShortcut {
     /// [`ShortcutListener::own_window_key`]).
     pub fn own_window_key(&mut self, key: &str, action: KeyAction) {
         self.listener.own_window_key(key, action);
+    }
+
+    /// Binds the combination if the shortcut is in force now, otherwise clears the binding.
+    fn rebind(&mut self) -> Result<(), ShortcutError> {
+        let binding = (self.active && !self.capturing).then(|| self.config.combination.clone());
+        self.listener.bind(Shortcut::Record, binding)
     }
 }
 
@@ -247,20 +244,32 @@ impl RecordShortcutHandle {
         self.core.lock().unwrap_or_else(|e| e.into_inner())
     }
 
-    pub fn state(&self) -> RecordShortcutState {
-        self.core().state()
+    /// The combination and mode currently in force.
+    pub fn config(&self) -> RecordShortcutConfig {
+        self.core().config().clone()
     }
 
-    pub fn set_mode(&self, mode: ShortcutMode) -> RecordShortcutState {
-        self.core().set_mode(mode)
+    pub fn set_mode(&self, mode: ShortcutMode) {
+        self.core().set_mode(mode);
     }
 
-    pub fn set_combination(&self, text: &str) -> Result<RecordShortcutState, ShortcutChangeError> {
+    /// Turns the shortcut on once first-run setup is finished, off otherwise (rule 17).
+    pub fn set_active(&self, active: bool) -> Result<(), ShortcutError> {
+        self.core().set_active(active)
+    }
+
+    /// Validates and activates a combination typed or captured by the user; returns the value
+    /// to save in the settings.
+    pub fn set_combination(
+        &self,
+        text: &str,
+    ) -> Result<RecordShortcutCombination, ShortcutChangeError> {
         self.core().set_combination(text)
     }
 
-    pub fn reset(&self) -> Result<RecordShortcutState, ShortcutChangeError> {
-        self.core().reset()
+    /// Puts a combination changed in the settings in force.
+    pub fn apply_combination(&self, combination: &KeyCombination) -> Result<(), ShortcutError> {
+        self.core().apply_combination(combination)
     }
 
     pub fn begin_capture(&self) -> Result<(), ShortcutError> {
@@ -355,12 +364,16 @@ mod tests {
 
     impl Rig {
         fn new(mode: ShortcutMode) -> Self {
+            Self::with(mode, true)
+        }
+
+        fn with(mode: ShortcutMode, active: bool) -> Self {
             let fake = FakeShortcutListener::new();
-            let store = InMemoryConfigStore(RecordShortcutConfig {
+            let config = RecordShortcutConfig {
                 mode,
                 ..RecordShortcutConfig::default()
-            });
-            let mut core = RecordShortcut::new(Box::new(fake.clone()), Box::new(store));
+            };
+            let mut core = RecordShortcut::new(Box::new(fake.clone()), config, active);
             let (tx, events) = mpsc::channel();
             core.start(Box::new(move |e| tx.send(e).unwrap())).unwrap();
             Self {
@@ -394,24 +407,58 @@ mod tests {
             self.fake.release(Shortcut::Record);
             self.deliver(ms)
         }
+
+        fn bound(&self) -> Option<String> {
+            self.fake.binding(Shortcut::Record).map(|c| c.to_string())
+        }
     }
 
     #[test]
-    fn starts_with_ctrl_space_in_push_to_talk_mode() {
+    fn starts_with_its_combination_bound() {
         let rig = Rig::new(ShortcutMode::PushToTalk);
 
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
+        assert_eq!(rig.core.config(), &RecordShortcutConfig::default());
+    }
+
+    /// Rule 17: inactive until first-run setup is finished.
+    #[test]
+    fn the_shortcut_is_inactive_until_first_run_setup_is_finished() {
+        let mut rig = Rig::with(ShortcutMode::Toggle, false);
+
+        assert_eq!(rig.bound(), None);
+        assert_eq!(rig.press(0), vec![]);
+
+        rig.core.set_active(true).unwrap();
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
+        assert_eq!(rig.press(100), vec![Start]);
+    }
+
+    #[test]
+    fn deactivating_unbinds_and_forgets_the_recording() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        rig.press(0);
+
+        rig.core.set_active(false).unwrap();
+
+        assert_eq!(rig.bound(), None);
+        rig.core.set_active(true).unwrap();
         assert_eq!(
-            rig.fake.binding(Shortcut::Record),
-            Some(default_record_shortcut())
+            rig.press(1000),
+            vec![Start],
+            "a fresh Recording, not a stop"
         );
-        assert_eq!(
-            rig.core.state(),
-            RecordShortcutState {
-                combination: "Ctrl+Space".into(),
-                mode: ShortcutMode::PushToTalk,
-                default_combination: "Ctrl+Space".into(),
-            }
-        );
+    }
+
+    #[test]
+    fn a_combination_chosen_while_inactive_is_bound_on_activation() {
+        let mut rig = Rig::with(ShortcutMode::Toggle, false);
+
+        rig.core.set_combination("F9").unwrap();
+        assert_eq!(rig.bound(), None);
+
+        rig.core.set_active(true).unwrap();
+        assert_eq!(rig.bound().as_deref(), Some("F9"));
     }
 
     /// Acceptance test 1, through the listener.
@@ -441,10 +488,8 @@ mod tests {
         let mut rig = Rig::new(ShortcutMode::PushToTalk);
 
         rig.press(0);
-        assert_eq!(
-            rig.core.set_mode(ShortcutMode::Toggle).mode,
-            ShortcutMode::Toggle
-        );
+        rig.core.set_mode(ShortcutMode::Toggle);
+        assert_eq!(rig.core.config().mode, ShortcutMode::Toggle);
         assert_eq!(rig.release(300), vec![]);
         assert_eq!(rig.core.tick(rig.at(1000)), None);
         assert_eq!(rig.press(2000), vec![Stop]);
@@ -463,18 +508,15 @@ mod tests {
     }
 
     #[test]
-    fn an_accepted_combination_takes_effect_immediately_and_is_saved() {
+    fn an_accepted_combination_takes_effect_immediately_and_is_returned_for_saving() {
         let mut rig = Rig::new(ShortcutMode::PushToTalk);
 
-        let state = rig.core.set_combination("Alt+Shift+Ctrl+D").unwrap();
+        let saved = rig.core.set_combination("Alt+Shift+Ctrl+D").unwrap();
 
-        assert_eq!(state.combination, "Ctrl+Alt+Shift+D");
+        assert_eq!(String::from(saved), "Ctrl+Alt+Shift+D");
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Alt+Shift+D"));
         assert_eq!(
-            rig.fake.binding(Shortcut::Record).unwrap().to_string(),
-            "Ctrl+Alt+Shift+D"
-        );
-        assert_eq!(
-            rig.core.store.load().combination.to_string(),
+            rig.core.config().combination.to_string(),
             "Ctrl+Alt+Shift+D"
         );
     }
@@ -495,7 +537,7 @@ mod tests {
                 "{text}"
             );
         }
-        assert_eq!(rig.core.state().combination, "Ctrl+Space");
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
         assert_eq!(rig.press(0), vec![Start]);
     }
 
@@ -511,24 +553,34 @@ mod tests {
             result,
             Err(ShortcutChangeError::ActivationFailed { .. })
         ));
-        assert_eq!(rig.core.state().combination, "Ctrl+Space");
-        assert_eq!(
-            rig.fake.binding(Shortcut::Record),
-            Some(default_record_shortcut())
-        );
+        assert_eq!(rig.core.config().combination, default_record_shortcut());
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
         assert_eq!(rig.press(0), vec![Start]);
     }
 
+    /// Rule 24 through the settings: "Restore default" changes the setting, which is applied.
     #[test]
-    fn reset_restores_ctrl_space() {
+    fn a_combination_changed_in_the_settings_is_applied() {
         let mut rig = Rig::new(ShortcutMode::PushToTalk);
         rig.core.set_combination("F9").unwrap();
 
-        assert_eq!(rig.core.reset().unwrap().combination, "Ctrl+Space");
-        assert_eq!(
-            rig.fake.binding(Shortcut::Record),
-            Some(default_record_shortcut())
-        );
+        rig.core
+            .apply_combination(&default_record_shortcut())
+            .unwrap();
+
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
+    }
+
+    #[test]
+    fn a_settings_change_that_cannot_be_activated_keeps_the_old_combination() {
+        let mut rig = Rig::new(ShortcutMode::PushToTalk);
+        rig.fake.reject_binds(Some("already in use"));
+
+        let f9 = "F9".parse().unwrap();
+        assert!(rig.core.apply_combination(&f9).is_err());
+
+        assert_eq!(rig.core.config().combination, default_record_shortcut());
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
     }
 
     /// Acceptance test 15.
@@ -539,7 +591,7 @@ mod tests {
         rig.core.begin_capture(Box::new(|_| {})).unwrap();
         assert!(rig.fake.capturing());
         assert_eq!(rig.press(0), vec![]);
-        assert_eq!(rig.fake.binding(Shortcut::Record), None);
+        assert_eq!(rig.bound(), None);
 
         rig.core.end_capture();
         assert!(!rig.fake.capturing());
@@ -555,10 +607,7 @@ mod tests {
 
         assert!(!rig.core.is_capturing());
         assert!(!rig.fake.capturing());
-        assert_eq!(
-            rig.fake.binding(Shortcut::Record).unwrap().to_string(),
-            "Ctrl+Win"
-        );
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Win"));
     }
 
     #[test]
@@ -568,10 +617,17 @@ mod tests {
 
         assert!(rig.core.set_combination("A").is_err());
 
-        assert_eq!(
-            rig.fake.binding(Shortcut::Record),
-            Some(default_record_shortcut())
-        );
+        assert_eq!(rig.bound().as_deref(), Some("Ctrl+Space"));
+    }
+
+    #[test]
+    fn capture_while_inactive_leaves_the_shortcut_unbound() {
+        let mut rig = Rig::with(ShortcutMode::Toggle, false);
+
+        rig.core.begin_capture(Box::new(|_| {})).unwrap();
+        rig.core.end_capture();
+
+        assert_eq!(rig.bound(), None);
     }
 
     #[test]
@@ -606,7 +662,8 @@ mod tests {
         let fake = FakeShortcutListener::new();
         let core = RecordShortcut::new(
             Box::new(fake.clone()),
-            Box::new(InMemoryConfigStore::default()),
+            RecordShortcutConfig::default(),
+            true,
         );
         let (tx, intents) = mpsc::channel();
         let (key_tx, keys) = mpsc::channel();

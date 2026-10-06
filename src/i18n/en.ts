@@ -41,7 +41,7 @@ export const en = {
     app: {
       title: "App",
       description: "Language of the interface, start-up, updates and information about Echo.",
-      upcoming: "Start with Windows, recording indicator, automatic updates and the log folder.",
+      upcoming: "Start with Windows, the recording indicator and automatic updates.",
     },
   },
   placeholder: {
@@ -63,6 +63,60 @@ export const en = {
       label: "Windows display language",
       unknown: "Not reported",
     },
+    logFolder: {
+      label: "Diagnostic log",
+      description:
+        "Events and errors, kept on this computer to help solve problems. It never contains what you dictate.",
+      open: "Open log folder",
+      failed: "The log folder could not be opened.",
+    },
+  },
+  onboarding: {
+    progress: "Setup steps",
+    steps: {
+      welcome: "Welcome",
+      microphone: "Microphone",
+      model: "Model",
+      tryIt: "Try it",
+    },
+    welcome: {
+      title: "Welcome to Echo",
+      lead: "Speak, and Echo types what you say into the app you are using.",
+      local: "Everything runs on this computer. Your voice and your text never leave it.",
+      model: "Echo needs a speech Model: a one-time download of a few hundred MB.",
+      shortcut: "Then hold a shortcut, speak, and let go. The text appears where you are typing.",
+      start: "Get started",
+    },
+    microphone: {
+      title: "Allow microphone access",
+      lead: "Windows is blocking desktop apps from using the microphone, so Echo cannot hear you.",
+      howTo:
+        "Open the Windows privacy settings and turn on access for desktop apps. Echo continues on its own as soon as access is allowed.",
+      open: "Open Windows privacy settings",
+      checking: "Checking again every few seconds…",
+      skip: "Skip for now",
+      skipNote: "Recordings will fail until access is allowed.",
+    },
+    model: {
+      title: "Choose a Model",
+      lead: "The Model turns your speech into text. It is downloaded once and stays on this computer.",
+      upcoming:
+        "The three Models with their sizes, Whisper large-v3-turbo recommended, and the download with its progress.",
+      continueWithout: "Continue without a Model",
+    },
+    tryIt: {
+      title: "Try it",
+      lead: "Echo is ready. Click the field below and dictate a sentence.",
+      holdShortcut: "Hold <kbd>{{shortcut}}</kbd> and speak, then let go.",
+      pressShortcut: "Press <kbd>{{shortcut}}</kbd> and speak, then press it again.",
+      fieldLabel: "Test field",
+      fieldPlaceholder: "Your words appear here…",
+      later: "You can change the shortcut later under Dictation.",
+      finish: "Finish",
+    },
+  },
+  errors: {
+    settingsUnavailable: "Echo could not load its settings. Please restart Echo.",
   },
   recordShortcut: {
     label: "Record Shortcut",

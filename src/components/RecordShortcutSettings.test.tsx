@@ -1,164 +1,122 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-import type { CapturedKeyEvent, RecordIntentEvent, RecordShortcutState } from "../bindings";
-import { changeUiLanguage, initI18n } from "../i18n";
-import { useRecordShortcut } from "../store/recordShortcut";
+import { changeUiLanguage } from "../i18n";
+import { useSettings } from "../store/settings";
+import { backend } from "../test/backend";
 import { RecordShortcutSettings } from "./RecordShortcutSettings";
 
-// The generated bindings call Tauri's `invoke` and `listen`; faking them exercises the real
-// binding code.
-const invoke = vi.hoisted(() => vi.fn());
-const listeners = vi.hoisted(() => new Map<string, (event: { payload: unknown }) => void>());
-vi.mock("@tauri-apps/api/core", () => ({ invoke }));
-vi.mock("@tauri-apps/api/event", () => ({
-  listen: (name: string, handler: (event: { payload: unknown }) => void) => {
-    listeners.set(name, handler);
-    return Promise.resolve(() => listeners.delete(name));
-  },
-}));
-
-const initialStore = useRecordShortcut.getState();
-initI18n("en");
-
-let backend: RecordShortcutState;
-
-/** A fake backend: accepts any proposal except the ones the test lists as rejected. */
-function fakeBackend(rejected: Record<string, unknown> = {}) {
-  backend = { combination: "Ctrl+Space", mode: "pushToTalk", defaultCombination: "Ctrl+Space" };
-  invoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
-    switch (command) {
-      case "record_shortcut":
-      case "begin_shortcut_capture":
-      case "end_shortcut_capture":
-        return Promise.resolve(command === "record_shortcut" ? backend : null);
-      case "set_record_shortcut": {
-        const combination = args?.combination as string;
-        // Tauri rejects with the command's serialised error value, not an Error.
-        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-        if (combination in rejected) return Promise.reject(rejected[combination]);
-        backend = { ...backend, combination };
-        return Promise.resolve(backend);
-      }
-      case "reset_record_shortcut":
-        backend = { ...backend, combination: backend.defaultCombination };
-        return Promise.resolve(backend);
-      case "set_shortcut_mode":
-        backend = { ...backend, mode: args?.mode as RecordShortcutState["mode"] };
-        return Promise.resolve(backend);
-      default:
-        return Promise.reject(new Error(`unexpected ${command}`));
-    }
-  });
-}
-
-function emit(name: string, payload: CapturedKeyEvent | RecordIntentEvent) {
-  act(() => {
-    listeners.get(name)?.({ payload });
-  });
-}
-
 function key(key: string, pressed: boolean) {
-  emit("captured-key-event", { key, pressed });
+  act(() => {
+    backend.emit("captured-key-event", { key, pressed });
+  });
+}
+
+function field() {
+  return screen.getByTestId("record-shortcut-field");
 }
 
 async function renderPage() {
+  await useSettings.getState().load();
   render(<RecordShortcutSettings />);
   return screen.findByRole("button", { name: /currently Ctrl \+ Space/ });
 }
 
 beforeEach(async () => {
-  invoke.mockReset();
-  listeners.clear();
-  useRecordShortcut.setState(initialStore, true);
   await changeUiLanguage("en");
 });
 
 describe("Record Shortcut settings", () => {
   it("shows the current shortcut as key caps and the default mode", async () => {
-    fakeBackend();
-    const field = await renderPage();
+    const shortcutField = await renderPage();
 
-    expect(field).toHaveTextContent("Ctrl+Space");
+    expect(shortcutField).toHaveTextContent("Ctrl+Space");
     expect(screen.getByRole("radio", { name: /Hold to record/ })).toBeChecked();
     expect(screen.getByRole("button", { name: "Reset to default" })).toBeDisabled();
   });
 
+  it("shows the shortcut stored in the settings", async () => {
+    backend.settings = { ...backend.settings, recordShortcut: "Ctrl+Win", shortcutMode: "toggle" };
+    await useSettings.getState().load();
+    render(<RecordShortcutSettings />);
+
+    expect(
+      await screen.findByRole("button", { name: /currently Ctrl \+ Win/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /Press to start/ })).toBeChecked();
+  });
+
   // record-shortcut.md acceptance test 14: Ctrl down, Space down, Space up → "Ctrl+Space".
-  it("captures a combination with a main key", async () => {
-    fakeBackend();
+  it("captures a combination with a main key and saves it", async () => {
     await userEvent.click(await renderPage());
     expect(screen.getByText("Press the new shortcut…")).toBeInTheDocument();
-    expect(invoke).toHaveBeenCalledWith("begin_shortcut_capture");
+    expect(backend.commandsCalled("begin_shortcut_capture")).toHaveLength(1);
 
     key("RightCtrl", true);
     key("LeftAlt", true);
     key("D", true);
-    expect(screen.getByTestId("record-shortcut-field")).toHaveTextContent("Ctrl+Alt+D");
+    expect(field()).toHaveTextContent("Ctrl+Alt+D");
     key("D", false);
 
-    await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("set_record_shortcut", { combination: "Ctrl+Alt+D" });
-    });
     expect(
       await screen.findByRole("button", { name: /currently Ctrl \+ Alt \+ D/ }),
     ).toBeInTheDocument();
+    expect(backend.commandsCalled("set_record_shortcut")[0]?.args).toEqual({
+      combination: "Ctrl+Alt+D",
+    });
+    expect(backend.settings.recordShortcut).toBe("Ctrl+Alt+D");
   });
 
   // Acceptance test 14: Ctrl down, Win down, Win up, Ctrl up → "Ctrl+Win".
   it("captures a modifier-only combination when all modifiers are released", async () => {
-    fakeBackend();
     await userEvent.click(await renderPage());
 
     key("LeftCtrl", true);
     key("LeftWin", true);
     key("LeftWin", false);
-    expect(invoke).not.toHaveBeenCalledWith("set_record_shortcut", expect.anything());
+    expect(backend.commandsCalled("set_record_shortcut")).toHaveLength(0);
     key("LeftCtrl", false);
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith("set_record_shortcut", { combination: "Ctrl+Win" });
+      expect(backend.settings.recordShortcut).toBe("Ctrl+Win");
     });
   });
 
   // Acceptance test 14: click outside → no change.
   it("ends capture without changes on a click outside the field", async () => {
-    fakeBackend();
     await userEvent.click(await renderPage());
     key("LeftCtrl", true);
 
     await userEvent.click(screen.getByText("Starts and stops a Recording from any application."));
 
-    expect(invoke).toHaveBeenCalledWith("end_shortcut_capture");
-    expect(invoke).not.toHaveBeenCalledWith("set_record_shortcut", expect.anything());
-    expect(screen.getByTestId("record-shortcut-field")).toHaveTextContent("Ctrl+Space");
+    expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(1);
+    expect(backend.commandsCalled("set_record_shortcut")).toHaveLength(0);
+    expect(field()).toHaveTextContent("Ctrl+Space");
   });
 
   it("ends capture without changes when the window loses focus", async () => {
-    fakeBackend();
     await userEvent.click(await renderPage());
 
     act(() => {
       window.dispatchEvent(new Event("blur"));
     });
 
-    expect(invoke).toHaveBeenCalledWith("end_shortcut_capture");
+    expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(1);
     expect(screen.queryByText("Press the new shortcut…")).not.toBeInTheDocument();
   });
 
   it("ends capture without changes when Escape is pressed alone", async () => {
-    fakeBackend();
     await userEvent.click(await renderPage());
 
     key("Escape", true);
 
-    expect(invoke).toHaveBeenCalledWith("end_shortcut_capture");
-    expect(invoke).not.toHaveBeenCalledWith("set_record_shortcut", expect.anything());
+    expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(1);
+    expect(backend.commandsCalled("set_record_shortcut")).toHaveLength(0);
   });
 
   it("explains a rejected proposal and keeps the previous shortcut", async () => {
-    fakeBackend({ Space: { kind: "notAllowed", problem: "needsModifier" } });
+    backend.rejectedShortcuts.set("Space", { kind: "notAllowed", problem: "needsModifier" });
     await userEvent.click(await renderPage());
 
     key("Space", true);
@@ -167,11 +125,15 @@ describe("Record Shortcut settings", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Space alone would stop working for typing. Add Ctrl, Alt, Shift or Win. Your previous shortcut stays active.",
     );
-    expect(screen.getByTestId("record-shortcut-field")).toHaveTextContent("Ctrl+Space");
+    expect(field()).toHaveTextContent("Ctrl+Space");
+    expect(backend.settings.recordShortcut).toBe("Ctrl+Space");
   });
 
   it("shows why an allowed shortcut could not be activated", async () => {
-    fakeBackend({ F9: { kind: "activationFailed", reason: "the keyboard hook is not running" } });
+    backend.rejectedShortcuts.set("F9", {
+      kind: "activationFailed",
+      reason: "the keyboard hook is not running",
+    });
     await userEvent.click(await renderPage());
 
     key("F9", true);
@@ -183,7 +145,6 @@ describe("Record Shortcut settings", () => {
   });
 
   it("names keys in the UI Language", async () => {
-    fakeBackend();
     await renderPage();
     await act(() => changeUiLanguage("pl"));
 
@@ -192,42 +153,54 @@ describe("Record Shortcut settings", () => {
     ).toBeInTheDocument();
   });
 
+  // Rule 24 through the settings' reset.
   it("resets to the default", async () => {
-    fakeBackend();
-    await userEvent.click(await renderPage());
-    key("F9", true);
-    key("F9", false);
-    const reset = screen.getByRole("button", { name: "Reset to default" });
-    await waitFor(() => {
-      expect(reset).toBeEnabled();
-    });
+    backend.settings = { ...backend.settings, recordShortcut: "F9" };
+    await useSettings.getState().load();
+    render(<RecordShortcutSettings />);
+    const reset = await screen.findByRole("button", { name: "Reset to default" });
+    expect(reset).toBeEnabled();
 
     await userEvent.click(reset);
 
-    expect(invoke).toHaveBeenCalledWith("reset_record_shortcut");
+    expect(backend.commandsCalled("reset_setting")[0]?.args).toEqual({ key: "recordShortcut" });
     expect(
       await screen.findByRole("button", { name: /currently Ctrl \+ Space/ }),
     ).toBeInTheDocument();
   });
 
-  it("switches the mode", async () => {
-    fakeBackend();
+  it("switches the mode and saves it", async () => {
     await renderPage();
 
     await userEvent.click(screen.getByRole("radio", { name: /Press to start, press again/ }));
 
-    expect(invoke).toHaveBeenCalledWith("set_shortcut_mode", { mode: "toggle" });
     expect(screen.getByRole("radio", { name: /Press to start, press again/ })).toBeChecked();
+    await waitFor(() => {
+      expect(backend.settings.shortcutMode).toBe("toggle");
+    });
+  });
+
+  it("follows a shortcut changed outside the window", async () => {
+    await renderPage();
+
+    act(() => {
+      backend.changeSettings({ recordShortcut: "RightAlt" });
+    });
+
+    expect(await screen.findByRole("button", { name: /currently Right Alt/ })).toBeInTheDocument();
   });
 
   it("shows the last Record Shortcut intent in the temporary developer check", async () => {
-    fakeBackend();
     await renderPage();
     expect(screen.getByTestId("dev-intent")).toHaveTextContent("none yet");
 
-    emit("record-intent-event", { intent: "start" });
+    act(() => {
+      backend.emit("record-intent-event", { intent: "start" });
+    });
     expect(screen.getByTestId("dev-intent")).toHaveTextContent("start");
-    emit("record-intent-event", { intent: "stop" });
+    act(() => {
+      backend.emit("record-intent-event", { intent: "stop" });
+    });
     expect(screen.getByTestId("dev-intent")).toHaveTextContent("stop");
   });
 });

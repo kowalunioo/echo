@@ -3,20 +3,23 @@ import { useTranslation } from "react-i18next";
 
 import { type ShortcutMode, events } from "../bindings";
 import { heldCombination, keysOf } from "../shortcut/capture";
-import { type ShortcutFeedback, useRecordShortcut } from "../store/recordShortcut";
+import {
+  DEFAULT_RECORD_SHORTCUT,
+  type ShortcutFeedback,
+  useRecordShortcut,
+} from "../store/recordShortcut";
+import { useSetting } from "../store/settings";
 
 const MODES: readonly ShortcutMode[] = ["pushToTalk", "toggle"];
 
 /** Record Shortcut and its mode on the Dictation page (record-shortcut.md, "UI"). */
 export function RecordShortcutSettings() {
   const { t } = useTranslation();
-  const load = useRecordShortcut((s) => s.load);
   const captureKey = useRecordShortcut((s) => s.captureKey);
   const showIntent = useRecordShortcut((s) => s.showIntent);
   const feedback = useRecordShortcut((s) => s.feedback);
 
   useEffect(() => {
-    void load();
     const subscriptions = [
       events.capturedKeyEvent.listen((e) => void captureKey(e.payload.key, e.payload.pressed)),
       events.recordIntentEvent.listen((e) => {
@@ -33,7 +36,7 @@ export function RecordShortcutSettings() {
         void subscription.then((unlisten) => unlisten?.());
       }
     };
-  }, [load, captureKey, showIntent]);
+  }, [captureKey, showIntent]);
 
   return (
     <>
@@ -63,7 +66,7 @@ export function RecordShortcutSettings() {
 /** The current shortcut as key caps; click to capture a new one. */
 function ShortcutField() {
   const { t } = useTranslation();
-  const shortcut = useRecordShortcut((s) => s.shortcut);
+  const [current] = useSetting("recordShortcut");
   const capture = useRecordShortcut((s) => s.capture);
   const beginCapture = useRecordShortcut((s) => s.beginCapture);
   const endCapture = useRecordShortcut((s) => s.endCapture);
@@ -87,7 +90,6 @@ function ShortcutField() {
   }, [capturing, endCapture]);
 
   const held = capture ? heldCombination(capture) : "";
-  const current = shortcut?.combination ?? "";
 
   return (
     <div className="flex flex-col items-end gap-1">
@@ -152,8 +154,8 @@ function useKeyLabel() {
 function ResetButton() {
   const { t } = useTranslation();
   const reset = useRecordShortcut((s) => s.reset);
-  const shortcut = useRecordShortcut((s) => s.shortcut);
-  const isDefault = shortcut !== null && shortcut.combination === shortcut.defaultCombination;
+  const [current] = useSetting("recordShortcut");
+  const isDefault = current === DEFAULT_RECORD_SHORTCUT;
   return (
     <button
       type="button"
@@ -189,8 +191,7 @@ function Feedback({ feedback }: { feedback: ShortcutFeedback }) {
 
 function ModePicker() {
   const { t } = useTranslation();
-  const mode = useRecordShortcut((s) => s.shortcut?.mode);
-  const setMode = useRecordShortcut((s) => s.setMode);
+  const [mode, setMode] = useSetting("shortcutMode");
   return (
     <fieldset className="flex flex-col gap-3 px-6 py-4">
       <legend className="float-left mb-3 font-medium">{t("recordShortcut.mode.label")}</legend>

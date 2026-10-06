@@ -1,13 +1,18 @@
 import { create } from "zustand";
 
-import {
-  type RecordIntent,
-  type RecordShortcutState,
-  type ShortcutChangeError,
-  type ShortcutMode,
-  commands,
-} from "../bindings";
+import { type RecordIntent, type ShortcutChangeError, commands } from "../bindings";
 import { type CaptureState, captureKey, initialCapture } from "../shortcut/capture";
+import { useSettings } from "./settings";
+
+/**
+ * The Record Shortcut's capture state and feedback. The combination and mode themselves are
+ * settings (`recordShortcut`, `shortcutMode`; read them with `useSetting`). A captured
+ * combination goes through `set_record_shortcut`, which activates it before saving it and says
+ * why when it cannot (record-shortcut.md rules 20–23).
+ */
+
+/** The default Record Shortcut, restored by "Reset to default" (record-shortcut.md rule 18). */
+export const DEFAULT_RECORD_SHORTCUT = "Ctrl+Space";
 
 /** Why the last change of the Record Shortcut was refused; shown next to the field. */
 export type ShortcutFeedback =
@@ -15,15 +20,12 @@ export type ShortcutFeedback =
   | { kind: "captureUnavailable" };
 
 interface RecordShortcutStore {
-  shortcut: RecordShortcutState | null;
   /** Non-null while the shortcut-capture UI is active. */
   capture: CaptureState | null;
   feedback: ShortcutFeedback | null;
   /** TEMPORARY (remove with #13): the last intent, for checking the hook by hand. */
   lastIntent: RecordIntent | null;
 
-  load: () => Promise<void>;
-  setMode: (mode: ShortcutMode) => Promise<void>;
   reset: () => Promise<void>;
   beginCapture: () => Promise<void>;
   /** Ends capture without changes (click outside, window lost focus, Escape). */
@@ -32,80 +34,66 @@ interface RecordShortcutStore {
   showIntent: (intent: RecordIntent) => void;
 }
 
-export const useRecordShortcut = create<RecordShortcutStore>()((set, get) => {
-  async function apply(
-    proposal: string,
-    change: () => ReturnType<typeof commands.setRecordShortcut>,
-  ) {
-    const result = await change();
-    if (result.status === "ok") {
-      set({ shortcut: result.data, feedback: null });
-    } else {
-      set({ feedback: { kind: "rejected", error: result.error, proposal } });
+export const useRecordShortcut = create<RecordShortcutStore>()((set, get) => ({
+  capture: null,
+  feedback: null,
+  lastIntent: null,
+
+  reset: async () => {
+    await get().endCapture();
+    set({ feedback: null });
+    await useSettings.getState().reset("recordShortcut");
+  },
+
+  beginCapture: async () => {
+    if (get().capture) return;
+    set({ capture: initialCapture, feedback: null });
+    const result = await commands.beginShortcutCapture();
+    if (result.status === "error") {
+      console.error("begin_shortcut_capture failed", result.error);
+      set({ capture: null, feedback: { kind: "captureUnavailable" } });
     }
-  }
+  },
 
-  return {
-    shortcut: null,
-    capture: null,
-    feedback: null,
-    lastIntent: null,
+  endCapture: async () => {
+    if (!get().capture) return;
+    set({ capture: null });
+    await commands.endShortcutCapture();
+  },
 
-    load: async () => {
-      try {
-        set({ shortcut: await commands.recordShortcut() });
-      } catch (error) {
-        console.error("record_shortcut failed", error);
+  captureKey: async (key, pressed) => {
+    const capture = get().capture;
+    if (!capture) return;
+    const outcome = captureKey(capture, key, pressed);
+    switch (outcome.kind) {
+      case "continue":
+        set({ capture: outcome.state });
+        return;
+      case "cancel":
+        await get().endCapture();
+        return;
+      case "propose": {
+        // The backend ends the capture itself before validating the proposal.
+        set({ capture: null });
+        const proposal = outcome.combination;
+        const result = await commands.setRecordShortcut(proposal);
+        if (result.status === "ok") {
+          useSettings.setState({ status: "ready", settings: result.data });
+          set({ feedback: null });
+        } else {
+          set({ feedback: { kind: "rejected", error: result.error, proposal } });
+        }
+        return;
       }
-    },
+    }
+  },
 
-    setMode: async (mode) => {
-      set({ shortcut: await commands.setShortcutMode(mode) });
-    },
+  showIntent: (intent) => {
+    set({ lastIntent: intent });
+  },
+}));
 
-    reset: async () => {
-      if (get().capture) await get().endCapture();
-      const proposal = get().shortcut?.defaultCombination ?? "";
-      await apply(proposal, () => commands.resetRecordShortcut());
-    },
-
-    beginCapture: async () => {
-      if (get().capture) return;
-      set({ capture: initialCapture, feedback: null });
-      const result = await commands.beginShortcutCapture();
-      if (result.status === "error") {
-        console.error("begin_shortcut_capture failed", result.error);
-        set({ capture: null, feedback: { kind: "captureUnavailable" } });
-      }
-    },
-
-    endCapture: async () => {
-      if (!get().capture) return;
-      set({ capture: null });
-      await commands.endShortcutCapture();
-    },
-
-    captureKey: async (key, pressed) => {
-      const capture = get().capture;
-      if (!capture) return;
-      const outcome = captureKey(capture, key, pressed);
-      switch (outcome.kind) {
-        case "continue":
-          set({ capture: outcome.state });
-          return;
-        case "cancel":
-          await get().endCapture();
-          return;
-        case "propose":
-          // The backend ends the capture itself before validating the proposal.
-          set({ capture: null });
-          await apply(outcome.combination, () => commands.setRecordShortcut(outcome.combination));
-          return;
-      }
-    },
-
-    showIntent: (intent) => {
-      set({ lastIntent: intent });
-    },
-  };
-});
+/** Forgets capture and feedback; for tests that start each case from scratch. */
+export function resetRecordShortcutStore() {
+  useRecordShortcut.setState({ capture: null, feedback: null, lastIntent: null });
+}

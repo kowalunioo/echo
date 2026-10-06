@@ -24,7 +24,7 @@ export function PageView({ page }: { page: Page }) {
   );
 }
 
-function Placeholder({ children }: { children: ReactNode }) {
+export function Placeholder({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   return (
     <section className="flex flex-col items-start gap-3 rounded-card border border-dashed border-line px-6 py-5">

@@ -18,7 +18,12 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 thiserror = "2"
+log = "0.4"
+tauri-plugin-log = "2.8"
+tauri-plugin-opener = "2.5"
+tauri-plugin-single-instance = "2.4"
 hound = "3.5"
 rubato = "5"
 sys-locale = "0.3"
@@ -27,6 +32,21 @@ sys-locale = "0.3"
 specta = { version = "=2.0.0-rc.25", features = ["derive"] }
 specta-typescript = "=0.0.12"
 tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
+# The Engine (ADR 0003). Pre-1.0, so pinned to a minor line; its native library is built from
+# source with CMake. Default features are off to drop Metal (Apple only); GPU support comes from
+# Echo's own `vulkan` feature below.
+transcribe-cpp = { version = "0.3.1", default-features = false }
+
+[features]
+# Vulkan GPU acceleration with automatic CPU fallback (`docs/specs/models.md` rule 29). On by
+# default so every app build ships it; it needs the Vulkan SDK at build time. CI builds with
+# `--no-default-features` (CPU only): the runner has no GPU and Echo's own code is identical
+# either way — the feature only changes which backends the native library compiles in.
+default = ["vulkan"]
+vulkan = ["transcribe-cpp/vulkan"]
+
+[dev-dependencies]
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 # The keyboard hook (ADR 0002); 0.62 is the version Tauri already pulls in.

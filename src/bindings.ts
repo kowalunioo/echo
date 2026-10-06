@@ -9,17 +9,31 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Returns facts about the running app. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
-	/**  The current Record Shortcut and mode. */
-	recordShortcut: () => __TAURI_INVOKE<RecordShortcutState>("record_shortcut"),
+	/**  Returns the current settings. */
+	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	/**
-	 *  Validates and activates a new Record Shortcut given in canonical text form (`"Ctrl+Space"`).
-	 *  On failure the previous one stays active. Ends a capture in progress.
+	 *  Changes the settings present in `patch` (e.g. `{ uiLanguage: "en" }`) and saves them at once.
+	 *  Returns the new settings; every window also receives them as a `SettingsChanged` event.
 	 */
-	setRecordShortcut: (combination: string) => typedError<RecordShortcutState, ShortcutChangeError>(__TAURI_INVOKE("set_record_shortcut", { combination })),
-	/**  Restores the default Record Shortcut, Ctrl+Space. */
-	resetRecordShortcut: () => typedError<RecordShortcutState, ShortcutChangeError>(__TAURI_INVOKE("reset_record_shortcut")),
-	/**  Switches between Push-to-Talk Mode and Toggle Mode. */
-	setShortcutMode: (mode: ShortcutMode) => __TAURI_INVOKE<RecordShortcutState>("set_shortcut_mode", { mode }),
+	updateSettings: (patch: SettingsPatch) => typedError<Settings, string>(__TAURI_INVOKE("update_settings", { patch })),
+	/**  Puts the setting `key` (e.g. `"uiLanguage"`) back to its default. */
+	resetSetting: (key: string) => typedError<Settings, string>(__TAURI_INVOKE("reset_setting", { key })),
+	/**
+	 *  Opens the folder with Echo's log files in File Explorer (the "Open log folder" link in the
+	 *  App section, `settings-and-first-run.md` "UI").
+	 */
+	openLogFolder: () => typedError<null, string>(__TAURI_INVOKE("open_log_folder")),
+	/**
+	 *  Opens the Windows microphone privacy settings ("Open Windows privacy settings" in the
+	 *  onboarding's Microphone access step).
+	 */
+	openMicrophonePrivacySettings: () => typedError<null, string>(__TAURI_INVOKE("open_microphone_privacy_settings")),
+	/**
+	 *  Validates and activates a new Record Shortcut given in canonical text form (`"Ctrl+Space"`),
+	 *  then saves it. On failure the previous one stays active and saved. Ends a capture in progress.
+	 *  Returns the new settings (every window also receives them as a `SettingsChanged` event).
+	 */
+	setRecordShortcut: (combination: string) => typedError<Settings, ShortcutChangeError>(__TAURI_INVOKE("set_record_shortcut", { combination })),
 	/**
 	 *  Starts shortcut capture: the Record Shortcut is suspended and keys arrive as
 	 *  [`CapturedKeyEvent`]s instead of reaching applications.
@@ -38,6 +52,7 @@ export const commands = {
 export const events = {
 	capturedKeyEvent: makeEvent<CapturedKeyEvent>("captured-key-event"),
 	recordIntentEvent: makeEvent<RecordIntentEvent>("record-intent-event"),
+	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
 /* Types */
@@ -47,8 +62,6 @@ export type AppInfo = {
 	version: string,
 	/**  The Windows display language as a BCP 47 tag, if Windows reports one. */
 	systemLocale: string | null,
-	/**  The UI Language to use until the user picks one. */
-	defaultUiLanguage: UiLanguage,
 };
 
 /**
@@ -75,20 +88,61 @@ export type RecordIntentEvent = {
 	intent: RecordIntent,
 };
 
-/**  What the interface shows about the Record Shortcut. */
-export type RecordShortcutState = {
-	/**  The current combination in canonical text form, e.g. `"Ctrl+Space"`. */
-	combination: string,
-	mode: ShortcutMode,
-	/**  The combination "Reset to default" restores. */
-	defaultCombination: string,
+/**
+ *  The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,
+ *  e.g. `"Ctrl+Space"`. Deserializing accepts exactly the allowed combinations, so an invalid
+ *  stored value falls back to the default (`docs/settings.md`). The check against the current
+ *  Cancel Shortcut uses its default until the Cancel Shortcut becomes a setting (#15).
+ */
+export type RecordShortcutCombination = string;
+
+/**
+ *  Every persisted setting, one top-level field per setting. Each field is salvaged on
+ *  its own: an invalid value resets only that field to its default (rule 13).
+ */
+export type Settings = {
+	/**  The language of Echo's own interface (owned by `settings-and-first-run.md`). */
+	uiLanguage: UiLanguage,
+	/**
+	 *  The user has moved past the Welcome step of the onboarding (`settings-and-first-run.md`
+	 *  rules 1–4). The Microphone access and Choose a Model steps are not stored: they are
+	 *  complete when Windows allows microphone access and when a Model is active.
+	 */
+	onboardingWelcomeDone: boolean,
+	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
+	onboardingCompleted: boolean,
+	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
+	recordShortcut: RecordShortcutCombination,
+	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
+	shortcutMode: ShortcutMode,
+};
+
+/**  Sent to every window after any change to the settings, with the complete new settings. */
+export type SettingsChanged = Settings;
+
+/**  A change to some settings: only the fields that are present change. */
+export type SettingsPatch = {
+	/**  The language of Echo's own interface (owned by `settings-and-first-run.md`). */
+	uiLanguage?: UiLanguage | null,
+	/**
+	 *  The user has moved past the Welcome step of the onboarding (`settings-and-first-run.md`
+	 *  rules 1–4). The Microphone access and Choose a Model steps are not stored: they are
+	 *  complete when Windows allows microphone access and when a Model is active.
+	 */
+	onboardingWelcomeDone?: boolean | null,
+	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
+	onboardingCompleted?: boolean | null,
+	/**  The key combination that starts and stops a Recording (`record-shortcut.md`). */
+	recordShortcut?: RecordShortcutCombination | null,
+	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
+	shortcutMode?: ShortcutMode | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */
 export type ShortcutChangeError = 
 /**  The combination is not allowed (rule 20). */
 { kind: "notAllowed"; problem: ShortcutProblem } | 
-/**  The combination is allowed but could not be activated. */
+/**  The combination is allowed but could not be activated (or saved). */
 { kind: "activationFailed"; reason: string };
 
 /**  How the Record Shortcut starts and stops a Recording. */
@@ -121,7 +175,7 @@ export type ShortcutProblem =
 /**  Not a combination Echo understands (unknown key name, two main keys, …). */
 "invalid";
 
-/**  The language of Echo's own interface. */
+/**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";
 
 /* Tauri Specta runtime */

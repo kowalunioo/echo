@@ -35,8 +35,31 @@ export function initI18n(language: UiLanguage) {
 }
 
 export async function changeUiLanguage(language: UiLanguage) {
-  await i18n.changeLanguage(language);
+  if (i18n.language !== language) await i18n.changeLanguage(language);
   document.documentElement.lang = language;
+}
+
+/** The locale used for dates and numbers in each UI Language (rule 10). */
+const FORMAT_LOCALES: Partial<Record<string, string>> & Record<UiLanguage, string> = {
+  pl: "pl-PL",
+  en: "en-GB",
+};
+
+function formatLocale(): string {
+  return FORMAT_LOCALES[i18n.language] ?? FORMAT_LOCALES.en;
+}
+
+/** A number formatted for the current UI Language, e.g. 12 345,5 or 12,345.5. */
+export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
+  return new Intl.NumberFormat(formatLocale(), options).format(value);
+}
+
+/** A date and/or time formatted for the current UI Language. */
+export function formatDate(
+  value: Date | number,
+  options: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" },
+): string {
+  return new Intl.DateTimeFormat(formatLocale(), options).format(value);
 }
 
 export { i18n };

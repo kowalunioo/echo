@@ -131,6 +131,52 @@ pub fn validate_record_shortcut(
     Ok(())
 }
 
+/// The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,
+/// e.g. `"Ctrl+Space"`. Deserializing accepts exactly the allowed combinations, so an invalid
+/// stored value falls back to the default (`docs/settings.md`). The check against the current
+/// Cancel Shortcut uses its default until the Cancel Shortcut becomes a setting (#15).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(try_from = "String", into = "String")]
+#[specta(transparent)]
+pub struct RecordShortcutCombination(String);
+
+impl RecordShortcutCombination {
+    /// The combination this setting holds.
+    pub fn combination(&self) -> KeyCombination {
+        self.0.parse().expect("validated when created")
+    }
+}
+
+impl Default for RecordShortcutCombination {
+    /// Ctrl+Space (rule 18).
+    fn default() -> Self {
+        Self(default_record_shortcut().to_string())
+    }
+}
+
+impl TryFrom<KeyCombination> for RecordShortcutCombination {
+    type Error = ShortcutProblem;
+
+    fn try_from(combination: KeyCombination) -> Result<Self, Self::Error> {
+        validate_record_shortcut(&combination, &default_cancel_shortcut())?;
+        Ok(Self(combination.to_string()))
+    }
+}
+
+impl TryFrom<String> for RecordShortcutCombination {
+    type Error = ShortcutProblem;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        text.parse::<KeyCombination>()?.try_into()
+    }
+}
+
+impl From<RecordShortcutCombination> for String {
+    fn from(setting: RecordShortcutCombination) -> Self {
+        setting.0
+    }
+}
+
 /// Ctrl+Alt+Delete (the secure attention sequence) and Win+L (lock) never reach applications.
 fn reserved_by_windows(modifiers: Modifiers, key: &str) -> bool {
     (modifiers.ctrl && modifiers.alt && key == "Delete") || (modifiers.win && key == "L")
@@ -195,6 +241,24 @@ mod tests {
         );
         assert_eq!(check("Win+L"), Err(ShortcutProblem::ReservedByWindows));
         assert_eq!(check("Shift+RightAlt"), Err(ShortcutProblem::Invalid));
+    }
+
+    #[test]
+    fn the_setting_accepts_only_allowed_combinations_and_stores_them_canonically() {
+        let setting: RecordShortcutCombination =
+            serde_json::from_str("\"Win+Ctrl\"").expect("allowed");
+        assert_eq!(serde_json::to_string(&setting).unwrap(), "\"Ctrl+Win\"");
+        assert_eq!(setting.combination(), parse("Ctrl+Win"));
+        for invalid in ["\"Space\"", "\"\"", "\"Escape\"", "\"Ctrl+Nope\"", "42"] {
+            assert!(
+                serde_json::from_str::<RecordShortcutCombination>(invalid).is_err(),
+                "{invalid}"
+            );
+        }
+        assert_eq!(
+            RecordShortcutCombination::default().combination(),
+            default_record_shortcut()
+        );
     }
 
     #[test]
