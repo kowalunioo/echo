@@ -384,6 +384,7 @@ mod tests {
                 "shortcutMode": "toggle",
                 "cancelShortcut": "Escape",
                 "startWithWindows": false,
+                "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
             })
@@ -424,6 +425,7 @@ mod tests {
                 "shortcutMode": "pushToTalk",
                 "cancelShortcut": "Escape",
                 "startWithWindows": false,
+                "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
             })
@@ -548,6 +550,7 @@ mod tests {
                 "shortcutMode": "toggle",
                 "cancelShortcut": "Escape",
                 "startWithWindows": false,
+                "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
             })
@@ -647,6 +650,7 @@ mod tests {
                     "shortcutMode".into(),
                     "showOverlay".into(),
                     "startWithWindows".into(),
+                    "trayHintShown".into(),
                     "unloadModelAfter".into(),
                 ]
             }

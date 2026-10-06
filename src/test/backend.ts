@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shortcutMode: "pushToTalk",
   cancelShortcut: "Escape",
   startWithWindows: false,
+  trayHintShown: false,
   showOverlay: true,
   overlayPosition: "bottom",
 };
@@ -150,6 +151,10 @@ export class FakeBackend {
     overlay_shape: () => null,
     dismiss_dictation_notices: () => {
       this.changeDictation({ notices: [] });
+      return null;
+    },
+    close_to_tray: () => {
+      this.changeSettings({ trayHintShown: true });
       return null;
     },
     open_log_folder: () => null,

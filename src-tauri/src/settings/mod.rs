@@ -84,6 +84,8 @@ settings_model! {
     cancel_shortcut: CancelShortcutCombination,
     /// Start Echo, hidden, when the user signs in to Windows (`autostart.md`).
     start_with_windows: bool,
+    /// The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13).
+    tray_hint_shown: bool,
     /// Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
     /// rule 17).
     show_overlay: bool,
@@ -107,6 +109,7 @@ impl Settings {
             shortcut_mode: ShortcutMode::default(),
             cancel_shortcut: CancelShortcutCombination::default(),
             start_with_windows: false,
+            tray_hint_shown: false,
             show_overlay: true,
             overlay_position: OverlayPosition::Bottom,
         }

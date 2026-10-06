@@ -118,6 +118,8 @@ export const commands = {
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
 	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
+	/**  The user read the close-to-tray hint: it is not shown again, and the window hides. */
+	closeToTray: () => __TAURI_INVOKE<void>("close_to_tray"),
 	/**  What the Overlay shows now, for its window when it loads. */
 	getOverlayView: () => __TAURI_INVOKE<OverlayView>("get_overlay_view"),
 	/**  The Overlay's cancel button: the same Cancellation as the Cancel Shortcut (rule 10). */
@@ -147,6 +149,7 @@ export const events = {
 	overlayFrame: makeEvent<OverlayFrame>("overlay-frame"),
 	overlayViewChanged: makeEvent<OverlayViewChanged>("overlay-view-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
+	trayHintRequested: makeEvent<TrayHintRequested>("tray-hint-requested"),
 };
 
 /* Types */
@@ -510,6 +513,8 @@ export type Settings = {
 	cancelShortcut: CancelShortcutCombination,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows: boolean,
+	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
+	trayHintShown: boolean,
 	/**
 	 *  Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
 	 *  rule 17).
@@ -557,6 +562,8 @@ export type SettingsPatch = {
 	cancelShortcut?: CancelShortcutCombination | null,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows?: boolean | null,
+	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
+	trayHintShown?: boolean | null,
 	/**
 	 *  Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
 	 *  rule 17).
@@ -604,6 +611,12 @@ export type ShortcutProblem =
 "sameAsRecord" | 
 /**  Not a combination Echo understands (unknown key name, two main keys, …). */
 "invalid";
+
+/**
+ *  The main window was closed for the first time: show the "still running in the tray" hint,
+ *  then call [`close_to_tray`] (rule 13).
+ */
+export type TrayHintRequested = null;
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";

@@ -8,6 +8,7 @@
     "build": "vite build",
     "tauri": "tauri",
     "icons": "bun scripts/icons.ts",
+    "tray-icons": "bun scripts/tray-icons.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",

@@ -60,6 +60,7 @@ pub fn install(app: &AppHandle) {
             }
         }),
         publish: Box::new(move |status| {
+            crate::tray::app::dictation_status_changed(&publish_app, status);
             if let Some(overlay) = &overlay {
                 overlay.status(status);
             }

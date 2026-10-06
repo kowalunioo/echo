@@ -286,6 +286,12 @@ export const pl: Translation = {
       toggleHint: "Pierwsze naciśnięcie rozpoczyna nagrywanie, kolejne je kończy.",
     },
   },
+  trayHint: {
+    title: "Echo działa dalej",
+    message:
+      "Echo nadal działa w zasobniku. Aby je zamknąć, wybierz Zakończ Echo z menu w zasobniku.",
+    ok: "OK",
+  },
   cancelShortcut: {
     label: "Skrót anulowania",
     description: "Anuluje bieżące dyktowanie. Działa tylko podczas nagrywania lub transkrypcji.",
