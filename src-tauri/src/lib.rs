@@ -73,6 +73,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::app::end_shortcut_capture,
             shortcut::app::own_window_key,
             dictation::app::get_dictation_status,
+            dictation::language::get_model_languages,
             dictation::app::dictation_window_seen,
             dictation::app::dismiss_dictation_notices,
             tray::app::close_to_tray,

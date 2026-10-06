@@ -23,7 +23,6 @@ export const pl: Translation = {
     model: {
       title: "Model i język",
       description: "Model mowy, który zamienia Twój głos na tekst, oraz język, w którym mówisz.",
-      upcoming: "Język dyktowania.",
     },
     vocabulary: {
       title: "Słownik",
@@ -390,5 +389,16 @@ export const pl: Translation = {
   languages: {
     pl: "Polski",
     en: "English",
+  },
+  dictationLanguage: {
+    title: "Język dla modelu {{model}}",
+    description:
+      "Język, w którym mówisz. Przy ustawieniu Automatycznie model rozpoznaje go przy każdym dyktowaniu.",
+    automatic: "Automatycznie",
+    search: "Szukaj języka",
+    noMatch: "Żaden język nie pasuje",
+    detectsItself: "Ten model sam rozpoznaje język.",
+    unavailable: "{{language}}: niedostępny dla tego modelu — Echo użyje opcji: {{fallback}}.",
+    reset: "Przywróć Automatycznie",
   },
 };

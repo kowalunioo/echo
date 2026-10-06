@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::audio::microphone::MicrophoneChoice;
+use crate::dictation::language::DictationLanguageSetting;
 use crate::models::ModelId;
 use crate::overlay::OverlayPosition;
 use crate::shortcut::modes::ShortcutMode;
@@ -93,6 +94,9 @@ settings_model! {
     overlay_position: OverlayPosition,
     /// Check for updates automatically (`updater.md` rule 4, 10).
     check_updates_automatically: bool,
+    /// The spoken language Dictations expect, or "automatic" (`dictation-language.md`). The
+    /// intent as chosen; it is resolved against the active Model for each Dictation.
+    dictation_language: DictationLanguageSetting,
 }
 
 impl Settings {
@@ -115,6 +119,7 @@ impl Settings {
             show_overlay: true,
             overlay_position: OverlayPosition::Bottom,
             check_updates_automatically: true,
+            dictation_language: DictationLanguageSetting::automatic(),
         }
     }
 }

@@ -24,8 +24,8 @@ export function PageView({ page }: { page: Page }) {
       {page === "dictation" && <MicrophoneSettings />}
       {page === "app" && <AppSettings />}
 
-      {/* Every section of the Dictation and App pages is built, so they have no placeholder. */}
-      {page !== "dictation" && page !== "app" && (
+      {/* The Model, Dictation and App pages are fully built, so they have no placeholder. */}
+      {page !== "model" && page !== "dictation" && page !== "app" && (
         <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>
       )}
     </article>

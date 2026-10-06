@@ -6,6 +6,7 @@ import type {
   MicrophoneAccess,
   ModelEntry,
   ModelId,
+  ModelLanguages,
   ModelsState,
   OverlayView,
   Settings,
@@ -34,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showOverlay: true,
   overlayPosition: "bottom",
   checkUpdatesAutomatically: true,
+  dictationLanguage: "automatic",
 };
 
 /** The three Models as the backend lists them, none downloaded. */
@@ -65,6 +67,30 @@ export function freshModels(): ModelsState {
     loadFailure: null,
     dictationInProgress: false,
   };
+}
+
+/** What `get_model_languages` reports: shortened lists with the real shape. */
+export function fakeModelLanguages(): ModelLanguages[] {
+  return [
+    {
+      model: "whisperLargeV3Turbo",
+      languages: ["en", "zh", "de", "es", "pl", "ja", "uk"],
+      automatic: true,
+      honoursLanguage: true,
+    },
+    {
+      model: "parakeetTdt06bV3",
+      languages: ["de", "en", "pl", "uk"],
+      automatic: true,
+      honoursLanguage: false,
+    },
+    {
+      model: "whisperSmall",
+      languages: ["en", "de", "pl"],
+      automatic: true,
+      honoursLanguage: true,
+    },
+  ];
 }
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -111,6 +137,7 @@ export class FakeBackend {
   handlers: Record<string, Handler> = {
     app_info: () => this.appInfo,
     get_settings: () => this.settings,
+    get_model_languages: () => fakeModelLanguages(),
     update_settings: (args) => {
       const patch = args.patch as SettingsPatch;
       const defined = Object.fromEntries(

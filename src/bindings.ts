@@ -114,6 +114,8 @@ export const commands = {
 	ownWindowKey: (key: string, pressed: boolean) => __TAURI_INVOKE<void>("own_window_key", { key, pressed }),
 	/**  The current dictation status, for windows that open after it was published. */
 	getDictationStatus: () => __TAURI_INVOKE<DictationStatus>("get_dictation_status"),
+	/**  The languages of every Model, in list order. */
+	getModelLanguages: () => __TAURI_INVOKE<ModelLanguages[]>("get_model_languages"),
 	/**  The main window is visible and focused: the tray error clears (rule 39c). */
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
@@ -208,6 +210,13 @@ export type DeviceList = {
 	/**  Name of the Windows default recording device, if there is one. */
 	default: string | null,
 };
+
+/**
+ *  The Dictation Language setting: the user's intent, `"automatic"` or one language code such
+ *  as `"pl"` (rules 1–3). It is stored as chosen and never rewritten because of the active Model,
+ *  so any language some Model offers is valid, whichever Model is active.
+ */
+export type DictationLanguageSetting = string;
 
 /**  One Dictation error. */
 export type DictationProblem = {
@@ -360,6 +369,17 @@ export type ModelEntry = {
  *  and for every "first downloaded Model in list order" fallback (rules 23 and 26).
  */
 export type ModelId = "whisperLargeV3Turbo" | "parakeetTdt06bV3" | "whisperSmall";
+
+/**  One Model's languages for the Dictation Language picker. */
+export type ModelLanguages = {
+	model: ModelId,
+	/**  Language codes; the UI names and sorts them in the UI Language. */
+	languages: string[],
+	/**  "Automatic" is offered (rule 4.2). */
+	automatic: boolean,
+	/**  `false`: the picker is replaced by "This Model detects the language automatically." */
+	honoursLanguage: boolean,
+};
 
 /**
  *  A download or load failure, for the error indication of `dictation-pipeline.md` rules
@@ -530,6 +550,11 @@ export type Settings = {
 	overlayPosition: OverlayPosition,
 	/**  Check for updates automatically (`updater.md` rule 4, 10). */
 	checkUpdatesAutomatically: boolean,
+	/**
+	 *  The spoken language Dictations expect, or "automatic" (`dictation-language.md`). The
+	 *  intent as chosen; it is resolved against the active Model for each Dictation.
+	 */
+	dictationLanguage: DictationLanguageSetting,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -581,6 +606,11 @@ export type SettingsPatch = {
 	overlayPosition?: OverlayPosition | null,
 	/**  Check for updates automatically (`updater.md` rule 4, 10). */
 	checkUpdatesAutomatically?: boolean | null,
+	/**
+	 *  The spoken language Dictations expect, or "automatic" (`dictation-language.md`). The
+	 *  intent as chosen; it is resolved against the active Model for each Dictation.
+	 */
+	dictationLanguage?: DictationLanguageSetting | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */

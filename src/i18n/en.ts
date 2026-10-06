@@ -25,7 +25,6 @@ export const en = {
     model: {
       title: "Model & language",
       description: "The speech Model that turns your voice into text, and the language you speak.",
-      upcoming: "The Dictation Language.",
     },
     vocabulary: {
       title: "Vocabulary",
@@ -392,6 +391,16 @@ export const en = {
   languages: {
     pl: "Polski",
     en: "English",
+  },
+  dictationLanguage: {
+    title: "Language for {{model}}",
+    description: "The language you speak. Automatic lets the Model recognise it in each Dictation.",
+    automatic: "Automatic",
+    search: "Search languages",
+    noMatch: "No language matches",
+    detectsItself: "This Model detects the language automatically.",
+    unavailable: "{{language}} is not available for this Model — {{fallback}} will be used.",
+    reset: "Reset to Automatic",
   },
 };
 
