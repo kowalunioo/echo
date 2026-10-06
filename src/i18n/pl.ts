@@ -40,7 +40,7 @@ export const pl: Translation = {
     app: {
       title: "Aplikacja",
       description: "Język interfejsu, uruchamianie, aktualizacje i informacje o Echo.",
-      upcoming: "Uruchamianie z systemem Windows, wskaźnik nagrywania i automatyczne aktualizacje.",
+      upcoming: "Wskaźnik nagrywania i automatyczne aktualizacje.",
     },
   },
   placeholder: {
@@ -60,6 +60,13 @@ export const pl: Translation = {
     systemLanguage: {
       label: "Język wyświetlania Windows",
       unknown: "Nieznany",
+    },
+    autostart: {
+      label: "Uruchamiaj Echo po zalogowaniu do Windows",
+      description: "Echo uruchamia się w zasobniku po zalogowaniu.",
+      disabledInWindows: "Wyłączone w aplikacjach autostartu Windows",
+      openStartupApps: "Otwórz aplikacje autostartu",
+      openFailed: "Nie udało się otworzyć ustawień Windows.",
     },
     logFolder: {
       label: "Dziennik diagnostyczny",

@@ -382,6 +382,7 @@ mod tests {
                 "unloadModelAfter": "never",
                 "recordShortcut": "Ctrl+Win",
                 "shortcutMode": "toggle",
+                "startWithWindows": false,
             })
             .to_string(),
         )
@@ -418,6 +419,7 @@ mod tests {
                 "unloadModelAfter": "never",
                 "recordShortcut": "Ctrl+Space",
                 "shortcutMode": "pushToTalk",
+                "startWithWindows": false,
             })
             .to_string(),
         )
@@ -538,6 +540,7 @@ mod tests {
                 "unloadModelAfter": "never",
                 "recordShortcut": "Space",
                 "shortcutMode": "toggle",
+                "startWithWindows": false,
             })
             .to_string(),
         )
@@ -599,6 +602,7 @@ mod tests {
                     "onboardingWelcomeDone".into(),
                     "recordShortcut".into(),
                     "shortcutMode".into(),
+                    "startWithWindows".into(),
                     "unloadModelAfter".into(),
                 ]
             }
