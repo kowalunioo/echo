@@ -139,6 +139,24 @@ describe("Record Shortcut settings", () => {
     expect(backend.settings.recordShortcut).toBe("Ctrl+Space");
   });
 
+  // Issue #33: right Alt alone (AltGr) is a single modifier, rejected like any other.
+  it("rejects right Alt alone with the single-modifier message", async () => {
+    backend.rejectedShortcuts.set("Alt", { kind: "notAllowed", problem: "singleModifier" });
+    await userEvent.click(await renderPage());
+
+    key("RightAlt", true);
+    key("RightAlt", false);
+
+    expect(backend.commandsCalled("set_record_shortcut")[0]?.args).toEqual({
+      combination: "Alt",
+    });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Use at least two modifiers, e.g. Ctrl+Win, or a modifier with a key. Your previous shortcut stays active.",
+    );
+    expect(field()).toHaveTextContent("Ctrl+Space");
+    expect(backend.settings.recordShortcut).toBe("Ctrl+Space");
+  });
+
   it("shows why an allowed shortcut could not be activated", async () => {
     backend.rejectedShortcuts.set("F9", {
       kind: "activationFailed",
@@ -194,10 +212,10 @@ describe("Record Shortcut settings", () => {
     await renderPage();
 
     act(() => {
-      backend.changeSettings({ recordShortcut: "RightAlt" });
+      backend.changeSettings({ recordShortcut: "F9" });
     });
 
-    expect(await screen.findByRole("button", { name: /currently Right Alt/ })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /currently F9/ })).toBeInTheDocument();
   });
 });
 

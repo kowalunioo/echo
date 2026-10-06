@@ -21,7 +21,7 @@ pub enum ShortcutProblem {
     /// for typing.
     #[error("this key needs a modifier")]
     NeedsModifier,
-    /// A single modifier other than right Alt or right Ctrl.
+    /// A single modifier, right Alt (AltGr) and right Ctrl included (issue #33).
     #[error("a single modifier is not enough")]
     SingleModifier,
     /// Escape alone is reserved as the default Cancel Shortcut.
@@ -139,10 +139,12 @@ fn check_allowed(proposal: &KeyCombination, escape_alone: bool) -> Result<(), Sh
         None if modifiers == 1 => return Err(ShortcutProblem::SingleModifier),
         None => {}
         Some(key) if keys::vk_of(key).is_none() => return Err(ShortcutProblem::Invalid),
-        // Right Ctrl and right Alt are modifiers themselves; with others they are just Ctrl/Alt.
-        Some(key) if keys::is_side_modifier(key) && modifiers > 0 => {
-            return Err(ShortcutProblem::Invalid);
+        // Right Ctrl or right Alt alone is a single modifier (issue #33: right Alt is AltGr,
+        // needed for Polish characters); with others they are just Ctrl/Alt.
+        Some(key) if keys::is_side_modifier(key) && modifiers == 0 => {
+            return Err(ShortcutProblem::SingleModifier);
         }
+        Some(key) if keys::is_side_modifier(key) => return Err(ShortcutProblem::Invalid),
         Some("Escape") if modifiers == 0 && escape_alone => {}
         Some("Escape") if modifiers == 0 => return Err(ShortcutProblem::EscapeReserved),
         Some(key) if modifiers == 0 && !keys::usable_alone(key) => {
@@ -307,6 +309,9 @@ mod tests {
         assert_eq!(check("Ctrl"), Err(ShortcutProblem::SingleModifier));
         assert_eq!(check("Shift"), Err(ShortcutProblem::SingleModifier));
         assert_eq!(check("Win"), Err(ShortcutProblem::SingleModifier));
+        // Issue #33: right Alt is AltGr, needed for Polish characters; two modifiers at least.
+        assert_eq!(check("RightAlt"), Err(ShortcutProblem::SingleModifier));
+        assert_eq!(check("RightCtrl"), Err(ShortcutProblem::SingleModifier));
         assert_eq!(
             check("Ctrl+Alt+Delete"),
             Err(ShortcutProblem::ReservedByWindows)
@@ -321,7 +326,15 @@ mod tests {
             serde_json::from_str("\"Win+Ctrl\"").expect("allowed");
         assert_eq!(serde_json::to_string(&setting).unwrap(), "\"Ctrl+Win\"");
         assert_eq!(setting.combination(), parse("Ctrl+Win"));
-        for invalid in ["\"Space\"", "\"\"", "\"Escape\"", "\"Ctrl+Nope\"", "42"] {
+        for invalid in [
+            "\"Space\"",
+            "\"\"",
+            "\"Escape\"",
+            "\"Ctrl+Nope\"",
+            "\"RightAlt\"",
+            "\"RightCtrl\"",
+            "42",
+        ] {
             assert!(
                 serde_json::from_str::<RecordShortcutCombination>(invalid).is_err(),
                 "{invalid}"
@@ -367,7 +380,8 @@ mod tests {
         assert_eq!(cancel("A"), Err(ShortcutProblem::NeedsModifier));
         assert_eq!(cancel("Shift"), Err(ShortcutProblem::SingleModifier));
         assert_eq!(cancel("Win+L"), Err(ShortcutProblem::ReservedByWindows));
-        assert_eq!(cancel("RightAlt"), Ok(()));
+        assert_eq!(cancel("RightAlt"), Err(ShortcutProblem::SingleModifier));
+        assert_eq!(cancel("RightCtrl"), Err(ShortcutProblem::SingleModifier));
     }
 
     #[test]
@@ -401,8 +415,6 @@ mod tests {
             "Insert",
             "Ctrl+Win",
             "Ctrl+Shift",
-            "RightAlt",
-            "RightCtrl",
             "Ctrl+Escape",
         ] {
             assert_eq!(check(text), Ok(()), "{text}");

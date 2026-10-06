@@ -60,16 +60,16 @@ describe("shortcut capture", () => {
     ).toEqual({ kind: "propose", combination: "Ctrl+Shift" });
   });
 
-  it("keeps right Alt and right Ctrl alone side-specific", () => {
+  // Issue #33: a single modifier is never enough, right Alt (AltGr) and right Ctrl included.
+  it("proposes any single modifier as the plain modifier, which validation rejects", () => {
     expect(run([down("RightAlt"), up("RightAlt")]).outcome).toEqual({
       kind: "propose",
-      combination: "RightAlt",
+      combination: "Alt",
     });
     expect(run([down("RightCtrl"), up("RightCtrl")]).outcome).toEqual({
       kind: "propose",
-      combination: "RightCtrl",
+      combination: "Ctrl",
     });
-    // Left Ctrl alone is proposed as plain Ctrl, which validation then rejects.
     expect(run([down("LeftCtrl"), up("LeftCtrl")]).outcome).toEqual({
       kind: "propose",
       combination: "Ctrl",
@@ -111,7 +111,7 @@ describe("shortcut capture", () => {
 
   it("shows the keys as they are held", () => {
     expect(heldCombination(run([down("LeftWin"), down("RightCtrl")]).state)).toBe("Ctrl+Win");
-    expect(heldCombination(run([down("RightAlt")]).state)).toBe("RightAlt");
+    expect(heldCombination(run([down("RightAlt")]).state)).toBe("Alt");
     expect(heldCombination(run([down("LeftCtrl"), down("Space")]).state)).toBe("Ctrl+Space");
     expect(heldCombination(initialCapture)).toBe("");
   });

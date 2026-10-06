@@ -701,6 +701,31 @@ mod tests {
         assert_eq!(String::from(store.get().cancel_shortcut), "Escape");
     }
 
+    // Issue #33: right Alt or right Ctrl alone is no longer allowed; a file holding one from an
+    // earlier version is repaired to the defaults.
+    #[test]
+    fn a_stored_single_right_modifier_shortcut_is_reset() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({ "version": 1, "recordShortcut": "RightAlt", "cancelShortcut": "RightCtrl" })
+                .to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        let LoadOutcome::Repaired { mut reset, .. } = outcome else {
+            panic!("expected a repair, got {outcome:?}");
+        };
+        reset.sort();
+        assert_eq!(reset, ["cancelShortcut", "recordShortcut"]);
+        assert_eq!(String::from(store.get().record_shortcut), "Ctrl+Space");
+        assert_eq!(String::from(store.get().cancel_shortcut), "Escape");
+        assert_eq!(read_json(&path)["recordShortcut"], "Ctrl+Space");
+        assert_eq!(read_json(&path)["cancelShortcut"], "Escape");
+    }
+
     // Rule 14: settings added in a newer version get their defaults.
     #[test]
     fn settings_missing_from_an_older_file_get_their_defaults() {

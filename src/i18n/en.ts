@@ -269,8 +269,7 @@ export const en = {
       empty: "Press at least one key.",
       needsModifier:
         "{{shortcut}} alone would stop working for typing. Add Ctrl, Alt, Shift or Win.",
-      singleModifier:
-        "A single modifier is too easy to press by accident. Use two modifiers, a modifier with a key, or right Alt or right Ctrl alone.",
+      singleModifier: "Use at least two modifiers, e.g. Ctrl+Win, or a modifier with a key.",
       escapeReserved: "Esc is reserved for cancelling a Dictation.",
       reservedByWindows:
         "Windows keeps {{shortcut}} for itself and never passes it to applications.",
