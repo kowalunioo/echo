@@ -122,14 +122,58 @@ pub fn install(app: &AppHandle) {
     };
     let controller = OverlayController::new(surface, settings, &DictationStatus::default());
     let thread_app = app.clone();
+    let preview = cfg!(debug_assertions) && std::env::var_os("ECHO_OVERLAY_PREVIEW").is_some();
     std::thread::Builder::new()
         .name("echo-overlay".into())
-        .spawn(move || run(controller, rx, thread_app))
+        .spawn(move || run(controller, rx, thread_app, preview))
         .expect("spawn the Overlay thread");
+    if preview {
+        spawn_preview(tx.clone());
+    }
     app.manage(Overlay { tx, view });
 }
 
-fn run(mut controller: OverlayController<WindowSurface>, rx: Receiver<Msg>, app: AppHandle) {
+/// Developer aid, debug builds only: with `ECHO_OVERLAY_PREVIEW` set, the Overlay cycles through
+/// its states with a synthetic level, to check its look without speaking a Dictation.
+fn spawn_preview(tx: Sender<Msg>) {
+    use crate::dictation::{DictationProblem, DictationState, ProblemKind};
+    log::warn!("ECHO_OVERLAY_PREVIEW is set: the Overlay cycles through its states");
+    std::thread::spawn(move || {
+        let mut status = DictationStatus::default();
+        let send = |status: &DictationStatus, seconds: f32| {
+            let _ = tx.send(Msg::Status(status.clone()));
+            std::thread::sleep(Duration::from_secs_f32(seconds));
+        };
+        for id in 1..=u32::MAX {
+            status.state = DictationState::Recording;
+            send(&status, 4.0);
+            status.listening = true;
+            send(&status, 5.0);
+            status.listening = false;
+            status.state = DictationState::Transcribing;
+            send(&status, 4.0);
+            status.state = DictationState::Inserting;
+            send(&status, 1.0);
+            status.state = DictationState::Idle;
+            send(&status, 2.0);
+            let problem = DictationProblem {
+                id,
+                kind: ProblemKind::NoModel,
+                detail: String::new(),
+            };
+            status.error = Some(problem.clone());
+            status.notices = vec![problem];
+            send(&status, 5.0);
+        }
+    });
+}
+
+fn run(
+    mut controller: OverlayController<WindowSurface>,
+    rx: Receiver<Msg>,
+    app: AppHandle,
+    preview: bool,
+) {
     let mut last_frame = Instant::now();
     let mut last_top = Instant::now();
     loop {
@@ -161,10 +205,14 @@ fn run(mut controller: OverlayController<WindowSurface>, rx: Receiver<Msg>, app:
 
         if controller.view().is_recording() && now >= last_frame + FRAME {
             last_frame = now;
-            let level = app
-                .try_state::<Dictation>()
-                .map_or(0.0, |d| d.take_input_level());
             let elapsed = controller.recording_elapsed(now).unwrap_or_default();
+            let level = if preview {
+                let t = elapsed.as_secs_f32();
+                (0.5 + 0.45 * (t * 5.3).sin() * (t * 1.7).cos()).clamp(0.0, 1.0)
+            } else {
+                app.try_state::<Dictation>()
+                    .map_or(0.0, |d| d.take_input_level())
+            };
             let frame = OverlayFrame {
                 level,
                 elapsed_ms: u32::try_from(elapsed.as_millis()).unwrap_or(u32::MAX),
