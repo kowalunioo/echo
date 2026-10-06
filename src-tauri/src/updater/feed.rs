@@ -14,6 +14,8 @@ use super::{CheckError, DownloadError, Found, Installer, UpdateFeed};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const READ_TIMEOUT: Duration = Duration::from_secs(60);
+/// Development builds only: the update manifest URL to use instead of the real feed.
+pub const DEV_ENDPOINT_ENV: &str = "ECHO_UPDATER_ENDPOINT";
 
 /// The release feed of Echo's public repository.
 pub struct PluginFeed<R: Runtime> {
@@ -24,10 +26,13 @@ pub struct PluginFeed<R: Runtime> {
 
 impl<R: Runtime> PluginFeed<R> {
     pub fn new(app: AppHandle<R>) -> Self {
-        Self {
-            app,
-            endpoints: None,
-        }
+        // Development builds can point the updater at a local feed to try the UI end to end.
+        let endpoints = cfg!(debug_assertions)
+            .then(|| std::env::var(DEV_ENDPOINT_ENV).ok())
+            .flatten()
+            .and_then(|url| url.parse().ok())
+            .map(|url| vec![url]);
+        Self { app, endpoints }
     }
 
     #[cfg(test)]
