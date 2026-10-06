@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DictationNotices } from "./components/DictationNotices";
 import { PageView } from "./components/PageView";
 import { Sidebar } from "./components/Sidebar";
 import { changeUiLanguage } from "./i18n";
@@ -38,6 +39,7 @@ function MainWindow() {
     <div className="flex h-full">
       <Sidebar />
       <main className="min-w-0 flex-1 overflow-y-auto">
+        <DictationNotices />
         <PageView page={page} />
       </main>
     </div>

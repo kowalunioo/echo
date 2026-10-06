@@ -189,18 +189,4 @@ describe("Record Shortcut settings", () => {
 
     expect(await screen.findByRole("button", { name: /currently Right Alt/ })).toBeInTheDocument();
   });
-
-  it("shows the last Record Shortcut intent in the temporary developer check", async () => {
-    await renderPage();
-    expect(screen.getByTestId("dev-intent")).toHaveTextContent("none yet");
-
-    act(() => {
-      backend.emit("record-intent-event", { intent: "start" });
-    });
-    expect(screen.getByTestId("dev-intent")).toHaveTextContent("start");
-    act(() => {
-      backend.emit("record-intent-event", { intent: "stop" });
-    });
-    expect(screen.getByTestId("dev-intent")).toHaveTextContent("stop");
-  });
 });
