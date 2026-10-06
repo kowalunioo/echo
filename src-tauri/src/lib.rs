@@ -11,6 +11,7 @@
 pub mod audio;
 pub mod commands;
 pub mod data_dir;
+pub mod dictation;
 pub mod engine;
 pub mod history;
 pub mod insertion;
@@ -64,6 +65,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::app::begin_shortcut_capture,
             shortcut::app::end_shortcut_capture,
             shortcut::app::own_window_key,
+            dictation::app::get_dictation_status,
+            dictation::app::dictation_window_seen,
+            dictation::app::dismiss_dictation_notices,
         ])
         .events(collect_events![
             SettingsChanged,
@@ -71,7 +75,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             ModelProblemOccurred,
             HistoryChanged,
             shortcut::app::CapturedKeyEvent,
-            shortcut::app::RecordIntentEvent,
+            dictation::app::DictationStatusChanged,
         ])
 }
 
@@ -99,10 +103,11 @@ pub fn run() {
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
             open_history(app.handle(), &data_dir);
-            // Empty until the real Inserter is registered (dictation pipeline).
+            // The dictation pipeline registers the real Inserter.
             app.manage(SharedInserter::new());
             app.manage(audio::microphone::Microphones::system());
             open_models(app.handle(), &data_dir);
+            dictation::app::install(app.handle());
             shortcut::app::install(app.handle());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());

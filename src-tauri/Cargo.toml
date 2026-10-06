@@ -46,6 +46,8 @@ sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
 # Microphone capture through WASAPI (`docs/specs/microphone.md`).
 cpal = "0.18"
+# Voice-activity detection during a Recording (`dictation-pipeline.md` rules 14-17).
+earshot = "1.2"
 
 [features]
 # Vulkan GPU acceleration with automatic CPU fallback (`docs/specs/models.md` rule 29). On by

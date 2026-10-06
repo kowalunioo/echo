@@ -12,12 +12,12 @@ use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
-use super::modes::RecordIntent;
 use super::record::{
     RecordShortcut, RecordShortcutConfig, RecordShortcutHandle, ShortcutChangeError, spawn,
 };
 use super::validation::RecordShortcutCombination;
 use super::{KeyAction, ShortcutListener};
+use crate::dictation::Dictation;
 use crate::settings::{Settings, SettingsStore};
 
 /// A key pressed or released during shortcut capture, by its capture name (`"LeftCtrl"`,
@@ -29,14 +29,6 @@ pub struct CapturedKeyEvent {
     pub pressed: bool,
 }
 
-/// TEMPORARY (remove with #13): every Record Shortcut intent, so the hook can be checked by hand
-/// on the Dictation page until the dictation pipeline consumes the intents.
-#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
-#[serde(rename_all = "camelCase")]
-pub struct RecordIntentEvent {
-    pub intent: RecordIntent,
-}
-
 fn config_of(settings: &Settings) -> RecordShortcutConfig {
     RecordShortcutConfig {
         combination: settings.record_shortcut.combination(),
@@ -46,8 +38,8 @@ fn config_of(settings: &Settings) -> RecordShortcutConfig {
 
 /// Starts the Record Shortcut from the settings (the [`SettingsStore`] must already be managed):
 /// installs the keyboard hook, binds the combination once first-run setup is finished (rule 17),
-/// follows settings changes, and makes the [`RecordShortcutHandle`] available to commands (and
-/// later the pipeline).
+/// follows settings changes, and makes the [`RecordShortcutHandle`] available to commands and the
+/// pipeline.
 pub fn install(app: &AppHandle) {
     #[cfg(windows)]
     let listener: Box<dyn ShortcutListener> = Box::new(super::WindowsShortcutListener::new());
@@ -65,9 +57,11 @@ pub fn install(app: &AppHandle) {
     let keys_app = app.clone();
     let (handle, started) = spawn(
         core,
-        // TEMPORARY: until the pipeline (#13) exists, intents only drive the dev indicator.
+        // The dictation pipeline is installed before the Record Shortcut.
         Box::new(move |intent| {
-            let _ = RecordIntentEvent { intent }.emit(&intents_app);
+            if let Some(dictation) = intents_app.try_state::<Dictation>() {
+                dictation.intent(intent);
+            }
         }),
         Box::new(move |key| {
             let _ = CapturedKeyEvent {
