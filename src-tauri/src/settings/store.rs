@@ -383,6 +383,8 @@ mod tests {
                 "recordShortcut": "Ctrl+Win",
                 "shortcutMode": "toggle",
                 "startWithWindows": false,
+                "showOverlay": true,
+                "overlayPosition": "bottom",
             })
             .to_string(),
         )
@@ -420,6 +422,8 @@ mod tests {
                 "recordShortcut": "Ctrl+Space",
                 "shortcutMode": "pushToTalk",
                 "startWithWindows": false,
+                "showOverlay": true,
+                "overlayPosition": "bottom",
             })
             .to_string(),
         )
@@ -541,6 +545,8 @@ mod tests {
                 "recordShortcut": "Space",
                 "shortcutMode": "toggle",
                 "startWithWindows": false,
+                "showOverlay": true,
+                "overlayPosition": "bottom",
             })
             .to_string(),
         )
@@ -600,8 +606,10 @@ mod tests {
                     "microphone".into(),
                     "onboardingCompleted".into(),
                     "onboardingWelcomeDone".into(),
+                    "overlayPosition".into(),
                     "recordShortcut".into(),
                     "shortcutMode".into(),
+                    "showOverlay".into(),
                     "startWithWindows".into(),
                     "unloadModelAfter".into(),
                 ]

@@ -19,6 +19,7 @@ use specta::Type;
 
 use crate::audio::microphone::MicrophoneChoice;
 use crate::models::ModelId;
+use crate::overlay::OverlayPosition;
 use crate::shortcut::modes::ShortcutMode;
 use crate::shortcut::validation::RecordShortcutCombination;
 
@@ -81,6 +82,11 @@ settings_model! {
     shortcut_mode: ShortcutMode,
     /// Start Echo, hidden, when the user signs in to Windows (`autostart.md`).
     start_with_windows: bool,
+    /// Show the Overlay while recording and transcribing; errors show regardless (`overlay.md`
+    /// rule 17).
+    show_overlay: bool,
+    /// Where the Overlay sits on the monitor (`overlay.md` rule 14).
+    overlay_position: OverlayPosition,
 }
 
 impl Settings {
@@ -98,6 +104,8 @@ impl Settings {
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
             start_with_windows: false,
+            show_overlay: true,
+            overlay_position: OverlayPosition::Bottom,
         }
     }
 }
@@ -246,6 +254,17 @@ mod tests {
             "Ctrl+Space"
         );
         assert_eq!(settings.shortcut_mode, ShortcutMode::PushToTalk);
+    }
+
+    // overlay.md "Settings".
+    #[test]
+    fn the_overlay_is_shown_at_the_bottom_by_default() {
+        let settings = Settings::defaults(None);
+        assert!(settings.show_overlay);
+        assert_eq!(settings.overlay_position, OverlayPosition::Bottom);
+        let parse = |v| serde_json::from_value::<SettingsPatch>(v);
+        assert!(parse(serde_json::json!({"overlayPosition": "top"})).is_ok());
+        assert!(parse(serde_json::json!({"overlayPosition": "left"})).is_err());
     }
 
     #[test]

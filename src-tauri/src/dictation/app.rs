@@ -16,11 +16,12 @@ use super::{
 };
 use crate::audio::AudioSource;
 use crate::audio::fake_microphone::FakeMicrophone;
-use crate::audio::microphone::Microphones;
+use crate::audio::microphone::{MicrophoneNotice, Microphones};
 use crate::engine::{EngineError, TranscriptionRequest};
 use crate::history::History;
 use crate::insertion::SharedInserter;
 use crate::models::{DictationGuard, ModelManager, ModelProblemKind, NoActiveModel};
+use crate::overlay::app::Overlay;
 use crate::settings::SettingsStore;
 use crate::shortcut::record::RecordShortcutHandle;
 
@@ -34,7 +35,8 @@ pub struct DictationStatusChanged(pub DictationStatus);
 pub fn install(app: &AppHandle) {
     register_inserter(app);
 
-    let source = audio_source(app);
+    let overlay = app.try_state::<Overlay>().map(|o| o.inner().clone());
+    let source = audio_source(app, overlay.clone());
     let history_app = app.clone();
     let shortcut_app = app.clone();
     let publish_app = app.clone();
@@ -58,6 +60,9 @@ pub fn install(app: &AppHandle) {
             }
         }),
         publish: Box::new(move |status| {
+            if let Some(overlay) = &overlay {
+                overlay.status(status);
+            }
             if let Err(error) = DictationStatusChanged(status.clone()).emit(&publish_app) {
                 log::warn!("could not send the dictation status to the windows: {error}");
             }
@@ -78,7 +83,7 @@ pub fn install(app: &AppHandle) {
 
 /// The Microphone chosen in the settings or, in fake-microphone mode, the WAV Audio Source
 /// (rules 40-46). Also makes [`TestAudio`] available for the marker (rule 41).
-fn audio_source(app: &AppHandle) -> Box<dyn AudioSource> {
+fn audio_source(app: &AppHandle, overlay: Option<Overlay>) -> Box<dyn AudioSource> {
     let fake = FakeMicrophone::from_launch(std::env::args_os(), |key| std::env::var_os(key));
     app.manage(TestAudio(fake.as_ref().map(FakeMicrophone::file_name)));
     if let Some(fake) = fake {
@@ -96,8 +101,16 @@ fn audio_source(app: &AppHandle) -> Box<dyn AudioSource> {
     let settings_app = app.clone();
     Box::new(app.state::<Microphones>().source(
         move || settings_app.state::<SettingsStore>().get().microphone,
-        // The Overlay (#21) will show this; until then it is logged.
-        |notice| log::info!("microphone notice: {notice:?}"),
+        move |notice| {
+            log::info!("microphone notice: {notice:?}");
+            match notice {
+                MicrophoneNotice::SelectedNotFound { .. } => {
+                    if let Some(overlay) = &overlay {
+                        overlay.microphone_fallback();
+                    }
+                }
+            }
+        },
     ))
 }
 

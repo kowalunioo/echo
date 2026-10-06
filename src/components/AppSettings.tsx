@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { commands } from "../bindings";
 import { useShell } from "../store/shell";
 import { AutostartSettings } from "./AutostartSettings";
+import { OverlaySettings } from "./OverlaySettings";
 import { UiLanguagePicker } from "./UiLanguagePicker";
 
 export function AppSettings() {
@@ -32,6 +33,7 @@ export function AppSettings() {
         <UiLanguagePicker />
       </Row>
       <AutostartSettings />
+      <OverlaySettings />
       <Row label={t("settings.systemLanguage.label")}>
         <span className="text-muted">{systemLanguage}</span>
       </Row>

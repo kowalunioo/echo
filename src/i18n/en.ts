@@ -70,6 +70,14 @@ export const en = {
       openStartupApps: "Open Startup apps",
       openFailed: "The Windows settings could not be opened.",
     },
+    overlay: {
+      label: "Show recording indicator",
+      description:
+        "A small pill on screen while you record and while Echo transcribes. Errors still show when it is off.",
+      position: "Position",
+      bottom: "Bottom",
+      top: "Top",
+    },
     logFolder: {
       label: "Diagnostic log",
       description:
@@ -298,6 +306,24 @@ export const en = {
       modelDownloadFailed: "The Model download failed.",
       transcriptionFailed: "Transcription failed.",
       insertionFailed: "Couldn't insert the text — it is in History.",
+    },
+  },
+  overlay: {
+    gettingReady: "Getting ready…",
+    listening: "Listening",
+    transcribing: "Transcribing…",
+    cancel: "Cancel Dictation",
+    messages: {
+      microphoneFallback: "Selected microphone not found — using the default microphone",
+      noModel: "No Model — open Echo to download one",
+      microphoneNotFound: "No microphone found",
+      microphoneAccessDenied: "Microphone access is blocked — open privacy settings",
+      microphoneDisconnected: "Microphone disconnected",
+      microphoneFailed: "The microphone could not be used",
+      modelLoadFailed: "The Model could not be loaded — open Echo",
+      modelDownloadFailed: "The Model download failed — open Echo",
+      transcriptionFailed: "Transcription failed",
+      insertionFailed: "Couldn't insert the text — it is in History",
     },
   },
   /** Fake-microphone mode marker (dictation-pipeline.md rule 41). */

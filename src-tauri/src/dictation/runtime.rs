@@ -8,6 +8,7 @@
 
 use std::collections::VecDeque;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
@@ -141,6 +142,7 @@ enum Failure {
 pub struct Dictation {
     tx: Sender<Msg>,
     status: Arc<Mutex<DictationStatus>>,
+    level: InputLevel,
 }
 
 impl Dictation {
@@ -148,8 +150,10 @@ impl Dictation {
     pub fn spawn(deps: DictationDeps) -> Self {
         let (tx, rx) = mpsc::channel();
         let status = Arc::new(Mutex::new(DictationStatus::default()));
+        let level = InputLevel::default();
         let worker = Worker {
             deps,
+            level: level.clone(),
             tx: tx.clone(),
             rx,
             deferred: VecDeque::new(),
@@ -169,7 +173,7 @@ impl Dictation {
             .name("echo-dictation".into())
             .spawn(move || worker.run())
             .expect("spawn the dictation worker");
-        Self { tx, status }
+        Self { tx, status, level }
     }
 
     /// A Record Shortcut intent (the Record Shortcut's `IntentSink`).
@@ -198,6 +202,12 @@ impl Dictation {
         let _ = self.tx.send(Msg::DismissNotices);
     }
 
+    /// The loudest input level since the last call, `0.0..=1.0`, for the Overlay's level meter
+    /// (`overlay.md` rule 3); 0 when no audio arrived since.
+    pub fn take_input_level(&self) -> f32 {
+        self.level.take()
+    }
+
     /// The latest published status.
     pub fn status(&self) -> DictationStatus {
         self.status
@@ -216,6 +226,7 @@ struct Recording {
 
 struct Worker {
     deps: DictationDeps,
+    level: InputLevel,
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     /// Messages set aside while draining a stopped Recording's audio.
@@ -330,6 +341,8 @@ impl Worker {
         self.seq += 1;
         self.had_error = false;
         self.failure = None;
+        // A peak left over from the last Recording must not make the new meter jump.
+        self.level.take();
         let model = match self.deps.models.begin() {
             Ok(model) => model,
             Err(NoActiveModel) => {
@@ -395,6 +408,7 @@ impl Worker {
                 if let Some(converter) = &mut recording.converter {
                     recording.gate.push(&converter.push(&frames.samples));
                 }
+                self.level.record(meter_level(&frames.samples));
                 if first {
                     self.feed(Input::AudioArrived);
                 }
@@ -516,6 +530,35 @@ impl Worker {
             self.published = status;
         }
     }
+}
+
+/// The loudest meter level since it was last taken, shared by the worker and the Overlay.
+/// Non-negative `f32` bit patterns order like the numbers, so `fetch_max` on the bits works.
+#[derive(Clone, Default)]
+struct InputLevel(Arc<AtomicU32>);
+
+impl InputLevel {
+    fn record(&self, level: f32) {
+        self.0.fetch_max(level.to_bits(), Ordering::Relaxed);
+    }
+
+    fn take(&self) -> f32 {
+        f32::from_bits(self.0.swap(0, Ordering::Relaxed))
+    }
+}
+
+/// The loudness of a block of samples for a level meter: RMS on a decibel scale, −60 dBFS and
+/// below → 0, −10 dBFS and above → 1.
+pub fn meter_level(samples: &[f32]) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    let mean_square = samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32;
+    if mean_square <= 0.0 {
+        return 0.0;
+    }
+    let db = 10.0 * mean_square.log10();
+    ((db + 60.0) / 50.0).clamp(0.0, 1.0)
 }
 
 /// Waits for the background load, runs the Engine and cleans the Transcript. An Engine panic is

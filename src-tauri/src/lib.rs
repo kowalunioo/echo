@@ -18,6 +18,7 @@ pub mod history;
 pub mod insertion;
 pub mod logging;
 pub mod models;
+pub mod overlay;
 pub mod settings;
 pub mod shortcut;
 pub mod system;
@@ -71,6 +72,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             dictation::app::get_dictation_status,
             dictation::app::dictation_window_seen,
             dictation::app::dismiss_dictation_notices,
+            overlay::app::get_overlay_view,
+            overlay::app::overlay_cancel,
+            overlay::app::overlay_message_clicked,
+            overlay::app::overlay_shape,
             dictation::app::get_test_audio,
         ])
         .events(collect_events![
@@ -80,6 +85,9 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             HistoryChanged,
             shortcut::app::CapturedKeyEvent,
             dictation::app::DictationStatusChanged,
+            overlay::app::OverlayViewChanged,
+            overlay::app::OverlayFrame,
+            overlay::app::MainPageRequested,
         ])
 }
 
@@ -111,6 +119,7 @@ pub fn run() {
             app.manage(SharedInserter::new());
             app.manage(audio::microphone::Microphones::system());
             open_models(app.handle(), &data_dir);
+            overlay::app::install(app.handle());
             dictation::app::install(app.handle());
             shortcut::app::install(app.handle());
             autostart::commands::install(app.handle());
@@ -131,6 +140,11 @@ pub fn run() {
         .on_window_event(|window, event| {
             if window.label() == window::MAIN_WINDOW {
                 window.state::<WindowTracker>().on_event(window, event);
+                // The hidden Overlay window would otherwise keep Echo running after its main
+                // window is closed.
+                if let tauri::WindowEvent::Destroyed = event {
+                    window.app_handle().exit(0);
+                }
             }
         })
         .build(tauri::generate_context!())

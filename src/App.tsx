@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { events } from "./bindings";
 import { DictationNotices } from "./components/DictationNotices";
 import { PageView } from "./components/PageView";
 import { TestAudioMarker } from "./components/TestAudioMarker";
@@ -48,6 +49,20 @@ export function App() {
 
 function MainWindow() {
   const page = useShell((s) => s.page);
+  const setPage = useShell((s) => s.setPage);
+
+  // Another surface (e.g. a clicked Overlay message) asks for a page.
+  useEffect(() => {
+    const stop = events.mainPageRequested.listen((event) => {
+      setPage(event.payload);
+    });
+    return () => {
+      void stop.then((unlisten) => {
+        unlisten();
+      });
+    };
+  }, [setPage]);
+
   return (
     <div className="flex h-full">
       <Sidebar />
