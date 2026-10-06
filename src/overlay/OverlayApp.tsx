@@ -2,6 +2,7 @@ import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "re
 import { useTranslation } from "react-i18next";
 
 import { type OverlayMessage, type OverlayView, commands, events } from "../bindings";
+import { TestAudioMarker } from "../components/TestAudioMarker";
 import { changeUiLanguage } from "../i18n";
 import { useSettings } from "../store/settings";
 import { SILENT_BARS, formatElapsed, nextBars } from "./meter";
@@ -53,6 +54,12 @@ export function OverlayApp() {
         className="overlay-pill h-full overflow-hidden rounded-full border border-line bg-surface text-fg"
       >
         <div ref={content} className="inline-flex h-full w-max items-center">
+          {/* dictation-pipeline.md rule 41: a fake-microphone session is marked here too. */}
+          {shown.kind !== "hidden" && (
+            <span className="flex shrink-0 empty:hidden pl-3">
+              <TestAudioMarker compact />
+            </span>
+          )}
           <Content view={shown} frame={frame} />
         </div>
       </div>

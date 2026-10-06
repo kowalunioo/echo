@@ -156,4 +156,21 @@ describe("Overlay", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Transkrybuję…");
     expect(screen.getByRole("button", { name: "Anuluj dyktowanie" })).toBeVisible();
   });
+
+  // dictation-pipeline.md rule 41: a fake-microphone session is marked in the Overlay too.
+  it("marks fake-microphone mode in the pill while it is shown", async () => {
+    backend.testAudio = "sample.wav";
+    backend.overlay = { kind: "listening" };
+    render(<OverlayApp />);
+    const marker = await screen.findByRole("status", { name: "Test audio" });
+    expect(marker).toHaveTextContent("TEST AUDIO");
+    expect(pill()).toContainElement(marker);
+  });
+
+  it("shows no test-audio marker in normal operation", async () => {
+    backend.overlay = { kind: "listening" };
+    render(<OverlayApp />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Listening");
+    expect(screen.queryByRole("status", { name: "Test audio" })).not.toBeInTheDocument();
+  });
 });
