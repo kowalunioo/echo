@@ -27,6 +27,8 @@
   --echo-accent-soft: #ebe8f8;
   --echo-accent-soft-fg: #4c4294;
   --echo-focus: #7c6be0;
+  /* Error text: 6.4:1 on surface. */
+  --echo-danger: #b02a37;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -46,6 +48,8 @@
     --echo-accent-soft: #2f2a45;
     --echo-accent-soft-fg: #d2cbf7;
     --echo-focus: #a99bf7;
+    /* Error text: 7.9:1 on surface. */
+    --echo-danger: #f4a3a8;
   }
 }
 
@@ -63,6 +67,7 @@
   --color-accent-soft: var(--echo-accent-soft);
   --color-accent-soft-fg: var(--echo-accent-soft-fg);
   --color-focus: var(--echo-focus);
+  --color-danger: var(--echo-danger);
 
   /* Local Windows fonts only: Echo never fetches anything for its UI. */
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;

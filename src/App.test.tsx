@@ -10,6 +10,9 @@ import { useShell } from "./store/shell";
 // The generated bindings call Tauri's `invoke`; faking it exercises the real binding code.
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: () => Promise.resolve(() => undefined),
+}));
 
 const polishWindows: AppInfo = {
   version: "0.1.0",
@@ -27,11 +30,13 @@ beforeEach(async () => {
 });
 
 function respondWith(info: AppInfo) {
-  invoke.mockImplementation((command: string) =>
-    command === "app_info"
-      ? Promise.resolve(info)
-      : Promise.reject(new Error(`unexpected ${command}`)),
-  );
+  invoke.mockImplementation((command: string) => {
+    if (command === "app_info") return Promise.resolve(info);
+    // The Dictation page loads the Record Shortcut; its own tests cover that.
+    if (command === "record_shortcut") return new Promise(() => undefined);
+    if (command === "own_window_key") return Promise.resolve(null);
+    return Promise.reject(new Error(`unexpected ${command}`));
+  });
 }
 
 describe("app shell", () => {
@@ -90,5 +95,27 @@ describe("app shell", () => {
     expect(screen.getByRole("heading", { level: 1, name: "Aplikacja" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Polski" })).toBeChecked();
     expect(document.documentElement.lang).toBe("pl");
+  });
+
+  // Windows does not run Echo's keyboard hook while Echo has focus, so the window forwards keys.
+  it("forwards keys pressed in Echo's window to the backend", async () => {
+    respondWith(polishWindows);
+    render(<App />);
+
+    await userEvent.keyboard("{Control>}{ }{/Control}");
+
+    // In order, each sent after the previous one was handled.
+    await waitFor(() => {
+      expect(
+        invoke.mock.calls
+          .filter(([command]) => command === "own_window_key")
+          .map(([, a]) => a as unknown),
+      ).toEqual([
+        { key: "LeftCtrl", pressed: true },
+        { key: "Space", pressed: true },
+        { key: "Space", pressed: false },
+        { key: "LeftCtrl", pressed: false },
+      ]);
+    });
   });
 });
