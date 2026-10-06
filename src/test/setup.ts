@@ -3,6 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { initI18n } from "../i18n";
+import { resetModelsStore } from "../store/models";
 import { resetSettingsStore } from "../store/settings";
 import { backend, resetBackend } from "./backend";
 
@@ -20,6 +21,7 @@ initI18n("en");
 beforeEach(() => {
   resetBackend();
   resetSettingsStore();
+  resetModelsStore();
 });
 
 afterEach(() => {

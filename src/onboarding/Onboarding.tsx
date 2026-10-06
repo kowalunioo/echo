@@ -3,8 +3,8 @@ import { Trans, useTranslation } from "react-i18next";
 
 import { commands } from "../bindings";
 import { EchoMark } from "../components/icons";
-import { Placeholder } from "../components/PageView";
 import { UiLanguagePicker } from "../components/UiLanguagePicker";
+import { ModelChooser } from "../models/ModelChooser";
 import { useSetting } from "../store/settings";
 import { checkMicrophoneAccess, useModelActive, useRecordShortcut } from "./sources";
 import { type MicrophoneAccess, type OnboardingStep, currentStep, visibleSteps } from "./steps";
@@ -21,9 +21,7 @@ export function Onboarding() {
   const [welcomeDone, setWelcomeDone] = useSetting("onboardingWelcomeDone");
   const [, setCompleted] = useSetting("onboardingCompleted");
   const [microphoneSkipped, setMicrophoneSkipped] = useState(false);
-  // PLACEHOLDER until Models (#12): lets the user reach "Try it" without an active Model.
-  const [modelStepBypassed, setModelStepBypassed] = useState(false);
-  const modelActive = useModelActive() || modelStepBypassed;
+  const modelActive = useModelActive();
   const microphone = useMicrophoneAccess(welcomeDone && !microphoneSkipped);
 
   // Wait for the first privacy check rather than flash a step that is about to be replaced.
@@ -51,13 +49,7 @@ export function Onboarding() {
                 }}
               />
             )}
-            {step === "model" && (
-              <ModelStep
-                onContinueWithout={() => {
-                  setModelStepBypassed(true);
-                }}
-              />
-            )}
+            {step === "model" && <ModelStep />}
             {step === "tryIt" && <TryItStep onFinish={() => void setCompleted(true)} />}
           </section>
         )}
@@ -210,16 +202,12 @@ function MicrophoneStep({ onSkip }: { onSkip: () => void }) {
   );
 }
 
-function ModelStep({ onContinueWithout }: { onContinueWithout: () => void }) {
+function ModelStep() {
   const { t } = useTranslation();
   return (
     <>
       <StepHeader title={t("onboarding.model.title")} lead={t("onboarding.model.lead")} />
-      {/* PLACEHOLDER until Models (#12): the Model list, download and "Use this Model". */}
-      <Placeholder>{t("onboarding.model.upcoming")}</Placeholder>
-      <footer className="flex justify-end">
-        <TextButton onClick={onContinueWithout}>{t("onboarding.model.continueWithout")}</TextButton>
-      </footer>
+      <ModelChooser />
     </>
   );
 }

@@ -25,7 +25,10 @@ pub struct FakeEngine {
 #[derive(Debug)]
 struct State {
     outcome: Result<String, EngineError>,
+    load_outcome: Result<(), EngineError>,
     delay: Duration,
+    load_delay: Duration,
+    loaded: bool,
     loads: usize,
     unloads: usize,
     requests: Vec<ReceivedRequest>,
@@ -46,6 +49,22 @@ impl FakeEngine {
     pub fn with_delay(self, delay: Duration) -> Self {
         self.state().delay = delay;
         self
+    }
+
+    /// Makes every `load` call take `delay` (a slow Model load).
+    pub fn with_load_delay(self, delay: Duration) -> Self {
+        self.state().load_delay = delay;
+        self
+    }
+
+    /// Changes the result of later `load` calls (e.g. a Model that cannot be loaded).
+    pub fn set_load_outcome(&self, outcome: Result<(), EngineError>) {
+        self.state().load_outcome = outcome;
+    }
+
+    /// Whether the Model is loaded: a successful `load` (or `transcribe`) and no `unload` since.
+    pub fn is_loaded(&self) -> bool {
+        self.state().loaded
     }
 
     /// Changes the result of later requests.
@@ -72,7 +91,10 @@ impl FakeEngine {
         Self {
             state: Arc::new(Mutex::new(State {
                 outcome,
+                load_outcome: Ok(()),
                 delay: Duration::ZERO,
+                load_delay: Duration::ZERO,
+                loaded: false,
                 loads: 0,
                 unloads: 0,
                 requests: Vec::new(),
@@ -88,8 +110,20 @@ impl FakeEngine {
 
 impl Engine for FakeEngine {
     fn load(&mut self) -> Result<(), EngineError> {
-        self.state().loads += 1;
-        Ok(())
+        let delay = {
+            let mut state = self.state();
+            state.loads += 1;
+            state.load_delay
+        };
+        if !delay.is_zero() {
+            thread::sleep(delay);
+        }
+        let mut state = self.state();
+        let outcome = state.load_outcome.clone();
+        if outcome.is_ok() {
+            state.loaded = true;
+        }
+        outcome
     }
 
     fn transcribe(&mut self, request: TranscriptionRequest<'_>) -> Result<String, EngineError> {
@@ -100,6 +134,7 @@ impl Engine for FakeEngine {
                 language: request.language.clone(),
                 vocabulary: request.vocabulary.to_vec(),
             });
+            state.loaded = true;
             state.delay
         };
         if !delay.is_zero() {
@@ -109,7 +144,9 @@ impl Engine for FakeEngine {
     }
 
     fn unload(&mut self) {
-        self.state().unloads += 1;
+        let mut state = self.state();
+        state.unloads += 1;
+        state.loaded = false;
     }
 }
 
@@ -191,5 +228,24 @@ mod tests {
         assert_eq!(probe.load_count(), 1);
         assert_eq!(probe.unload_count(), 1);
         assert_eq!(text, "b");
+    }
+
+    #[test]
+    fn a_scripted_load_failure_leaves_the_model_unloaded() {
+        let probe = FakeEngine::returning("a");
+        let mut engine = probe.clone();
+        probe.set_load_outcome(Err(EngineError::ModelLoad("bad file".into())));
+
+        assert_eq!(
+            engine.load(),
+            Err(EngineError::ModelLoad("bad file".into()))
+        );
+        assert!(!probe.is_loaded());
+
+        probe.set_load_outcome(Ok(()));
+        engine.load().unwrap();
+        assert!(probe.is_loaded());
+        engine.unload();
+        assert!(!probe.is_loaded());
     }
 }

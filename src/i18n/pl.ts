@@ -24,7 +24,7 @@ export const pl: Translation = {
     model: {
       title: "Model i język",
       description: "Model mowy, który zamienia Twój głos na tekst, oraz język, w którym mówisz.",
-      upcoming: "Pobieranie i wybór modelu oraz język dyktowania.",
+      upcoming: "Język dyktowania.",
     },
     vocabulary: {
       title: "Słownik",
@@ -98,9 +98,7 @@ export const pl: Translation = {
     model: {
       title: "Wybierz model",
       lead: "Model zamienia Twoją mowę na tekst. Pobierasz go raz i zostaje na tym komputerze.",
-      upcoming:
-        "Trzy modele z rozmiarami, zalecany Whisper large-v3-turbo oraz pobieranie z postępem.",
-      continueWithout: "Kontynuuj bez modelu",
+      choose: "Modele",
     },
     tryIt: {
       title: "Wypróbuj",
@@ -113,12 +111,85 @@ export const pl: Translation = {
       finish: "Zakończ",
     },
   },
+  models: {
+    listLabel: "Modele",
+    recommended: "Polecany",
+    active: "Aktywny",
+    languages: "{{count}} języków",
+    descriptions: {
+      whisperLargeV3Turbo: "Najlepsza dokładność; wolniejszy bez karty graficznej.",
+      parakeetTdt06bV3:
+        "Szybki i dokładny w 25 językach europejskich; zawsze sam rozpoznaje język.",
+      whisperSmall: "Mały i szybki; mniejsza dokładność.",
+    },
+    languagesOf: {
+      whisperLargeV3Turbo: "100 języków",
+      parakeetTdt06bV3: "25 języków europejskich",
+      whisperSmall: "99 języków",
+    },
+    size: "{{size}} MB",
+    actions: {
+      download: "Pobierz ({{size}} MB)",
+      cancel: "Anuluj",
+      resume: "Wznów",
+      retry: "Spróbuj ponownie",
+      use: "Używaj tego modelu",
+      delete: "Usuń",
+    },
+    state: {
+      queued: "Czeka na zakończenie bieżącego pobierania…",
+      downloading: "{{percent}}% · {{speed}} MB/s",
+      verifying: "Sprawdzanie…",
+      paused: "Wstrzymano — pobrano {{percent}}%",
+      loading: "Wczytywanie…",
+      downloaded: "Pobrany",
+    },
+    progress: "Postęp pobierania: {{model}}",
+    failure: {
+      network: "Pobieranie nie powiodło się: Echo nie może połączyć się z serwerem.",
+      stalled: "Pobieranie stanęło: przez minutę nie dotarły żadne dane.",
+      badRange: "Serwer nie mógł wznowić pobierania. Spróbuj ponownie, aby pobrać od początku.",
+      sizeMismatch: "Serwer wysłał plik o złym rozmiarze.",
+      corrupted: "Pobrany plik jest uszkodzony — spróbuj ponownie",
+      storage: "Nie udało się zapisać pliku modelu na tym komputerze.",
+      diskSpace: "Za mało miejsca na dysku: potrzeba {{needed}} MB wolnego miejsca.",
+    },
+    loadFailed: "Nie udało się wczytać modelu {{model}}: {{reason}}",
+    busy: "Model można zmienić lub usunąć po zakończeniu dyktowania.",
+    confirmDelete: {
+      title: "Usunąć model {{model}}?",
+      body: "Zwolni to {{size}} MB na tym komputerze. Model można później pobrać ponownie.",
+      confirm: "Usuń",
+      cancel: "Zostaw",
+    },
+    unload: {
+      label: "Zwalniaj model z pamięci po bezczynności",
+      description:
+        "Zwalnia pamięć, gdy przez jakiś czas nie dyktujesz. Następne dyktowanie rozpocznie się wtedy kilka sekund później.",
+      never: "Nigdy",
+      minutes: "{{count}} min",
+    },
+    indicator: {
+      label: "Model",
+      none: "Pobierz model, aby zacząć",
+      ready: "Gotowy",
+      loading: "Wczytywanie…",
+      unloaded: "Zwolniony (wczyta się przy następnym dyktowaniu)",
+      error: "Nie udało się wczytać",
+      downloading: "Pobieranie {{percent}}%",
+      open: "Otwórz ustawienia modelu",
+    },
+    start: {
+      title: "Pobierz model, aby zacząć",
+      body: "Do dyktowania Echo potrzebuje modelu mowy. Pobiera się go raz i zostaje na tym komputerze.",
+      action: "Wybierz model",
+    },
+  },
   errors: {
     settingsUnavailable: "Echo nie może wczytać ustawień. Uruchom Echo ponownie.",
   },
   status: {
     label: "Stan",
-    noModel: "Brak modelu",
   },
   languages: {
     pl: "Polski",

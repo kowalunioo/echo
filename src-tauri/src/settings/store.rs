@@ -352,6 +352,8 @@ mod tests {
                 "uiLanguage": "klingon",
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
+                "activeModel": null,
+                "unloadModelAfter": "never",
             })
             .to_string(),
         )
@@ -370,6 +372,42 @@ mod tests {
         assert_eq!(settings.ui_language, UiLanguage::En);
         assert!(settings.onboarding_completed);
         assert_eq!(read_json(&path)["uiLanguage"], "en", "file is rewritten");
+    }
+
+    // models.md "Settings": unknown Models and choices fall back to their defaults.
+    #[test]
+    fn an_unknown_model_or_unload_choice_is_reset() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({
+                "version": 1,
+                "activeModel": "gpt-9",
+                "unloadModelAfter": "minutes3",
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        let LoadOutcome::Repaired { reset, .. } = outcome else {
+            panic!("{outcome:?}")
+        };
+        assert_eq!(
+            reset,
+            vec!["activeModel".to_string(), "unloadModelAfter".into()]
+        );
+        assert_eq!(store.get().active_model, None);
+        assert_eq!(
+            store.get().unload_model_after,
+            crate::settings::UnloadModelAfter::Never
+        );
+
+        store
+            .update(|s| s.active_model = Some(crate::models::ModelId::WhisperSmall))
+            .unwrap();
+        assert_eq!(read_json(&path)["activeModel"], "whisperSmall");
     }
 
     // settings-and-first-run.md acceptance test 10.
@@ -419,7 +457,12 @@ mod tests {
             outcome,
             LoadOutcome::Repaired {
                 reset: vec![],
-                added: vec!["onboardingCompleted".into(), "onboardingWelcomeDone".into()]
+                added: vec![
+                    "activeModel".into(),
+                    "onboardingCompleted".into(),
+                    "onboardingWelcomeDone".into(),
+                    "unloadModelAfter".into()
+                ]
             }
         );
         assert_eq!(store.get().ui_language, UiLanguage::Pl);

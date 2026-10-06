@@ -1,7 +1,8 @@
-﻿import type { MicrophoneAccess } from "./steps";
+﻿import { useModels } from "../store/models";
+import type { MicrophoneAccess } from "./steps";
 
 /*
- * Facts the onboarding needs from slices that are not built yet. Each one is a clearly marked
+ * Facts the onboarding needs from other slices. Those not built yet are clearly marked
  * PLACEHOLDER with a fixed answer; the owning slice replaces it with the real source and removes
  * the placeholder controls in Onboarding.tsx.
  */
@@ -14,12 +15,9 @@ export function checkMicrophoneAccess(): Promise<MicrophoneAccess> {
   return Promise.resolve("allowed");
 }
 
-/**
- * PLACEHOLDER until Models (#12): whether a Model is active. Always false for now; the Choose a
- * Model step offers a temporary "Continue without a Model" link instead.
- */
+/** Whether a Model is active (models.md rule 17): the Choose a Model step is then complete. */
 export function useModelActive(): boolean {
-  return false;
+  return useModels((s) => s.state?.active != null);
 }
 
 /**
