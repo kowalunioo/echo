@@ -28,6 +28,16 @@ export const commands = {
 	 *  onboarding's Microphone access step).
 	 */
 	openMicrophonePrivacySettings: () => typedError<null, string>(__TAURI_INVOKE("open_microphone_privacy_settings")),
+	/**
+	 *  A fresh list of the input devices and the current Windows default. The Microphone picker
+	 *  asks for it every time it opens (`microphone.md` rule 8).
+	 */
+	listMicrophones: () => typedError<DeviceList, string>(__TAURI_INVOKE("list_microphones")),
+	/**
+	 *  Whether Windows privacy settings let desktop apps use the Microphone (`microphone.md` rule 7;
+	 *  the onboarding's Microphone access step).
+	 */
+	microphoneAccess: () => __TAURI_INVOKE<MicrophoneAccess>("microphone_access"),
 	/**  Returns the Models and their state. */
 	getModels: () => __TAURI_INVOKE<ModelsState>("get_models"),
 	/**  Starts downloading a Model, or queues it behind the running download. */
@@ -96,6 +106,14 @@ export type CapturedKeyEvent = {
 	pressed: boolean,
 };
 
+/**  The input devices present right now. */
+export type DeviceList = {
+	/**  Names of every input device, in the order Windows lists them. */
+	devices: string[],
+	/**  Name of the Windows default recording device, if there is one. */
+	default: string | null,
+};
+
 /**  Why a download failed, for a plain-language message in the UI. */
 export type DownloadFailure = {
 	kind: FailureKind,
@@ -130,6 +148,21 @@ export type LoadFailure = {
 	model: ModelId,
 	reason: string,
 };
+
+/**  Whether Windows privacy settings let desktop apps use the Microphone (rule 7). */
+export type MicrophoneAccess = "allowed" | "denied";
+
+/**
+ *  The Microphone setting (`microphone.md` rules 1–2): follow the Windows default recording
+ *  device, or one specific device identified by its name as Windows reports it.
+ * 
+ *  Stored as `{"kind": "default"}` or `{"kind": "device", "name": "Microphone (USB Audio)"}`.
+ */
+export type MicrophoneChoice = 
+/**  Whatever Windows considers the default recording device when a Recording starts. */
+{ kind: "default" } | 
+/**  One specific device, by name. */
+{ kind: "device"; name: string };
 
 /**
  *  One Model as shown on its card. Byte counts are `u32`: every 0.1.0 Model is under 4 GiB, and
@@ -236,6 +269,8 @@ export type Settings = {
 	onboardingWelcomeDone: boolean,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted: boolean,
+	/**  The input device Recordings listen to (`microphone.md`). */
+	microphone: MicrophoneChoice,
 	/**
 	 *  The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
 	 *  change it with the `activate_model` command, which loads the Model first and keeps the
@@ -268,6 +303,8 @@ export type SettingsPatch = {
 	onboardingWelcomeDone?: boolean | null,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted?: boolean | null,
+	/**  The input device Recordings listen to (`microphone.md`). */
+	microphone?: MicrophoneChoice | null,
 	/**
 	 *  The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
 	 *  change it with the `activate_model` command, which loads the Model first and keeps the

@@ -41,6 +41,8 @@ transcribe-cpp = { version = "0.3.1", default-features = false }
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "system-proxy"] }
 sha2 = "0.10"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+# Microphone capture through WASAPI (`docs/specs/microphone.md`).
+cpal = "0.18"
 
 [features]
 # Vulkan GPU acceleration with automatic CPU fallback (`docs/specs/models.md` rule 29). On by
@@ -68,6 +70,8 @@ windows = { version = "0.62", features = [
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_WindowsAndMessaging",
 ] }
+# Reads the Windows microphone privacy switches (`microphone.md` rule 7).
+windows-registry = "0.6"
 
 [profile.dev.package."*"]
 # Audio resampling is unbearably slow unoptimised, even in tests.

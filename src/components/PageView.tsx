@@ -5,6 +5,7 @@ import type { Page } from "../store/shell";
 import { NoModelPanel } from "../models/ModelIndicator";
 import { ModelsSection } from "../models/ModelsSection";
 import { AppSettings } from "./AppSettings";
+import { MicrophoneSettings } from "./MicrophoneSettings";
 import { RecordShortcutSettings } from "./RecordShortcutSettings";
 
 export function PageView({ page }: { page: Page }) {
@@ -22,6 +23,7 @@ export function PageView({ page }: { page: Page }) {
 
       {page === "model" && <ModelsSection />}
       {page === "dictation" && <RecordShortcutSettings />}
+      {page === "dictation" && <MicrophoneSettings />}
       {page === "app" && <AppSettings />}
 
       <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>

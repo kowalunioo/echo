@@ -1,18 +1,24 @@
-﻿import { useModels } from "../store/models";
+import { commands } from "../bindings";
+import { useModels } from "../store/models";
 import type { MicrophoneAccess } from "./steps";
 
 /*
- * Facts the onboarding needs from other slices. Those not built yet are clearly marked
- * PLACEHOLDER with a fixed answer; the owning slice replaces it with the real source and removes
- * the placeholder controls in Onboarding.tsx.
+ * Facts the onboarding needs from other slices. The ones still marked PLACEHOLDER have a fixed
+ * answer; the owning slice replaces it with the real source and removes the placeholder controls
+ * in Onboarding.tsx.
  */
 
 /**
- * PLACEHOLDER until Microphone (#16): whether Windows privacy settings let desktop apps use the
- * Microphone. Always "allowed" for now, so the Microphone access step stays hidden.
+ * Whether Windows privacy settings let desktop apps use the Microphone (microphone.md rule 7).
+ * If the check itself fails, the step is not shown: a Recording still reports a real block.
  */
-export function checkMicrophoneAccess(): Promise<MicrophoneAccess> {
-  return Promise.resolve("allowed");
+export async function checkMicrophoneAccess(): Promise<MicrophoneAccess> {
+  try {
+    return await commands.microphoneAccess();
+  } catch (error) {
+    console.error("microphone_access failed", error);
+    return "allowed";
+  }
 }
 
 /** Whether a Model is active (models.md rule 17): the Choose a Model step is then complete. */

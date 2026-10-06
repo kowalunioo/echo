@@ -45,6 +45,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             settings::commands::reset_setting,
             system::open_log_folder,
             system::open_microphone_privacy_settings,
+            audio::microphone::commands::list_microphones,
+            audio::microphone::commands::microphone_access,
             models::commands::get_models,
             models::commands::download_model,
             models::commands::cancel_model_download,
@@ -87,6 +89,7 @@ pub fn run() {
 
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
+            app.manage(audio::microphone::Microphones::system());
             open_models(app.handle(), &data_dir);
             shortcut::app::install(app.handle());
 

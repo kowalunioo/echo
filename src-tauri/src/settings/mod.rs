@@ -17,6 +17,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::audio::microphone::MicrophoneChoice;
 use crate::models::ModelId;
 use crate::shortcut::modes::ShortcutMode;
 use crate::shortcut::validation::RecordShortcutCombination;
@@ -63,6 +64,8 @@ settings_model! {
     onboarding_welcome_done: bool,
     /// The user pressed "Finish" in the onboarding; it is never shown again (rule 5).
     onboarding_completed: bool,
+    /// The input device Recordings listen to (`microphone.md`).
+    microphone: MicrophoneChoice,
     /// The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
     /// change it with the `activate_model` command, which loads the Model first and keeps the
     /// previous one if loading fails — never through `update_settings`.
@@ -84,6 +87,7 @@ impl Settings {
             ui_language: UiLanguage::for_locale(system_locale),
             onboarding_welcome_done: false,
             onboarding_completed: false,
+            microphone: MicrophoneChoice::Default,
             active_model: None,
             unload_model_after: UnloadModelAfter::Never,
             record_shortcut: RecordShortcutCombination::default(),

@@ -1,5 +1,7 @@
 import type {
   AppInfo,
+  DeviceList,
+  MicrophoneAccess,
   ModelEntry,
   ModelId,
   ModelsState,
@@ -16,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: "en",
   onboardingWelcomeDone: true,
   onboardingCompleted: true,
+  microphone: { kind: "default" },
   activeModel: null,
   unloadModelAfter: "never",
   recordShortcut: "Ctrl+Space",
@@ -59,6 +62,13 @@ type EventCallback = (event: { event: string; id: number; payload: unknown }) =>
 export class FakeBackend {
   settings: Settings = { ...DEFAULT_SETTINGS };
   appInfo: AppInfo = { version: "0.1.0", systemLocale: "en-US" };
+  /** The input devices `list_microphones` reports. */
+  microphones: DeviceList = {
+    devices: ["Microphone (Realtek Audio)"],
+    default: "Microphone (Realtek Audio)",
+  };
+  /** What the Windows microphone privacy check reports. */
+  microphoneAccess: MicrophoneAccess = "allowed";
   models: ModelsState = freshModels();
   /** Every command invoked, in order, with its arguments. */
   calls: { command: string; args: Record<string, unknown> }[] = [];
@@ -86,6 +96,8 @@ export class FakeBackend {
     },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
+    list_microphones: () => this.microphones,
+    microphone_access: () => this.microphoneAccess,
     get_models: () => this.models,
     download_model: () => null,
     cancel_model_download: () => null,

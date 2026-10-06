@@ -352,6 +352,7 @@ mod tests {
                 "uiLanguage": "klingon",
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
+                "microphone": { "kind": "device", "name": "USB Mic" },
                 "activeModel": null,
                 "unloadModelAfter": "never",
                 "recordShortcut": "Ctrl+Win",
@@ -374,6 +375,23 @@ mod tests {
         assert_eq!(settings.ui_language, UiLanguage::En);
         assert!(settings.onboarding_completed);
         assert_eq!(read_json(&path)["uiLanguage"], "en", "file is rewritten");
+    }
+
+    #[test]
+    fn an_invalid_microphone_falls_back_to_default() {
+        use crate::audio::microphone::MicrophoneChoice;
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({ "version": 1, "uiLanguage": "pl", "microphone": "USB Mic" }).to_string(),
+        )
+        .unwrap();
+
+        let (store, _) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(store.get().microphone, MicrophoneChoice::Default);
+        assert_eq!(store.get().ui_language, UiLanguage::Pl);
+        assert_eq!(read_json(&path)["microphone"], json!({ "kind": "default" }));
     }
 
     // models.md "Settings": unknown Models and choices fall back to their defaults.
@@ -456,6 +474,7 @@ mod tests {
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
                 "activeModel": null,
+                "microphone": { "kind": "default" },
                 "unloadModelAfter": "never",
                 "recordShortcut": "Space",
                 "shortcutMode": "toggle",
@@ -514,6 +533,7 @@ mod tests {
                 reset: vec![],
                 added: vec![
                     "activeModel".into(),
+                    "microphone".into(),
                     "onboardingCompleted".into(),
                     "onboardingWelcomeDone".into(),
                     "recordShortcut".into(),
