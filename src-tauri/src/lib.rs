@@ -12,6 +12,7 @@ pub mod audio;
 pub mod commands;
 pub mod data_dir;
 pub mod engine;
+pub mod history;
 pub mod insertion;
 pub mod logging;
 pub mod settings;
@@ -24,6 +25,8 @@ use tauri::Manager;
 use tauri_specta::{Builder, Event, collect_commands, collect_events};
 
 use data_dir::DataDir;
+use history::{History, HistoryChanged, OpenOutcome};
+use insertion::SharedInserter;
 use settings::{LoadOutcome, Settings, SettingsChanged, SettingsStore};
 use window::WindowTracker;
 
@@ -38,10 +41,15 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             settings::commands::get_settings,
             settings::commands::update_settings,
             settings::commands::reset_setting,
+            history::commands::list_history,
+            history::commands::delete_history_entry,
+            history::commands::restore_history_entry,
+            history::commands::clear_history,
+            history::commands::reinsert_history_entry,
             system::open_log_folder,
             system::open_microphone_privacy_settings,
         ])
-        .events(collect_events![SettingsChanged])
+        .events(collect_events![SettingsChanged, HistoryChanged])
 }
 
 /// The exporter used for `src/bindings.ts`.
@@ -67,6 +75,9 @@ pub fn run() {
 
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
+            open_history(app.handle(), &data_dir);
+            // Empty until the real Inserter is registered (dictation pipeline).
+            app.manage(SharedInserter::new());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
             let autostart = window::launched_by_autostart(std::env::args());
@@ -121,6 +132,39 @@ fn open_settings(app: &tauri::AppHandle, data_dir: &DataDir) {
         }
     });
     app.manage(store);
+}
+
+/// Opens History, keeps its limit in step with the settings, and forwards every change to the
+/// frontend as a [`HistoryChanged`] event.
+fn open_history(app: &tauri::AppHandle, data_dir: &DataDir) {
+    let settings = app.state::<SettingsStore>();
+    let (history, outcome) =
+        History::open(&data_dir.history_file(), settings.get().history_limit.get());
+    match outcome {
+        OpenOutcome::Opened => log::info!("History opened"),
+        OpenOutcome::Replaced { renamed_to, error } => {
+            log::warn!("History database was unusable ({error}); moved to {renamed_to:?}")
+        }
+        OpenOutcome::InMemory { error } => {
+            log::error!("History database cannot be used ({error}); History is not saved this time")
+        }
+    }
+    let handle = app.clone();
+    history.subscribe(move |entries| {
+        if let Err(error) = HistoryChanged(entries.to_vec()).emit(&handle) {
+            log::warn!("could not send History to the windows: {error}");
+        }
+    });
+    let handle = app.clone();
+    settings.subscribe(move |old, new| {
+        if old.history_limit != new.history_limit {
+            let limit = new.history_limit.get();
+            if let Err(error) = handle.state::<History>().set_limit(limit) {
+                log::error!("could not apply the History limit: {error}");
+            }
+        }
+    });
+    app.manage(history);
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-import type { AppInfo, Settings, SettingsPatch } from "../bindings";
+import type { AppInfo, HistoryEntry, Settings, SettingsPatch } from "../bindings";
 
 /**
  * An in-memory stand-in for the Rust side, used by every frontend test through the Tauri API
@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: "en",
   onboardingWelcomeDone: true,
   onboardingCompleted: true,
+  historyLimit: 5,
 };
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -23,6 +24,11 @@ export class FakeBackend {
   hanging = new Set<string>();
   /** Commands that fail, with the error value Tauri rejects with (a string for `Result<_, String>`). */
   failing = new Map<string, unknown>();
+  /** History entries, newest first, as the backend's History service keeps them. */
+  history: HistoryEntry[] = [];
+  /** Texts passed to Re-insert, in order. */
+  reinserted: string[] = [];
+  private nextHistoryId = 1;
   private listeners = new Map<string, Set<EventCallback>>();
 
   handlers: Record<string, Handler> = {
@@ -41,6 +47,30 @@ export class FakeBackend {
       this.changeSettings({ [key]: DEFAULT_SETTINGS[key] });
       return this.settings;
     },
+    list_history: () => this.history,
+    delete_history_entry: (args) => {
+      const entry = this.history.find((e) => e.id === args.id) ?? null;
+      this.changeHistory(this.history.filter((e) => e.id !== args.id));
+      return entry;
+    },
+    restore_history_entry: (args) => {
+      const entry = args.entry as HistoryEntry;
+      if (!this.history.some((e) => e.id === entry.id)) {
+        this.changeHistory(
+          [...this.history, entry].sort((a, b) => b.createdAt - a.createdAt || b.id - a.id),
+        );
+      }
+      return null;
+    },
+    clear_history: () => {
+      this.changeHistory([]);
+      return null;
+    },
+    reinsert_history_entry: (args) => {
+      const entry = this.history.find((e) => e.id === args.id);
+      if (entry) this.reinserted.push(entry.text);
+      return null;
+    },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
   };
@@ -49,6 +79,25 @@ export class FakeBackend {
   changeSettings(patch: Partial<Settings>) {
     this.settings = { ...this.settings, ...patch };
     this.emit("settings-changed", this.settings);
+    if (this.history.length > this.settings.historyLimit) this.changeHistory(this.history);
+  }
+
+  /** Adds a Transcript as a Dictation would, applying the History limit. */
+  addHistoryEntry(text: string, createdAt = Date.now()): HistoryEntry {
+    const entry: HistoryEntry = {
+      id: this.nextHistoryId++,
+      createdAt,
+      text,
+      model: "whisper-large-v3-turbo",
+      language: { kind: "specific", code: "en" },
+    };
+    this.changeHistory([entry, ...this.history]);
+    return entry;
+  }
+
+  private changeHistory(entries: HistoryEntry[]) {
+    this.history = entries.slice(0, this.settings.historyLimit);
+    this.emit("history-changed", this.history);
   }
 
   emit(event: string, payload: unknown) {

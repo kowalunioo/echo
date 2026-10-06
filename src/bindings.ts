@@ -18,6 +18,36 @@ export const commands = {
 	updateSettings: (patch: SettingsPatch) => typedError<Settings, string>(__TAURI_INVOKE("update_settings", { patch })),
 	/**  Puts the setting `key` (e.g. `"uiLanguage"`) back to its default. */
 	resetSetting: (key: string) => typedError<Settings, string>(__TAURI_INVOKE("reset_setting", { key })),
+	/**  Every History entry, newest first. */
+	listHistory: () => typedError<HistoryEntry[], string>(__TAURI_INVOKE("list_history")),
+	/**
+	 *  Permanently deletes one entry and returns it (or `null` if it was already gone), so the
+	 *  window can offer Undo for 5 s (rule 12).
+	 */
+	deleteHistoryEntry: (id: number) => typedError<{
+	/**  Unique and never reused, even after the entry is deleted. */
+	id: number,
+	/**
+	 *  When the entry was created, in milliseconds since the Unix epoch (UTC). Shown in local
+	 *  time.
+	 */
+	createdAt: number,
+	/**  The Transcript exactly as inserted. */
+	text: string,
+	/**  The id of the Model that produced it (`models.md`). */
+	model: string,
+	/**  The effective Dictation Language. */
+	language: EntryLanguage,
+} | null, string>(__TAURI_INVOKE("delete_history_entry", { id })),
+	/**  Puts back an entry returned by `delete_history_entry`, with its original id and time (Undo). */
+	restoreHistoryEntry: (entry: HistoryEntry) => typedError<null, string>(__TAURI_INVOKE("restore_history_entry", { entry })),
+	/**  Deletes every entry; the window asks for confirmation first (rule 14). */
+	clearHistory: () => typedError<null, string>(__TAURI_INVOKE("clear_history")),
+	/**
+	 *  Hides Echo's window and inserts the entry's text into the application that had focus before
+	 *  (rule 13). If Insertion fails, the window comes back so the user sees the error.
+	 */
+	reinsertHistoryEntry: (id: number) => typedError<null, string>(__TAURI_INVOKE("reinsert_history_entry", { id })),
 	/**
 	 *  Opens the folder with Echo's log files in File Explorer (the "Open log folder" link in the
 	 *  App section, `settings-and-first-run.md` "UI").
@@ -32,6 +62,7 @@ export const commands = {
 
 /** Events */
 export const events = {
+	historyChanged: makeEvent<HistoryChanged>("history-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 };
 
@@ -43,6 +74,40 @@ export type AppInfo = {
 	/**  The Windows display language as a BCP 47 tag, if Windows reports one. */
 	systemLocale: string | null,
 };
+
+/**  The effective Dictation Language of a stored Transcript. */
+export type EntryLanguage = 
+/**  Automatic detection, with the language the Engine detected if it reported one. */
+{ kind: "automatic"; detected: string | null } | 
+/**  A chosen language: an ISO 639-1 code such as `"pl"`. */
+{ kind: "specific"; code: string };
+
+/**  Sent to every window after any change to History, with every entry, newest first (rule 16). */
+export type HistoryChanged = HistoryEntry[];
+
+/**  One stored Transcript (rule 3). */
+export type HistoryEntry = {
+	/**  Unique and never reused, even after the entry is deleted. */
+	id: number,
+	/**
+	 *  When the entry was created, in milliseconds since the Unix epoch (UTC). Shown in local
+	 *  time.
+	 */
+	createdAt: number,
+	/**  The Transcript exactly as inserted. */
+	text: string,
+	/**  The id of the Model that produced it (`models.md`). */
+	model: string,
+	/**  The effective Dictation Language. */
+	language: EntryLanguage,
+};
+
+/**
+ *  How many entries History keeps: an integer 0–100, default 5; 0 keeps nothing (`history.md`
+ *  rules 6–9). Deserialising rejects anything outside the range, so invalid stored values are
+ *  salvaged to the default and invalid patches are refused.
+ */
+export type HistoryLimit = number;
 
 /**
  *  Every persisted setting, one top-level field per setting. Each field is salvaged on
@@ -59,6 +124,8 @@ export type Settings = {
 	onboardingWelcomeDone: boolean,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted: boolean,
+	/**  How many Transcripts History keeps (`history.md` rules 6–9). */
+	historyLimit: HistoryLimit,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -76,6 +143,8 @@ export type SettingsPatch = {
 	onboardingWelcomeDone?: boolean | null,
 	/**  The user pressed "Finish" in the onboarding; it is never shown again (rule 5). */
 	onboardingCompleted?: boolean | null,
+	/**  How many Transcripts History keeps (`history.md` rules 6–9). */
+	historyLimit?: HistoryLimit | null,
 };
 
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */

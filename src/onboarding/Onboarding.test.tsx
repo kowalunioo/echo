@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import { changeUiLanguage } from "../i18n";
-import { backend } from "../test/backend";
+import { DEFAULT_SETTINGS, backend } from "../test/backend";
 import type { MicrophoneAccess } from "./steps";
 
 const microphone = vi.hoisted(() => {
@@ -23,7 +23,7 @@ beforeEach(async () => {
   microphone.access = "allowed";
   microphone.checks = 0;
   backend.settings = {
-    uiLanguage: "en",
+    ...DEFAULT_SETTINGS,
     onboardingWelcomeDone: false,
     onboardingCompleted: false,
   };

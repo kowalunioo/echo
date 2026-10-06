@@ -352,6 +352,7 @@ mod tests {
                 "uiLanguage": "klingon",
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
+                "historyLimit": 5,
             })
             .to_string(),
         )
@@ -370,6 +371,35 @@ mod tests {
         assert_eq!(settings.ui_language, UiLanguage::En);
         assert!(settings.onboarding_completed);
         assert_eq!(read_json(&path)["uiLanguage"], "en", "file is rewritten");
+    }
+
+    #[test]
+    fn an_out_of_range_history_limit_is_reset_to_its_default() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({
+                "version": 1,
+                "uiLanguage": "pl",
+                "onboardingWelcomeDone": true,
+                "onboardingCompleted": true,
+                "historyLimit": 101,
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(
+            outcome,
+            LoadOutcome::Repaired {
+                reset: vec!["historyLimit".into()],
+                added: vec![]
+            }
+        );
+        assert_eq!(store.get().history_limit.get(), 5);
+        assert_eq!(store.get().ui_language, UiLanguage::Pl);
     }
 
     // settings-and-first-run.md acceptance test 10.
@@ -419,7 +449,11 @@ mod tests {
             outcome,
             LoadOutcome::Repaired {
                 reset: vec![],
-                added: vec!["onboardingCompleted".into(), "onboardingWelcomeDone".into()]
+                added: vec![
+                    "historyLimit".into(),
+                    "onboardingCompleted".into(),
+                    "onboardingWelcomeDone".into()
+                ]
             }
         );
         assert_eq!(store.get().ui_language, UiLanguage::Pl);

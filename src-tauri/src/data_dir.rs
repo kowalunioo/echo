@@ -35,6 +35,11 @@ impl DataDir {
         self.root.join("window-state.json")
     }
 
+    /// The History database (`history.md` rule 5).
+    pub fn history_file(&self) -> PathBuf {
+        self.root.join("history.db")
+    }
+
     /// The folder holding the rotated diagnostic log files.
     pub fn log_dir(&self) -> PathBuf {
         self.root.join("logs")
@@ -87,5 +92,6 @@ mod tests {
         assert_eq!(data.settings_file(), Path::new("C:/data/settings.json"));
         assert_eq!(data.log_dir(), Path::new("C:/data/logs"));
         assert!(data.window_state_file().starts_with(data.root()));
+        assert_eq!(data.history_file(), Path::new("C:/data/history.db"));
     }
 }

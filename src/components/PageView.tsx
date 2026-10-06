@@ -1,19 +1,17 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HistoryPage } from "../history/HistoryPage";
 import type { Page } from "../store/shell";
 import { AppSettings } from "./AppSettings";
+import { PageHeader } from "./PageHeader";
 
 export function PageView({ page }: { page: Page }) {
   const { t } = useTranslation();
+  if (page === "history") return <HistoryPage />;
   return (
     <article className="mx-auto flex max-w-2xl flex-col gap-6 px-10 py-12">
-      <header className="flex flex-col gap-1.5">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">
-          {t(`pages.${page}.title`)}
-        </h1>
-        <p className="text-muted">{t(`pages.${page}.description`)}</p>
-      </header>
+      <PageHeader page={page} />
 
       {page === "app" && <AppSettings />}
 
