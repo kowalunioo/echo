@@ -11,6 +11,7 @@
 //! Engine (rules 10–11).
 
 mod convert;
+pub mod fake_microphone;
 pub mod microphone;
 mod wav;
 

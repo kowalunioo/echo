@@ -742,3 +742,11 @@ fn acceptance_9_quit_during_recording_inserts_and_stores_nothing() {
     assert!(rig.inserter.inserted().is_empty());
     assert!(rig.stored.lock().unwrap().is_empty());
 }
+
+// Closing the main window never exits Echo, even though the hidden Overlay window would let the
+// app outlive it; only "Quit Echo" exits (rules 12-13).
+#[test]
+fn closing_the_main_window_shows_the_hint_once_then_hides() {
+    assert_eq!(close_outcome(false), CloseOutcome::ShowHint);
+    assert_eq!(close_outcome(true), CloseOutcome::Hide);
+}

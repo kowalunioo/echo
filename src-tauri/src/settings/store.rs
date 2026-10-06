@@ -384,6 +384,8 @@ mod tests {
                 "shortcutMode": "toggle",
                 "startWithWindows": false,
                 "trayHintShown": false,
+                "showOverlay": true,
+                "overlayPosition": "bottom",
             })
             .to_string(),
         )
@@ -422,6 +424,8 @@ mod tests {
                 "shortcutMode": "pushToTalk",
                 "startWithWindows": false,
                 "trayHintShown": false,
+                "showOverlay": true,
+                "overlayPosition": "bottom",
             })
             .to_string(),
         )
@@ -544,6 +548,8 @@ mod tests {
                 "shortcutMode": "toggle",
                 "startWithWindows": false,
                 "trayHintShown": false,
+                "showOverlay": true,
+                "overlayPosition": "bottom",
             })
             .to_string(),
         )
@@ -603,8 +609,10 @@ mod tests {
                     "microphone".into(),
                     "onboardingCompleted".into(),
                     "onboardingWelcomeDone".into(),
+                    "overlayPosition".into(),
                     "recordShortcut".into(),
                     "shortcutMode".into(),
+                    "showOverlay".into(),
                     "startWithWindows".into(),
                     "trayHintShown".into(),
                     "unloadModelAfter".into(),

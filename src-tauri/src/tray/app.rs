@@ -327,7 +327,13 @@ pub fn on_main_window_event(window: &Window, event: &WindowEvent) {
             api.prevent_close();
             let app = window.app_handle();
             let hint_shown = app.state::<SettingsStore>().get().tray_hint_shown;
-            if hint_shown || TrayHintRequested.emit_to(app, MAIN_WINDOW).is_err() {
+            let hint_requested = match super::close_outcome(hint_shown) {
+                super::CloseOutcome::ShowHint => {
+                    TrayHintRequested.emit_to(app, MAIN_WINDOW).is_ok()
+                }
+                super::CloseOutcome::Hide => false,
+            };
+            if !hint_requested {
                 let _ = window.hide();
             }
         }

@@ -24,6 +24,25 @@ use crate::settings::UiLanguage;
 
 use labels::Labels;
 
+/// What closing the main window does (rules 12–13). It never exits Echo: the window hides to the
+/// tray, and "Quit Echo" is the only way out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CloseOutcome {
+    /// Hide the window at once.
+    Hide,
+    /// Show the one-time hint first; the window hides once the user confirms it.
+    ShowHint,
+}
+
+/// See [`CloseOutcome`].
+pub fn close_outcome(hint_shown: bool) -> CloseOutcome {
+    if hint_shown {
+        CloseOutcome::Hide
+    } else {
+        CloseOutcome::ShowHint
+    }
+}
+
 /// What the tray icon shows (rule 2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TrayIconState {

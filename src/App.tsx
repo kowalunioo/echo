@@ -1,8 +1,10 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { events } from "./bindings";
 import { DictationNotices } from "./components/DictationNotices";
 import { PageView } from "./components/PageView";
+import { TestAudioMarker } from "./components/TestAudioMarker";
 import { Sidebar } from "./components/Sidebar";
 import { TrayHint } from "./components/TrayHint";
 import { changeUiLanguage } from "./i18n";
@@ -29,20 +31,41 @@ export function App() {
     if (uiLanguage) void changeUiLanguage(uiLanguage);
   }, [uiLanguage]);
 
-  let content = null;
-  if (status === "error") content = <SettingsUnavailable />;
-  else if (status !== "loading") content = onboardingCompleted ? <MainWindow /> : <Onboarding />;
+  // Closing the window must work whatever it shows, even while loading (tray.md rule 13).
+  if (status === "loading") return <TrayHint />;
   return (
-    <>
-      {content}
-      {/* Closing the window must work whatever it shows (tray.md rule 13). */}
+    <div className="flex h-full flex-col">
+      <TestAudioMarker />
+      <div className="min-h-0 flex-1">
+        {status === "error" ? (
+          <SettingsUnavailable />
+        ) : onboardingCompleted ? (
+          <MainWindow />
+        ) : (
+          <Onboarding />
+        )}
+      </div>
       <TrayHint />
-    </>
+    </div>
   );
 }
 
 function MainWindow() {
   const page = useShell((s) => s.page);
+  const setPage = useShell((s) => s.setPage);
+
+  // Another surface (e.g. a clicked Overlay message) asks for a page.
+  useEffect(() => {
+    const stop = events.mainPageRequested.listen((event) => {
+      setPage(event.payload);
+    });
+    return () => {
+      void stop.then((unlisten) => {
+        unlisten();
+      });
+    };
+  }, [setPage]);
+
   return (
     <div className="flex h-full">
       <Sidebar />

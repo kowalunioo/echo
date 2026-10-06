@@ -68,6 +68,14 @@ export const pl: Translation = {
       openStartupApps: "Otwórz aplikacje autostartu",
       openFailed: "Nie udało się otworzyć ustawień Windows.",
     },
+    overlay: {
+      label: "Pokazuj wskaźnik nagrywania",
+      description:
+        "Mała pigułka na ekranie podczas nagrywania i transkrypcji. Błędy pojawiają się także, gdy jest wyłączony.",
+      position: "Położenie",
+      bottom: "Na dole",
+      top: "Na górze",
+    },
     logFolder: {
       label: "Dziennik diagnostyczny",
       description:
@@ -302,6 +310,31 @@ export const pl: Translation = {
       transcriptionFailed: "Transkrypcja nie powiodła się.",
       insertionFailed: "Nie udało się wstawić tekstu — jest w Historii.",
     },
+  },
+  overlay: {
+    gettingReady: "Przygotowuję…",
+    listening: "Słucham",
+    transcribing: "Transkrybuję…",
+    cancel: "Anuluj dyktowanie",
+    messages: {
+      microphoneFallback: "Nie znaleziono wybranego mikrofonu — używam domyślnego",
+      noModel: "Brak Modelu — otwórz Echo, aby go pobrać",
+      microphoneNotFound: "Nie znaleziono mikrofonu",
+      microphoneAccessDenied:
+        "Dostęp do mikrofonu jest zablokowany — otwórz ustawienia prywatności",
+      microphoneDisconnected: "Mikrofon odłączony",
+      microphoneFailed: "Nie udało się użyć mikrofonu",
+      modelLoadFailed: "Nie udało się wczytać Modelu — otwórz Echo",
+      modelDownloadFailed: "Pobieranie Modelu nie powiodło się — otwórz Echo",
+      transcriptionFailed: "Transkrypcja nie powiodła się",
+      insertionFailed: "Nie udało się wstawić tekstu — jest w Historii",
+    },
+  },
+  testAudio: {
+    title: "Dźwięk testowy",
+    badge: "DŹWIĘK TESTOWY",
+    description: "Dyktowanie nagrywa z pliku {{file}} zamiast z mikrofonu.",
+    windowTitle: "Echo — DŹWIĘK TESTOWY: {{file}}",
   },
   keys: {
     Space: "Spacja",

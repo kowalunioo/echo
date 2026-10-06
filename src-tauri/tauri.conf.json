@@ -20,6 +20,26 @@
         "minHeight": 480,
         "center": true,
         "visible": false
+      },
+      {
+        "label": "overlay",
+        "title": "Echo overlay",
+        "url": "index.html",
+        "width": 520,
+        "height": 44,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "focusable": false,
+        "focus": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "closable": false,
+        "shadow": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {

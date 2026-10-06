@@ -277,6 +277,54 @@ fn the_overlay_learns_when_audio_arrives() {
     rig.wait("listening", |s| s.listening);
 }
 
+// overlay.md rule 3: the level meter follows the input level.
+#[test]
+fn the_overlay_gets_the_input_level() {
+    let source = ScriptedSource::default();
+    let rig = Setup::new(FakeEngine::returning("x"), source.clone()).spawn();
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    assert_eq!(rig.dictation.take_input_level(), 0.0);
+    source.tone(100);
+    rig.wait("listening", |s| s.listening);
+    let level = rig.dictation.take_input_level();
+    // A ±0.5 square wave is −6 dBFS: the top of the meter.
+    assert!(level > 0.9, "level {level}");
+    assert_eq!(rig.dictation.take_input_level(), 0.0, "taking resets it");
+}
+
+// A peak left over from the previous Recording must not make the next meter jump.
+#[test]
+fn a_new_recording_starts_the_input_level_from_silence() {
+    let source = ScriptedSource::default();
+    let rig = Setup::new(FakeEngine::returning("x"), source.clone()).spawn();
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    source.tone(100);
+    rig.wait("listening", |s| s.listening);
+    rig.dictation.cancel();
+    rig.wait_state(DictationState::Idle);
+
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    assert_eq!(rig.dictation.take_input_level(), 0.0);
+}
+
+#[test]
+fn the_meter_level_is_on_a_decibel_scale() {
+    use super::meter_level;
+    assert_eq!(meter_level(&[]), 0.0);
+    assert_eq!(meter_level(&[0.0; 160]), 0.0);
+    let at = |amplitude: f32| meter_level(&[amplitude, -amplitude]);
+    assert!(
+        (at(0.031_6) - 0.6).abs() < 0.01,
+        "−30 dBFS: {}",
+        at(0.031_6)
+    );
+    assert_eq!(at(0.000_1), 0.0, "−80 dBFS is silence");
+    assert_eq!(at(1.0), 1.0);
+}
+
 #[test]
 fn acceptance_3_digital_silence_never_reaches_the_engine() {
     let engine = FakeEngine::returning("Dziękuję.");

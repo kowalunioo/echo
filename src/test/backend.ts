@@ -7,6 +7,7 @@ import type {
   ModelEntry,
   ModelId,
   ModelsState,
+  OverlayView,
   Settings,
   SettingsPatch,
 } from "../bindings";
@@ -28,6 +29,8 @@ export const DEFAULT_SETTINGS: Settings = {
   shortcutMode: "pushToTalk",
   startWithWindows: false,
   trayHintShown: false,
+  showOverlay: true,
+  overlayPosition: "bottom",
 };
 
 /** The three Models as the backend lists them, none downloaded. */
@@ -76,6 +79,10 @@ export class FakeBackend {
   microphoneAccess: MicrophoneAccess = "allowed";
   models: ModelsState = freshModels();
   dictation: DictationStatus = { state: "idle", listening: false, error: null, notices: [] };
+  /** What the Overlay shows; tests change it with `changeOverlay`. */
+  overlay: OverlayView = { kind: "hidden" };
+  /** The WAV file of fake-microphone mode, `null` in normal operation. */
+  testAudio: string | null = null;
   /** Whether Windows "Startup apps" has Echo's sign-in entry turned off. */
   autostartDisabledInWindows = false;
   /** Every command invoked, in order, with its arguments. */
@@ -132,10 +139,15 @@ export class FakeBackend {
       return null;
     },
     get_dictation_status: () => this.dictation,
+    get_test_audio: () => this.testAudio,
     dictation_window_seen: () => {
       this.changeDictation({ error: null });
       return null;
     },
+    get_overlay_view: () => this.overlay,
+    overlay_cancel: () => null,
+    overlay_message_clicked: () => null,
+    overlay_shape: () => null,
     dismiss_dictation_notices: () => {
       this.changeDictation({ notices: [] });
       return null;
@@ -210,6 +222,12 @@ export class FakeBackend {
   changeDictation(patch: Partial<DictationStatus>) {
     this.dictation = { ...this.dictation, ...patch };
     this.emit("dictation-status-changed", this.dictation);
+  }
+
+  /** Changes what the Overlay shows and sends `overlay-view-changed`. */
+  changeOverlay(view: OverlayView) {
+    this.overlay = view;
+    this.emit("overlay-view-changed", view);
   }
 
   private changeHistory(entries: HistoryEntry[]) {
