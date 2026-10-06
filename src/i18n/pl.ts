@@ -274,6 +274,7 @@ export const pl: Translation = {
       reservedByWindows:
         "Windows zatrzymuje {{shortcut}} dla siebie i nie przekazuje go aplikacjom.",
       sameAsCancel: "{{shortcut}} jest już skrótem anulowania.",
+      sameAsRecord: "{{shortcut}} jest już skrótem nagrywania.",
       invalid: "{{shortcut}} nie może być skrótem.",
     },
     activationFailed: "Echo nie może włączyć skrótu {{shortcut}}: {{reason}}",
@@ -285,6 +286,12 @@ export const pl: Translation = {
       toggle: "Naciśnij, aby zacząć, naciśnij ponownie, aby zakończyć",
       toggleHint: "Pierwsze naciśnięcie rozpoczyna nagrywanie, kolejne je kończy.",
     },
+  },
+  cancelShortcut: {
+    label: "Skrót anulowania",
+    description: "Anuluje bieżące dyktowanie. Działa tylko podczas nagrywania lub transkrypcji.",
+    change: "Zmień skrót anulowania, obecnie {{shortcut}}",
+    captureHint: "Kliknięcie obok anuluje.",
   },
   dictationNotices: {
     title: "Problemy z dyktowaniem",

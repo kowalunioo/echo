@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type CaptureOptions,
   type CaptureOutcome,
   type CaptureState,
   captureKey,
@@ -12,11 +13,14 @@ import {
 type Step = [key: string, pressed: boolean];
 
 /** Runs key steps through the capture; returns the final outcome and the last state. */
-function run(steps: Step[]): { outcome: CaptureOutcome | null; state: CaptureState } {
+function run(
+  steps: Step[],
+  options: CaptureOptions = {},
+): { outcome: CaptureOutcome | null; state: CaptureState } {
   let state = initialCapture;
   let outcome: CaptureOutcome | null = null;
   for (const [key, pressed] of steps) {
-    outcome = captureKey(state, key, pressed);
+    outcome = captureKey(state, key, pressed, options);
     if (outcome.kind !== "continue") return { outcome, state };
     state = outcome.state;
   }
@@ -110,6 +114,15 @@ describe("shortcut capture", () => {
     expect(heldCombination(run([down("RightAlt")]).state)).toBe("RightAlt");
     expect(heldCombination(run([down("LeftCtrl"), down("Space")]).state)).toBe("Ctrl+Space");
     expect(heldCombination(initialCapture)).toBe("");
+  });
+
+  // cancel-shortcut.md "UI": while capturing the Cancel Shortcut, Escape alone is a value.
+  it("proposes Escape alone when Escape is a key to capture", () => {
+    expect(run([down("Escape"), up("Escape")], { escapeIsKey: true }).outcome).toEqual({
+      kind: "propose",
+      combination: "Escape",
+    });
+    expect(run([down("Escape")]).outcome).toEqual({ kind: "cancel" });
   });
 
   it("splits a combination into key caps", () => {

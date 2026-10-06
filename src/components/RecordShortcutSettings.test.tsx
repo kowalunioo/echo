@@ -17,6 +17,14 @@ function field() {
   return screen.getByTestId("record-shortcut-field");
 }
 
+/** The reset button next to a shortcut's field (the Record Shortcut's comes first). */
+async function resetButton(target: "record" | "cancel") {
+  const resets = await screen.findAllByRole("button", { name: "Reset to default" });
+  const reset = resets[target === "record" ? 0 : 1];
+  if (!reset) throw new Error(`no reset button for the ${target} shortcut`);
+  return reset;
+}
+
 async function renderPage() {
   await useSettings.getState().load();
   render(<RecordShortcutSettings />);
@@ -33,7 +41,9 @@ describe("Record Shortcut settings", () => {
 
     expect(shortcutField).toHaveTextContent("Ctrl+Space");
     expect(screen.getByRole("radio", { name: /Hold to record/ })).toBeChecked();
-    expect(screen.getByRole("button", { name: "Reset to default" })).toBeDisabled();
+    for (const reset of screen.getAllByRole("button", { name: "Reset to default" })) {
+      expect(reset).toBeDisabled();
+    }
   });
 
   it("shows the shortcut stored in the settings", async () => {
@@ -158,7 +168,7 @@ describe("Record Shortcut settings", () => {
     backend.settings = { ...backend.settings, recordShortcut: "F9" };
     await useSettings.getState().load();
     render(<RecordShortcutSettings />);
-    const reset = await screen.findByRole("button", { name: "Reset to default" });
+    const reset = await resetButton("record");
     expect(reset).toBeEnabled();
 
     await userEvent.click(reset);
@@ -188,5 +198,102 @@ describe("Record Shortcut settings", () => {
     });
 
     expect(await screen.findByRole("button", { name: /currently Right Alt/ })).toBeInTheDocument();
+  });
+});
+
+describe("Cancel Shortcut settings", () => {
+  function cancelField() {
+    return screen.getByTestId("cancel-shortcut-field");
+  }
+
+  it("shows the Cancel Shortcut, Escape by default, with its description", async () => {
+    await renderPage();
+
+    expect(
+      screen.getByRole("button", { name: "Change the Cancel Shortcut, currently Esc" }),
+    ).toHaveTextContent("Esc");
+    expect(
+      screen.getByText(
+        "Cancels the current Dictation. Active only while recording or transcribing.",
+      ),
+    ).toBeInTheDocument();
+    expect(await resetButton("cancel")).toBeDisabled();
+  });
+
+  it("captures a new Cancel Shortcut and saves it", async () => {
+    await renderPage();
+    await userEvent.click(cancelField());
+    expect(screen.getByText("A click elsewhere cancels.")).toBeInTheDocument();
+
+    key("LeftCtrl", true);
+    key("Q", true);
+    key("Q", false);
+
+    expect(
+      await screen.findByRole("button", { name: "Change the Cancel Shortcut, currently Ctrl + Q" }),
+    ).toBeInTheDocument();
+    expect(backend.commandsCalled("set_cancel_shortcut")[0]?.args).toEqual({
+      combination: "Ctrl+Q",
+    });
+    expect(backend.commandsCalled("set_record_shortcut")).toHaveLength(0);
+    expect(field()).toHaveTextContent("Ctrl+Space");
+  });
+
+  // cancel-shortcut.md "UI": Escape alone is a value here and does not end the capture.
+  it("accepts Escape alone as the Cancel Shortcut", async () => {
+    backend.settings = { ...backend.settings, cancelShortcut: "F8" };
+    await useSettings.getState().load();
+    render(<RecordShortcutSettings />);
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Cancel Shortcut, currently F8/ }),
+    );
+
+    key("Escape", true);
+    expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(0);
+    key("Escape", false);
+
+    await waitFor(() => {
+      expect(backend.settings.cancelShortcut).toBe("Escape");
+    });
+  });
+
+  // Acceptance test 8 in the UI: the Record Shortcut is refused with a reason.
+  it("explains why the Record Shortcut cannot be the Cancel Shortcut", async () => {
+    backend.rejectedShortcuts.set("Ctrl+Space", { kind: "notAllowed", problem: "sameAsRecord" });
+    await renderPage();
+    await userEvent.click(cancelField());
+
+    key("LeftCtrl", true);
+    key("Space", true);
+    key("Space", false);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ctrl + Space is already the Record Shortcut. Your previous shortcut stays active.",
+    );
+    expect(cancelField()).toHaveTextContent("Esc");
+    expect(backend.settings.cancelShortcut).toBe("Escape");
+  });
+
+  it("resets to Escape", async () => {
+    backend.settings = { ...backend.settings, cancelShortcut: "Ctrl+Q" };
+    await useSettings.getState().load();
+    render(<RecordShortcutSettings />);
+
+    await userEvent.click(await resetButton("cancel"));
+
+    expect(backend.commandsCalled("reset_setting")[0]?.args).toEqual({ key: "cancelShortcut" });
+    expect(
+      await screen.findByRole("button", { name: "Change the Cancel Shortcut, currently Esc" }),
+    ).toBeInTheDocument();
+  });
+
+  it("is named in Polish", async () => {
+    await renderPage();
+    await act(() => changeUiLanguage("pl"));
+
+    expect(
+      await screen.findByRole("button", { name: /Zmień skrót anulowania, obecnie/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Skrót anulowania")).toBeInTheDocument();
   });
 });

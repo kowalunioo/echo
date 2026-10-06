@@ -278,6 +278,7 @@ export const en = {
       reservedByWindows:
         "Windows keeps {{shortcut}} for itself and never passes it to applications.",
       sameAsCancel: "{{shortcut}} is already the Cancel Shortcut.",
+      sameAsRecord: "{{shortcut}} is already the Record Shortcut.",
       invalid: "{{shortcut}} cannot be used as a shortcut.",
     },
     activationFailed: "Echo could not activate {{shortcut}}: {{reason}}",
@@ -289,6 +290,12 @@ export const en = {
       toggle: "Press to start, press again to stop",
       toggleHint: "One press starts the Recording, the next press stops it.",
     },
+  },
+  cancelShortcut: {
+    label: "Cancel Shortcut",
+    description: "Cancels the current Dictation. Active only while recording or transcribing.",
+    change: "Change the Cancel Shortcut, currently {{shortcut}}",
+    captureHint: "A click elsewhere cancels.",
   },
   dictationNotices: {
     title: "Dictation problems",

@@ -66,6 +66,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             models::commands::activate_model,
             models::commands::delete_model,
             shortcut::app::set_record_shortcut,
+            shortcut::app::set_cancel_shortcut,
             shortcut::app::begin_shortcut_capture,
             shortcut::app::end_shortcut_capture,
             shortcut::app::own_window_key,
