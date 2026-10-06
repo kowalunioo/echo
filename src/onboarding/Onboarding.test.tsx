@@ -26,6 +26,7 @@ beforeEach(async () => {
     uiLanguage: "en",
     onboardingWelcomeDone: false,
     onboardingCompleted: false,
+    microphone: { kind: "default" },
   };
   await changeUiLanguage("en");
 });

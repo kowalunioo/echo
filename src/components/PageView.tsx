@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { Page } from "../store/shell";
 import { AppSettings } from "./AppSettings";
+import { MicrophoneSettings } from "./MicrophoneSettings";
 
 export function PageView({ page }: { page: Page }) {
   const { t } = useTranslation();
@@ -15,6 +16,7 @@ export function PageView({ page }: { page: Page }) {
         <p className="text-muted">{t(`pages.${page}.description`)}</p>
       </header>
 
+      {page === "dictation" && <MicrophoneSettings />}
       {page === "app" && <AppSettings />}
 
       <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>

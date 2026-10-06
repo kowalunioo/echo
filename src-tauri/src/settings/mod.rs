@@ -15,6 +15,8 @@ pub use store::{LoadOutcome, SETTINGS_FORMAT_VERSION, SettingsError, SettingsSto
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::audio::microphone::MicrophoneChoice;
+
 /// Generates [`Settings`] and its all-optional twin [`SettingsPatch`] from one list of fields, so
 /// the two can never drift apart.
 macro_rules! settings_model {
@@ -57,6 +59,8 @@ settings_model! {
     onboarding_welcome_done: bool,
     /// The user pressed "Finish" in the onboarding; it is never shown again (rule 5).
     onboarding_completed: bool,
+    /// The input device Recordings listen to (`microphone.md`).
+    microphone: MicrophoneChoice,
 }
 
 impl Settings {
@@ -67,6 +71,7 @@ impl Settings {
             ui_language: UiLanguage::for_locale(system_locale),
             onboarding_welcome_done: false,
             onboarding_completed: false,
+            microphone: MicrophoneChoice::Default,
         }
     }
 }

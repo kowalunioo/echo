@@ -19,7 +19,7 @@ export const pl: Translation = {
       title: "Dyktowanie",
       description:
         "Jak rozpoczynasz, kończysz i anulujesz dyktowanie oraz którego mikrofonu słucha Echo.",
-      upcoming: "Skrót nagrywania i jego tryb, skrót anulowania oraz wybór mikrofonu.",
+      upcoming: "Skrót nagrywania i jego tryb oraz skrót anulowania.",
     },
     model: {
       title: "Model i język",
@@ -68,6 +68,18 @@ export const pl: Translation = {
       open: "Otwórz folder logów",
       failed: "Nie udało się otworzyć folderu logów.",
     },
+    microphone: {
+      label: "Mikrofon",
+      description:
+        "Urządzenie wejściowe, którego Echo słucha podczas dyktowania. Zmiana obowiązuje od następnego nagrania.",
+      defaultOption: "Domyślny ({{name}})",
+      defaultUnknown: "Domyślny",
+      notConnected: "{{name}} (niepodłączony)",
+      loading: "Szukanie mikrofonów…",
+      listFailed: "Nie udało się wczytać listy mikrofonów.",
+      none: "Nie znaleziono mikrofonu. Podłącz mikrofon, aby dyktować.",
+      reset: "Użyj domyślnego",
+    },
   },
   onboarding: {
     progress: "Kroki konfiguracji",
@@ -112,6 +124,14 @@ export const pl: Translation = {
       later: "Skrót możesz później zmienić w sekcji Dyktowanie.",
       finish: "Zakończ",
     },
+  },
+  microphone: {
+    fallback: "Nie znaleziono wybranego mikrofonu — używam domyślnego",
+    notFound: "Nie znaleziono mikrofonu",
+    accessDenied: "Dostęp do mikrofonu jest zablokowany w ustawieniach prywatności Windows",
+    disconnected: "Mikrofon odłączony — nagrywanie zatrzymane",
+    failed: "Nie udało się otworzyć mikrofonu: {{detail}}",
+    openPrivacySettings: "Otwórz ustawienia prywatności Windows",
   },
   errors: {
     settingsUnavailable: "Echo nie może wczytać ustawień. Uruchom Echo ponownie.",

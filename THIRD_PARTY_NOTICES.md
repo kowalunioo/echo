@@ -24,6 +24,7 @@ Echo is MIT-licensed (see [`LICENSE`](LICENSE)). It is built on the open-source 
 
 | Crate | Version | License |
 |---|---|---|
+| `cpal` | 0.18.2 | Apache-2.0 |
 | `hound` | 3.5.1 | Apache-2.0 |
 | `rubato` | 5.0.1 | MIT OR Apache-2.0 |
 | `serde` | 1.0 | MIT OR Apache-2.0 |
@@ -34,6 +35,7 @@ Echo is MIT-licensed (see [`LICENSE`](LICENSE)). It is built on the open-source 
 | `tauri-specta` | 2.0.0-rc.25 | MIT |
 | `thiserror` | 2.0 | MIT OR Apache-2.0 |
 | `transcribe-cpp` (and `transcribe-cpp-sys`) | 0.3.1 | MIT — Copyright (c) 2026 The transcribe.cpp authors |
+| `windows-registry` | 0.6.1 | MIT OR Apache-2.0 |
 
 Their transitive dependencies (about 280 crates on Windows) are under MIT, Apache-2.0, BSD, Zlib, Unlicense, 0BSD, CC0 and Unicode-3.0 licenses, plus MPL-2.0 for `cssparser`, `cssparser-macros`, `selectors`, `dtoa-short` (used by Tauri) and `option-ext`; the generated list will enumerate them with their license texts.
 

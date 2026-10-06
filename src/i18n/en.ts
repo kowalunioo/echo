@@ -21,7 +21,7 @@ export const en = {
       title: "Dictation",
       description:
         "How you start, stop and cancel a Dictation, and which Microphone Echo listens to.",
-      upcoming: "Record Shortcut and its mode, Cancel Shortcut, and Microphone selection.",
+      upcoming: "Record Shortcut and its mode, and the Cancel Shortcut.",
     },
     model: {
       title: "Model & language",
@@ -70,6 +70,18 @@ export const en = {
       open: "Open log folder",
       failed: "The log folder could not be opened.",
     },
+    microphone: {
+      label: "Microphone",
+      description:
+        "The input device Echo listens to while you dictate. A change applies from the next Recording.",
+      defaultOption: "Default ({{name}})",
+      defaultUnknown: "Default",
+      notConnected: "{{name}} (not connected)",
+      loading: "Looking for microphones…",
+      listFailed: "The list of microphones could not be loaded.",
+      none: "No microphone found. Connect one to dictate.",
+      reset: "Use default",
+    },
   },
   onboarding: {
     progress: "Setup steps",
@@ -117,6 +129,15 @@ export const en = {
   },
   errors: {
     settingsUnavailable: "Echo could not load its settings. Please restart Echo.",
+  },
+  /** Microphone messages for the Overlay and error notices (microphone.md, dictation-pipeline.md rule 8). */
+  microphone: {
+    fallback: "Selected microphone not found — using the default microphone",
+    notFound: "No microphone found",
+    accessDenied: "Microphone access is blocked in Windows privacy settings",
+    disconnected: "Microphone disconnected — recording stopped",
+    failed: "The microphone could not be opened: {{detail}}",
+    openPrivacySettings: "Open Windows privacy settings",
   },
   status: {
     label: "Status",

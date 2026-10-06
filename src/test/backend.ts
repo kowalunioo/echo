@@ -1,4 +1,4 @@
-import type { AppInfo, Settings, SettingsPatch } from "../bindings";
+import type { AppInfo, DeviceList, MicrophoneAccess, Settings, SettingsPatch } from "../bindings";
 
 /**
  * An in-memory stand-in for the Rust side, used by every frontend test through the Tauri API
@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS: Settings = {
   uiLanguage: "en",
   onboardingWelcomeDone: true,
   onboardingCompleted: true,
+  microphone: { kind: "default" },
 };
 
 type Handler = (args: Record<string, unknown>) => unknown;
@@ -17,6 +18,13 @@ type EventCallback = (event: { event: string; id: number; payload: unknown }) =>
 export class FakeBackend {
   settings: Settings = { ...DEFAULT_SETTINGS };
   appInfo: AppInfo = { version: "0.1.0", systemLocale: "en-US" };
+  /** The input devices `list_microphones` reports. */
+  microphones: DeviceList = {
+    devices: ["Microphone (Realtek Audio)"],
+    default: "Microphone (Realtek Audio)",
+  };
+  /** What the Windows microphone privacy check reports. */
+  microphoneAccess: MicrophoneAccess = "allowed";
   /** Every command invoked, in order, with its arguments. */
   calls: { command: string; args: Record<string, unknown> }[] = [];
   /** Commands that never answer (to test loading states). */
@@ -43,6 +51,8 @@ export class FakeBackend {
     },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
+    list_microphones: () => this.microphones,
+    microphone_access: () => this.microphoneAccess,
   };
 
   /** Changes settings as the backend would (e.g. from the tray) and tells every listener. */

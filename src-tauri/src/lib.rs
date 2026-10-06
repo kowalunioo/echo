@@ -40,6 +40,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             settings::commands::reset_setting,
             system::open_log_folder,
             system::open_microphone_privacy_settings,
+            audio::microphone::commands::list_microphones,
+            audio::microphone::commands::microphone_access,
         ])
         .events(collect_events![SettingsChanged])
 }
@@ -67,6 +69,7 @@ pub fn run() {
 
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
+            app.manage(audio::microphone::Microphones::system());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
             let autostart = window::launched_by_autostart(std::env::args());

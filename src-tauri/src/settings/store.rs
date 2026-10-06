@@ -352,6 +352,7 @@ mod tests {
                 "uiLanguage": "klingon",
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
+                "microphone": { "kind": "device", "name": "USB Mic" },
             })
             .to_string(),
         )
@@ -370,6 +371,23 @@ mod tests {
         assert_eq!(settings.ui_language, UiLanguage::En);
         assert!(settings.onboarding_completed);
         assert_eq!(read_json(&path)["uiLanguage"], "en", "file is rewritten");
+    }
+
+    #[test]
+    fn an_invalid_microphone_falls_back_to_default() {
+        use crate::audio::microphone::MicrophoneChoice;
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({ "version": 1, "uiLanguage": "pl", "microphone": "USB Mic" }).to_string(),
+        )
+        .unwrap();
+
+        let (store, _) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(store.get().microphone, MicrophoneChoice::Default);
+        assert_eq!(store.get().ui_language, UiLanguage::Pl);
+        assert_eq!(read_json(&path)["microphone"], json!({ "kind": "default" }));
     }
 
     // settings-and-first-run.md acceptance test 10.
@@ -419,7 +437,11 @@ mod tests {
             outcome,
             LoadOutcome::Repaired {
                 reset: vec![],
-                added: vec!["onboardingCompleted".into(), "onboardingWelcomeDone".into()]
+                added: vec![
+                    "microphone".into(),
+                    "onboardingCompleted".into(),
+                    "onboardingWelcomeDone".into()
+                ]
             }
         );
         assert_eq!(store.get().ui_language, UiLanguage::Pl);

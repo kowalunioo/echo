@@ -1,6 +1,7 @@
 //! The **Audio Source** seam: anything that supplies speech audio to a Dictation.
 //!
-//! The Microphone implementation (cpal) arrives in a later slice; [`WavAudioSource`] is the fake used in tests and fake-microphone mode
+//! [`microphone::Microphone`] is the real source (cpal/WASAPI, `docs/specs/microphone.md`);
+//! [`WavAudioSource`] is the fake used in tests and fake-microphone mode
 //! (`docs/specs/dictation-pipeline.md`, rules 40–46).
 //!
 //! Audio flows *push*-style: [`AudioSource::start`] opens the source for one Recording and hands
@@ -10,6 +11,7 @@
 //! Engine (rules 10–11).
 
 mod convert;
+pub mod microphone;
 mod wav;
 
 pub use convert::{ConversionError, SpeechConverter, TARGET_SAMPLE_RATE, downmix};
