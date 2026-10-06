@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use super::{
-    KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutEvent, ShortcutListener,
-    ShortcutSink,
+    CaptureSink, CapturedKey, KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutEvent,
+    ShortcutListener, ShortcutSink,
 };
 
 /// A [`ShortcutListener`] whose presses and releases are injected by the test.
@@ -21,6 +21,8 @@ struct State {
     sink: Option<ShortcutSink>,
     bindings: HashMap<Shortcut, KeyCombination>,
     reject_binds: Option<String>,
+    capture: Option<CaptureSink>,
+    own_window_keys: Vec<(String, KeyAction)>,
 }
 
 impl FakeShortcutListener {
@@ -48,6 +50,31 @@ impl FakeShortcutListener {
     /// combination cannot be activated.
     pub fn reject_binds(&self, reason: Option<&str>) {
         self.state().reject_binds = reason.map(str::to_owned);
+    }
+
+    /// The keys forwarded from Echo's own window so far.
+    pub fn own_window_keys(&self) -> Vec<(String, KeyAction)> {
+        self.state().own_window_keys.clone()
+    }
+
+    /// Whether shortcut capture is active.
+    pub fn capturing(&self) -> bool {
+        self.state().capture.is_some()
+    }
+
+    /// Injects a key press or release into an active capture, by capture name (`"LeftCtrl"`,
+    /// `"Space"`). Returns whether a capture received it.
+    pub fn capture_key(&self, key: &str, action: KeyAction) -> bool {
+        let mut sink = match self.state().capture.take() {
+            Some(sink) => sink,
+            None => return false,
+        };
+        sink(CapturedKey {
+            key: key.to_owned(),
+            action,
+        });
+        self.state().capture.get_or_insert(sink);
+        true
     }
 
     fn inject(&self, shortcut: Shortcut, action: KeyAction) -> bool {
@@ -95,6 +122,15 @@ impl ShortcutListener for FakeShortcutListener {
             None => state.bindings.remove(&shortcut),
         };
         Ok(())
+    }
+
+    fn capture(&mut self, sink: Option<CaptureSink>) -> Result<(), ShortcutError> {
+        self.state().capture = sink;
+        Ok(())
+    }
+
+    fn own_window_key(&mut self, key: &str, action: KeyAction) {
+        self.state().own_window_keys.push((key.to_owned(), action));
     }
 }
 
@@ -167,6 +203,24 @@ mod tests {
 
         assert!(matches!(result, Err(ShortcutError::Rejected { .. })));
         assert_eq!(probe.binding(Shortcut::Record), Some(ctrl_space()));
+    }
+
+    #[test]
+    fn delivers_capture_keys_only_while_capturing() {
+        let (probe, _rx) = started();
+        let mut listener = probe.clone();
+        let (tx, rx) = mpsc::channel();
+
+        assert!(!probe.capture_key("LeftCtrl", KeyAction::Pressed));
+        listener
+            .capture(Some(Box::new(move |key| tx.send(key).unwrap())))
+            .unwrap();
+        assert!(probe.capture_key("LeftCtrl", KeyAction::Pressed));
+        listener.capture(None).unwrap();
+        assert!(!probe.capture_key("LeftCtrl", KeyAction::Released));
+
+        let keys: Vec<_> = rx.try_iter().map(|k| k.key).collect();
+        assert_eq!(keys, vec!["LeftCtrl"]);
     }
 
     #[test]

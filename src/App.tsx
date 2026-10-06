@@ -5,6 +5,7 @@ import { PageView } from "./components/PageView";
 import { Sidebar } from "./components/Sidebar";
 import { changeUiLanguage } from "./i18n";
 import { Onboarding } from "./onboarding/Onboarding";
+import { useOwnWindowKeys } from "./shortcut/useOwnWindowKeys";
 import { useSettings } from "./store/settings";
 import { useShell } from "./store/shell";
 
@@ -14,6 +15,7 @@ export function App() {
   const status = useSettings((s) => s.status);
   const uiLanguage = useSettings((s) => s.settings?.uiLanguage);
   const onboardingCompleted = useSettings((s) => s.settings?.onboardingCompleted);
+  useOwnWindowKeys();
 
   useEffect(() => {
     void loadAppInfo();
