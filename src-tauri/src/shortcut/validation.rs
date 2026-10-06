@@ -33,6 +33,9 @@ pub enum ShortcutProblem {
     /// The same combination as the Cancel Shortcut.
     #[error("this is the Cancel Shortcut")]
     SameAsCancel,
+    /// The same combination as the Record Shortcut (`cancel-shortcut.md` rule 11).
+    #[error("this is the Record Shortcut")]
+    SameAsRecord,
     /// Not a combination Echo understands (unknown key name, two main keys, …).
     #[error("not a valid combination")]
     Invalid,
@@ -106,6 +109,30 @@ pub fn validate_record_shortcut(
     proposal: &KeyCombination,
     cancel: &KeyCombination,
 ) -> Result<(), ShortcutProblem> {
+    check_allowed(proposal, false)?;
+    if proposal == cancel {
+        return Err(ShortcutProblem::SameAsCancel);
+    }
+    Ok(())
+}
+
+/// Checks `proposal` against the rules for the Cancel Shortcut (`cancel-shortcut.md` rule 11):
+/// those of the Record Shortcut plus Escape alone; `record` is the current Record Shortcut,
+/// which the Cancel Shortcut must differ from.
+pub fn validate_cancel_shortcut(
+    proposal: &KeyCombination,
+    record: &KeyCombination,
+) -> Result<(), ShortcutProblem> {
+    check_allowed(proposal, true)?;
+    if proposal == record {
+        return Err(ShortcutProblem::SameAsRecord);
+    }
+    Ok(())
+}
+
+/// The rules both shortcuts share (`record-shortcut.md` rules 19–20 without the check against
+/// the other shortcut); `escape_alone` says whether Escape without modifiers is allowed.
+fn check_allowed(proposal: &KeyCombination, escape_alone: bool) -> Result<(), ShortcutProblem> {
     let modifiers = proposal.modifiers.count();
     match proposal.key.as_ref().map(|k| k.0.as_str()) {
         None if modifiers == 0 => return Err(ShortcutProblem::Empty),
@@ -116,6 +143,7 @@ pub fn validate_record_shortcut(
         Some(key) if keys::is_side_modifier(key) && modifiers > 0 => {
             return Err(ShortcutProblem::Invalid);
         }
+        Some("Escape") if modifiers == 0 && escape_alone => {}
         Some("Escape") if modifiers == 0 => return Err(ShortcutProblem::EscapeReserved),
         Some(key) if modifiers == 0 && !keys::usable_alone(key) => {
             return Err(ShortcutProblem::NeedsModifier);
@@ -125,16 +153,14 @@ pub fn validate_record_shortcut(
         }
         Some(_) => {}
     }
-    if proposal == cancel {
-        return Err(ShortcutProblem::SameAsCancel);
-    }
     Ok(())
 }
 
 /// The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,
 /// e.g. `"Ctrl+Space"`. Deserializing accepts exactly the allowed combinations, so an invalid
-/// stored value falls back to the default (`docs/settings.md`). The check against the current
-/// Cancel Shortcut uses its default until the Cancel Shortcut becomes a setting (#15).
+/// stored value falls back to the default (`docs/settings.md`). Settings are checked one by one,
+/// so the check against the Cancel Shortcut is made where the shortcuts are activated
+/// (`shortcut::app`), not here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
 #[serde(try_from = "String", into = "String")]
 #[specta(transparent)]
@@ -158,7 +184,7 @@ impl TryFrom<KeyCombination> for RecordShortcutCombination {
     type Error = ShortcutProblem;
 
     fn try_from(combination: KeyCombination) -> Result<Self, Self::Error> {
-        validate_record_shortcut(&combination, &default_cancel_shortcut())?;
+        check_allowed(&combination, false)?;
         Ok(Self(combination.to_string()))
     }
 }
@@ -173,6 +199,52 @@ impl TryFrom<String> for RecordShortcutCombination {
 
 impl From<RecordShortcutCombination> for String {
     fn from(setting: RecordShortcutCombination) -> Self {
+        setting.0
+    }
+}
+
+/// The Cancel Shortcut setting (`cancel-shortcut.md`): an allowed combination (rule 11) in
+/// canonical text form, e.g. `"Escape"`. Like [`RecordShortcutCombination`] it accepts exactly
+/// the allowed combinations; the check against the Record Shortcut is made where the shortcuts
+/// are activated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(try_from = "String", into = "String")]
+#[specta(transparent)]
+pub struct CancelShortcutCombination(String);
+
+impl CancelShortcutCombination {
+    /// The combination this setting holds.
+    pub fn combination(&self) -> KeyCombination {
+        self.0.parse().expect("validated when created")
+    }
+}
+
+impl Default for CancelShortcutCombination {
+    /// Escape (rule 10).
+    fn default() -> Self {
+        Self(default_cancel_shortcut().to_string())
+    }
+}
+
+impl TryFrom<KeyCombination> for CancelShortcutCombination {
+    type Error = ShortcutProblem;
+
+    fn try_from(combination: KeyCombination) -> Result<Self, Self::Error> {
+        check_allowed(&combination, true)?;
+        Ok(Self(combination.to_string()))
+    }
+}
+
+impl TryFrom<String> for CancelShortcutCombination {
+    type Error = ShortcutProblem;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        text.parse::<KeyCombination>()?.try_into()
+    }
+}
+
+impl From<CancelShortcutCombination> for String {
+    fn from(setting: CancelShortcutCombination) -> Self {
         setting.0
     }
 }
@@ -269,6 +341,51 @@ mod tests {
             Err(ShortcutProblem::SameAsCancel)
         );
         assert_eq!(validate_record_shortcut(&parse("Ctrl+W"), &cancel), Ok(()));
+    }
+
+    // cancel-shortcut.md acceptance test 8.
+    #[test]
+    fn the_cancel_shortcut_accepts_escape_and_must_differ_from_the_record_shortcut() {
+        let record = default_record_shortcut();
+        let cancel = |text: &str| validate_cancel_shortcut(&parse(text), &record);
+        assert_eq!(cancel("Escape"), Ok(()));
+        assert_eq!(cancel("Ctrl+Q"), Ok(()));
+        assert_eq!(cancel("F8"), Ok(()));
+        assert_eq!(cancel("Ctrl+Space"), Err(ShortcutProblem::SameAsRecord));
+        assert_eq!(
+            validate_cancel_shortcut(&parse("F9"), &parse("F9")),
+            Err(ShortcutProblem::SameAsRecord)
+        );
+    }
+
+    // cancel-shortcut.md rule 11: otherwise the Record Shortcut's rules apply.
+    #[test]
+    fn the_cancel_shortcut_follows_the_record_shortcut_rules() {
+        let record = default_record_shortcut();
+        let cancel = |text: &str| validate_cancel_shortcut(&parse(text), &record);
+        assert_eq!(cancel(""), Err(ShortcutProblem::Empty));
+        assert_eq!(cancel("A"), Err(ShortcutProblem::NeedsModifier));
+        assert_eq!(cancel("Shift"), Err(ShortcutProblem::SingleModifier));
+        assert_eq!(cancel("Win+L"), Err(ShortcutProblem::ReservedByWindows));
+        assert_eq!(cancel("RightAlt"), Ok(()));
+    }
+
+    #[test]
+    fn the_cancel_shortcut_setting_defaults_to_escape_and_accepts_only_allowed_combinations() {
+        assert_eq!(
+            CancelShortcutCombination::default().combination(),
+            default_cancel_shortcut()
+        );
+        let setting: CancelShortcutCombination =
+            serde_json::from_str("\"Shift+Ctrl+Q\"").expect("allowed");
+        assert_eq!(serde_json::to_string(&setting).unwrap(), "\"Ctrl+Shift+Q\"");
+        assert!(serde_json::from_str::<CancelShortcutCombination>("\"Escape\"").is_ok());
+        for invalid in ["\"Q\"", "\"\"", "\"Ctrl\"", "\"Ctrl+Nope\"", "7"] {
+            assert!(
+                serde_json::from_str::<CancelShortcutCombination>(invalid).is_err(),
+                "{invalid}"
+            );
+        }
     }
 
     /// Acceptance test 12, accepted half.

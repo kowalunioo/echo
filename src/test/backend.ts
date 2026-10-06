@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: Settings = {
   unloadModelAfter: "never",
   recordShortcut: "Ctrl+Space",
   shortcutMode: "pushToTalk",
+  cancelShortcut: "Escape",
   startWithWindows: false,
   trayHintShown: false,
   showOverlay: true,
@@ -175,6 +176,14 @@ export class FakeBackend {
       const rejection = this.rejectedShortcuts.get(combination);
       if (rejection !== undefined) throw new RejectedCommand(rejection);
       this.changeSettings({ recordShortcut: combination });
+      return this.settings;
+    },
+    // Cancel Shortcut: the same, with the same `rejectedShortcuts` list.
+    set_cancel_shortcut: (args) => {
+      const combination = args.combination as string;
+      const rejection = this.rejectedShortcuts.get(combination);
+      if (rejection !== undefined) throw new RejectedCommand(rejection);
+      this.changeSettings({ cancelShortcut: combination });
       return this.settings;
     },
     begin_shortcut_capture: () => null,

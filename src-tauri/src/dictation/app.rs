@@ -64,6 +64,10 @@ pub fn install(app: &AppHandle) {
             if let Some(overlay) = &overlay {
                 overlay.status(status);
             }
+            // The Cancel Shortcut is bound only while Recording or Transcribing (#15).
+            if let Some(shortcut) = publish_app.try_state::<RecordShortcutHandle>() {
+                shortcut.dictation_state(status.state);
+            }
             if let Err(error) = DictationStatusChanged(status.clone()).emit(&publish_app) {
                 log::warn!("could not send the dictation status to the windows: {error}");
             }

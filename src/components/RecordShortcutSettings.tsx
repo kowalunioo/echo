@@ -5,17 +5,22 @@ import { type ShortcutMode, events } from "../bindings";
 import { heldCombination, keysOf } from "../shortcut/capture";
 import { useKeyLabel } from "../shortcut/keyLabel";
 import {
+  DEFAULT_CANCEL_SHORTCUT,
   DEFAULT_RECORD_SHORTCUT,
+  SETTING_OF,
   type ShortcutFeedback,
+  type ShortcutTarget,
   useRecordShortcut,
 } from "../store/recordShortcut";
 import { useSetting } from "../store/settings";
 
 const MODES: readonly ShortcutMode[] = ["pushToTalk", "toggle"];
 
-/** Record Shortcut and its mode on the Dictation page (record-shortcut.md, "UI"). */
+/**
+ * Record Shortcut and its mode, and the Cancel Shortcut, on the Dictation page
+ * (record-shortcut.md and cancel-shortcut.md, "UI").
+ */
 export function RecordShortcutSettings() {
-  const { t } = useTranslation();
   const captureKey = useRecordShortcut((s) => s.captureKey);
   const feedback = useRecordShortcut((s) => s.feedback);
 
@@ -38,32 +43,50 @@ export function RecordShortcutSettings() {
   return (
     <>
       <section className="divide-y divide-line rounded-card border border-line bg-surface">
-        <div className="flex flex-col gap-2 px-6 py-4">
-          <div className="flex items-center justify-between gap-8">
-            <div className="flex flex-col gap-0.5">
-              <span className="font-medium" id="record-shortcut-label">
-                {t("recordShortcut.label")}
-              </span>
-              <span className="text-xs text-muted">{t("recordShortcut.description")}</span>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <ShortcutField />
-              <ResetButton />
-            </div>
-          </div>
-          {feedback && <Feedback feedback={feedback} />}
-        </div>
+        <ShortcutRow target="record" feedback={feedback?.target === "record" ? feedback : null} />
         <ModePicker />
+        <ShortcutRow target="cancel" feedback={feedback?.target === "cancel" ? feedback : null} />
       </section>
     </>
   );
 }
 
-/** The current shortcut as key caps; click to capture a new one. */
-function ShortcutField() {
+/** The i18n section of each shortcut's own texts. */
+const TEXTS = { record: "recordShortcut", cancel: "cancelShortcut" } as const;
+
+/** One shortcut: name, description, capture field and reset button (cancel-shortcut.md "UI"). */
+function ShortcutRow({
+  target,
+  feedback,
+}: {
+  target: ShortcutTarget;
+  feedback: ShortcutFeedback | null;
+}) {
   const { t } = useTranslation();
-  const [current] = useSetting("recordShortcut");
-  const capture = useRecordShortcut((s) => s.capture);
+  return (
+    <div className="flex flex-col gap-2 px-6 py-4">
+      <div className="flex items-center justify-between gap-8">
+        <div className="flex flex-col gap-0.5">
+          <span className="font-medium" id={`${target}-shortcut-label`}>
+            {t(`${TEXTS[target]}.label`)}
+          </span>
+          <span className="text-xs text-muted">{t(`${TEXTS[target]}.description`)}</span>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <ShortcutField target={target} />
+          <ResetButton target={target} />
+        </div>
+      </div>
+      {feedback && <Feedback feedback={feedback} />}
+    </div>
+  );
+}
+
+/** The current shortcut as key caps; click to capture a new one. */
+function ShortcutField({ target }: { target: ShortcutTarget }) {
+  const { t } = useTranslation();
+  const [current] = useSetting(SETTING_OF[target]);
+  const capture = useRecordShortcut((s) => (s.target === target ? s.capture : null));
   const beginCapture = useRecordShortcut((s) => s.beginCapture);
   const endCapture = useRecordShortcut((s) => s.endCapture);
   const label = useKeyLabel();
@@ -93,11 +116,11 @@ function ShortcutField() {
         ref={field}
         type="button"
         aria-label={
-          capturing ? undefined : t("recordShortcut.change", { shortcut: label(current) })
+          capturing ? undefined : t(`${TEXTS[target]}.change`, { shortcut: label(current) })
         }
-        aria-describedby="record-shortcut-label"
-        data-testid="record-shortcut-field"
-        onClick={() => void beginCapture()}
+        aria-describedby={`${target}-shortcut-label`}
+        data-testid={`${target}-shortcut-field`}
+        onClick={() => void beginCapture(target)}
         className={`flex min-h-10 min-w-48 items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors duration-150 ${
           capturing
             ? "border-accent bg-accent-soft text-accent-soft-fg"
@@ -112,7 +135,7 @@ function ShortcutField() {
           <KeyCaps combination={current} />
         )}
       </button>
-      {capturing && <span className="text-xs text-muted">{t("recordShortcut.captureHint")}</span>}
+      {capturing && <span className="text-xs text-muted">{t(`${TEXTS[target]}.captureHint`)}</span>}
     </div>
   );
 }
@@ -137,15 +160,18 @@ function KeyCaps({ combination }: { combination: string }) {
   );
 }
 
-function ResetButton() {
+const DEFAULT_OF = { record: DEFAULT_RECORD_SHORTCUT, cancel: DEFAULT_CANCEL_SHORTCUT } as const;
+
+function ResetButton({ target }: { target: ShortcutTarget }) {
   const { t } = useTranslation();
   const reset = useRecordShortcut((s) => s.reset);
-  const [current] = useSetting("recordShortcut");
-  const isDefault = current === DEFAULT_RECORD_SHORTCUT;
+  const [current] = useSetting(SETTING_OF[target]);
+  const isDefault = current === DEFAULT_OF[target];
   return (
     <button
       type="button"
-      onClick={() => void reset()}
+      aria-describedby={`${target}-shortcut-label`}
+      onClick={() => void reset(target)}
       disabled={isDefault}
       className="rounded-lg px-3 py-1.5 text-sm text-accent-strong transition-colors duration-150 hover:bg-accent-soft disabled:cursor-default disabled:text-muted disabled:opacity-60 disabled:hover:bg-transparent"
     >
