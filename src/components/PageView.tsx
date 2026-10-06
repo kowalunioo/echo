@@ -9,9 +9,9 @@ import { AppSettings } from "./AppSettings";
 import { PageHeader } from "./PageHeader";
 import { MicrophoneSettings } from "./MicrophoneSettings";
 import { RecordShortcutSettings } from "./RecordShortcutSettings";
+import { VocabularySection } from "../vocabulary/VocabularySection";
 
 export function PageView({ page }: { page: Page }) {
-  const { t } = useTranslation();
   if (page === "history") return <HistoryPage />;
   return (
     <article className="mx-auto flex max-w-2xl flex-col gap-6 px-10 py-12">
@@ -23,11 +23,7 @@ export function PageView({ page }: { page: Page }) {
       {page === "dictation" && <RecordShortcutSettings />}
       {page === "dictation" && <MicrophoneSettings />}
       {page === "app" && <AppSettings />}
-
-      {/* The Model, Dictation and App pages are fully built, so they have no placeholder. */}
-      {page !== "model" && page !== "dictation" && page !== "app" && (
-        <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>
-      )}
+      {page === "vocabulary" && <VocabularySection />}
     </article>
   );
 }

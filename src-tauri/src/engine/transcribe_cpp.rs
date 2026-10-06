@@ -56,6 +56,10 @@ impl Engine for TranscribeCppEngine {
     fn unload(&mut self) {
         self.inner.unload();
     }
+
+    fn accepts_prompt(&self) -> bool {
+        self.inner.accepts_prompt()
+    }
 }
 
 struct TranscribeCppLoader {

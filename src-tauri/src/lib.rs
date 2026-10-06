@@ -24,6 +24,7 @@ pub mod shortcut;
 pub mod system;
 pub mod tray;
 pub mod updater;
+pub mod vocabulary;
 pub mod window;
 
 use std::sync::Arc;

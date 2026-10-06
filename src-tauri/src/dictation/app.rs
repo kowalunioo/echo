@@ -46,17 +46,17 @@ pub fn install(app: &AppHandle) {
         models: Box::new(AppModels(app.state::<ModelManager>().inner().clone())),
         source,
         detector: Box::new(|| Box::new(Earshot::new())),
-        // Read when a Recording starts, so a Dictation keeps the language it started with
-        // (`dictation-language.md` rule 9). Vocabulary has no setting yet: its default applies.
-        context: Box::new(move || DictationContext {
-            language: effective_language(
-                &context_app
-                    .state::<SettingsStore>()
-                    .get()
-                    .dictation_language,
-                context_app.state::<ModelManager>().state().active,
-            ),
-            vocabulary: Vec::new(),
+        // Read when a Recording starts, so a Dictation keeps the language and Vocabulary it
+        // started with (`dictation-language.md` rule 9, `vocabulary.md` rule 6).
+        context: Box::new(move || {
+            let settings = context_app.state::<SettingsStore>().get();
+            DictationContext {
+                language: effective_language(
+                    &settings.dictation_language,
+                    context_app.state::<ModelManager>().state().active,
+                ),
+                vocabulary: settings.vocabulary.entries().to_vec(),
+            }
         }),
         history: Box::new(move |entry| {
             history_app
@@ -188,6 +188,14 @@ impl DictationModel for GuardModel {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .unload();
+    }
+
+    fn accepts_prompt(&self) -> bool {
+        self.0
+            .engine()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .accepts_prompt()
     }
 }
 

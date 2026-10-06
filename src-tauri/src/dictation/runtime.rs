@@ -21,7 +21,7 @@ use crate::insertion::SharedInserter;
 use crate::models::NoActiveModel;
 use crate::shortcut::modes::RecordIntent;
 
-use super::cleanup::clean_up;
+use super::cleanup::{clean_up, correct_and_clean_up};
 use super::indicator::Indicator;
 use super::machine::{Command, Input, Machine, Outcome};
 use super::vad::{SpeechGate, VoiceDetector, pad_short};
@@ -47,6 +47,9 @@ pub trait DictationModel: Send + Sync {
     fn transcribe(&self, request: TranscriptionRequest<'_>) -> Result<String, EngineError>;
     /// Frees the Model after the Engine crashed, so the next Dictation loads it again (rule 23).
     fn unload(&self);
+    /// Whether the Model takes the Vocabulary as a prompt ([`Engine::accepts_prompt`]); if not,
+    /// the Transcript's spelling is corrected (`vocabulary.md` rule 10).
+    fn accepts_prompt(&self) -> bool;
 }
 
 /// A [`DictationModel`] over a plain [`Engine`], for tests and developer tools.
@@ -80,6 +83,9 @@ impl<E: Engine + 'static> DictationModel for EngineModel<E> {
     }
     fn unload(&self) {
         self.engine().unload();
+    }
+    fn accepts_prompt(&self) -> bool {
+        self.engine().accepts_prompt()
     }
 }
 
@@ -583,7 +589,9 @@ fn transcribe(
         vocabulary: &context.vocabulary,
     };
     match catch_unwind(AssertUnwindSafe(|| model.transcribe(request))) {
-        Ok(Ok(raw)) => Ok(clean_up(&raw)),
+        Ok(Ok(raw)) if model.accepts_prompt() => Ok(clean_up(&raw)),
+        // Vocabulary correction comes first in the clean-up (rule 25.1, `vocabulary.md` rule 10).
+        Ok(Ok(raw)) => Ok(correct_and_clean_up(&raw, &context.vocabulary)),
         Ok(Err(error)) => Err(Failure::Engine(engine_detail(error))),
         Err(_) => {
             model.unload();

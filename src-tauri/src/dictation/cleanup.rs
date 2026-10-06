@@ -1,9 +1,11 @@
 //! Transcript clean-up after the Engine returns (`dictation-pipeline.md` rules 25–26).
 //!
-//! Vocabulary correction (rule 25.1) has no Model that needs it yet — the Whisper Models take the
-//! Vocabulary as a prompt — so the steps here are 25.2–25.4.
+//! Vocabulary correction (rule 25.1) applies only to Models without a text prompt (Parakeet); the
+//! Whisper Models take the Vocabulary as a prompt instead (`vocabulary.md` rules 8 and 10).
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
+
+use crate::vocabulary;
 
 /// A word repeated this many times in a row or more collapses to one occurrence (rule 25.2).
 const REPEAT_COLLAPSE: usize = 3;
@@ -12,6 +14,12 @@ const REPEAT_COLLAPSE: usize = 3;
 /// returned (rule 26).
 pub fn clean_up(raw: &str) -> String {
     catch_unwind(AssertUnwindSafe(|| collapse(raw))).unwrap_or_else(|_| raw.to_owned())
+}
+
+/// Cleans the text of a Model without a text prompt: Vocabulary correction first (rule 25.1),
+/// then [`clean_up`]. A failed correction leaves the text uncorrected (`vocabulary.md` rule 11).
+pub fn correct_and_clean_up(raw: &str, vocabulary: &[String]) -> String {
+    clean_up(&vocabulary::correct(raw, vocabulary))
 }
 
 /// Collapses repeated words and whitespace runs and trims the ends (rules 25.2–25.4). Splitting
@@ -75,6 +83,15 @@ mod tests {
     #[test]
     fn line_breaks_and_tabs_become_single_spaces() {
         assert_eq!(clean_up("\tAla\n\nma  kota\r\n"), "Ala ma kota");
+    }
+
+    #[test]
+    fn vocabulary_correction_comes_before_the_other_steps() {
+        let vocabulary = vec!["GitHub".to_owned()];
+        assert_eq!(
+            correct_and_clean_up("  git  hub git hub git hub ", &vocabulary),
+            "GitHub"
+        );
     }
 
     #[test]

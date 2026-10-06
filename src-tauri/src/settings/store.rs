@@ -389,6 +389,7 @@ mod tests {
                 "overlayPosition": "bottom",
                 "checkUpdatesAutomatically": true,
                 "dictationLanguage": "automatic",
+                "vocabulary": [],
             })
             .to_string(),
         )
@@ -429,6 +430,59 @@ mod tests {
         assert_eq!(store.get().dictation_language.code(), None);
     }
 
+    // vocabulary.md acceptance 4: the list survives a restart, identical and in order.
+    #[test]
+    fn the_vocabulary_survives_a_restart_in_order() {
+        let (_dir, path) = settings_path();
+        let (store, _) = SettingsStore::open(&path, defaults());
+        let patch: SettingsPatch = serde_json::from_value(
+            json!({ "vocabulary": ["Tauri", "GitHub", "Claude Code", "Łódź"] }),
+        )
+        .unwrap();
+        store.apply_patch(patch).unwrap();
+        drop(store);
+
+        let (reopened, outcome) = SettingsStore::open(&path, defaults());
+        assert_eq!(outcome, LoadOutcome::Clean);
+        assert_eq!(
+            reopened.get().vocabulary.entries(),
+            ["Tauri", "GitHub", "Claude Code", "Łódź"]
+        );
+    }
+
+    #[test]
+    fn an_invalid_stored_vocabulary_is_reset_to_empty() {
+        let (_dir, path) = settings_path();
+        let mut stored = serde_json::to_value(defaults()).unwrap();
+        stored["version"] = json!(1);
+        stored["vocabulary"] = json!(["GitHub", "github"]);
+        fs::write(&path, stored.to_string()).unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(
+            outcome,
+            LoadOutcome::Repaired {
+                reset: vec!["vocabulary".into()],
+                added: vec![]
+            }
+        );
+        assert!(store.get().vocabulary.entries().is_empty());
+    }
+
+    #[test]
+    fn a_vocabulary_patch_breaking_the_list_rules_is_rejected() {
+        for invalid in [
+            json!(["GitHub", "github"]),
+            json!([" padded "]),
+            json!(["a".repeat(51)]),
+            json!(["Echo", 3]),
+        ] {
+            let patch = serde_json::from_value::<SettingsPatch>(json!({ "vocabulary": invalid }));
+            assert!(patch.is_err(), "{invalid}");
+        }
+    }
+
     #[test]
     fn an_out_of_range_history_limit_is_reset_to_its_default() {
         let (_dir, path) = settings_path();
@@ -452,6 +506,7 @@ mod tests {
                 "overlayPosition": "bottom",
                 "checkUpdatesAutomatically": true,
                 "dictationLanguage": "automatic",
+                "vocabulary": [],
             })
             .to_string(),
         )
@@ -579,6 +634,7 @@ mod tests {
                 "overlayPosition": "bottom",
                 "checkUpdatesAutomatically": true,
                 "dictationLanguage": "automatic",
+                "vocabulary": [],
             })
             .to_string(),
         )
@@ -680,6 +736,7 @@ mod tests {
                     "startWithWindows".into(),
                     "trayHintShown".into(),
                     "unloadModelAfter".into(),
+                    "vocabulary".into(),
                 ]
             }
         );

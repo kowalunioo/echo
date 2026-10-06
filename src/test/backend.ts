@@ -36,6 +36,7 @@ export const DEFAULT_SETTINGS: Settings = {
   overlayPosition: "bottom",
   checkUpdatesAutomatically: true,
   dictationLanguage: "automatic",
+  vocabulary: [],
 };
 
 /** The three Models as the backend lists them, none downloaded. */

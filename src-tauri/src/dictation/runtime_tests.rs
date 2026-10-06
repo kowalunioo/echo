@@ -128,6 +128,7 @@ struct Setup {
     engine: Option<FakeEngine>,
     source: Box<dyn AudioSource>,
     max_recording: Duration,
+    context: Box<dyn Fn() -> DictationContext + Send>,
 }
 
 impl Setup {
@@ -136,7 +137,17 @@ impl Setup {
             engine: Some(engine),
             source: Box::new(source),
             max_recording: MAX_RECORDING,
+            context: Box::new(DictationContext::default),
         }
+    }
+
+    /// Dictations read their Vocabulary from `vocabulary` when the Recording starts.
+    fn with_vocabulary(mut self, vocabulary: Arc<Mutex<Vec<String>>>) -> Self {
+        self.context = Box::new(move || DictationContext {
+            vocabulary: vocabulary.lock().unwrap().clone(),
+            ..DictationContext::default()
+        });
+        self
     }
 
     fn spawn(mut self) -> Rig {
@@ -159,7 +170,7 @@ impl Setup {
             models: Box::new(models),
             source: self.source,
             detector: Box::new(|| Box::new(EnergyDetector)),
-            context: Box::new(DictationContext::default),
+            context: self.context,
             history: Box::new(move |entry| {
                 h.lock().unwrap().push(entry);
                 Ok(())
@@ -358,6 +369,80 @@ fn the_engine_gets_the_dictation_language_and_vocabulary() {
         engine.requests()[0].language,
         crate::engine::DictationLanguage::Automatic
     );
+}
+
+fn vocabulary(entries: &[&str]) -> Arc<Mutex<Vec<String>>> {
+    Arc::new(Mutex::new(
+        entries.iter().map(|e| (*e).to_owned()).collect(),
+    ))
+}
+
+/// One Dictation of a short tone with `engine` and `entries`; returns the inserted text.
+fn dictate_with_vocabulary(engine: FakeEngine, entries: &[&str]) -> String {
+    let rig = Setup::new(engine, wav_source(wav(1200, 0), true))
+        .with_vocabulary(vocabulary(entries))
+        .spawn();
+    rig.dictation.intent(Start);
+    rig.wait_idle_after(DictationState::Inserting);
+    rig.inserted().join("")
+}
+
+// vocabulary.md acceptance 5: a prompt-accepting Model gets the entries in list order; the
+// Engine joins them into the hint "Echo, GitHub, Tauri" (`engine::model_engine` tests).
+#[test]
+fn vocabulary_acceptance_5_the_engine_gets_the_vocabulary_in_list_order() {
+    let engine = FakeEngine::returning("x");
+    dictate_with_vocabulary(engine.clone(), &["Echo", "GitHub", "Tauri"]);
+    assert_eq!(
+        engine.requests()[0]
+            .vocabulary
+            .join(crate::engine::VOCABULARY_SEPARATOR),
+        "Echo, GitHub, Tauri"
+    );
+}
+
+#[test]
+fn vocabulary_acceptance_6_no_correction_for_a_model_that_accepts_a_prompt() {
+    let engine = FakeEngine::returning("uses git hub");
+    assert_eq!(dictate_with_vocabulary(engine, &["GitHub"]), "uses git hub");
+}
+
+#[test]
+fn vocabulary_acceptance_7_correction_for_a_model_without_a_prompt() {
+    let engine = FakeEngine::returning("I pushed it to git hub, then tauri.").without_prompt();
+    assert_eq!(
+        dictate_with_vocabulary(engine.clone(), &["GitHub", "Tauri"]),
+        "I pushed it to GitHub, then Tauri."
+    );
+    // The entries still reach the Engine, which ignores them for such a Model.
+    assert_eq!(engine.requests()[0].vocabulary, ["GitHub", "Tauri"]);
+}
+
+#[test]
+fn vocabulary_rule_6_a_running_dictation_keeps_the_list_it_started_with() {
+    let engine = FakeEngine::returning("na githuba").without_prompt();
+    let source = ScriptedSource::default();
+    let entries = vocabulary(&["GitHub"]);
+    let rig = Setup::new(engine.clone(), source.clone())
+        .with_vocabulary(Arc::clone(&entries))
+        .spawn();
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    source.tone(1200);
+    // Removing the entry while the Dictation runs does not affect it.
+    entries.lock().unwrap().clear();
+    rig.dictation.intent(Stop);
+    rig.wait_idle_after(DictationState::Inserting);
+    assert_eq!(rig.inserted(), ["na GitHuba"]);
+    assert_eq!(engine.requests()[0].vocabulary, ["GitHub"]);
+
+    // The next Dictation uses the changed list.
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    source.tone(1200);
+    rig.dictation.intent(Stop);
+    rig.wait("a second insertion", |_| rig.inserted().len() == 2);
+    assert_eq!(rig.inserted()[1], "na githuba");
 }
 
 #[test]

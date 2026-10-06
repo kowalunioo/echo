@@ -29,6 +29,7 @@ use echo_lib::engine::{DictationLanguage, FakeEngine, TranscribeCppEngine};
 use echo_lib::insertion::{FakeInserter, SharedInserter};
 use echo_lib::models::{ModelId, NoActiveModel};
 use echo_lib::shortcut::modes::RecordIntent;
+use echo_lib::vocabulary::Vocabulary;
 
 use common::acceptance;
 
@@ -202,7 +203,16 @@ fn run_table(
         };
         let context = DictationContext {
             language: effective_language(&intent, Some(model.id)),
-            vocabulary: row.vocabulary.iter().map(|t| (*t).to_owned()).collect(),
+            // The Vocabulary setting as the app stores it (`vocabulary.md` rules 1-5).
+            vocabulary: Vocabulary::try_from(
+                row.vocabulary
+                    .iter()
+                    .map(|t| (*t).to_owned())
+                    .collect::<Vec<_>>(),
+            )
+            .expect("the table's Vocabulary is a valid setting")
+            .entries()
+            .to_vec(),
         };
         let outcome = dictate_with(Arc::clone(&model.model), &wav, context);
         let actual = outcome.inserted.join(" ");

@@ -76,6 +76,8 @@ pub(super) struct ModelEngine<L> {
     loader: L,
     acceleration: Acceleration,
     loaded: Option<Box<dyn LoadedModel>>,
+    /// The family of the Model file, known since its first load; unloading keeps it.
+    family: Option<ModelFamily>,
 }
 
 impl<L: Loader> ModelEngine<L> {
@@ -84,6 +86,7 @@ impl<L: Loader> ModelEngine<L> {
             loader,
             acceleration,
             loaded: None,
+            family: None,
         }
     }
 
@@ -117,9 +120,15 @@ impl<L: Loader> ModelEngine<L> {
 impl<L: Loader> Engine for ModelEngine<L> {
     fn load(&mut self) -> Result<(), EngineError> {
         if self.loaded.is_none() {
-            self.loaded = Some(self.load_model()?);
+            let model = self.load_model()?;
+            self.family = Some(model.family());
+            self.loaded = Some(model);
         }
         Ok(())
+    }
+
+    fn accepts_prompt(&self) -> bool {
+        self.family != Some(ModelFamily::AutoDetectOnly)
     }
 
     fn transcribe(&mut self, request: TranscriptionRequest<'_>) -> Result<String, EngineError> {
@@ -546,6 +555,29 @@ mod tests {
                 language: None,
                 prompt: None
             }
+        );
+    }
+
+    #[test]
+    fn the_engine_reports_whether_its_model_accepts_a_prompt_once_loaded() {
+        let whisper = ScriptedLoader::default();
+        let mut whisper_engine = engine(&whisper, Acceleration::Auto);
+        assert!(
+            whisper_engine.accepts_prompt(),
+            "unknown before loading: nothing is corrected"
+        );
+        whisper_engine.load().unwrap();
+        assert!(whisper_engine.accepts_prompt());
+
+        let parakeet = ScriptedLoader::default();
+        parakeet.log().family = Some(ModelFamily::AutoDetectOnly);
+        let mut parakeet_engine = engine(&parakeet, Acceleration::Auto);
+        parakeet_engine.load().unwrap();
+        assert!(!parakeet_engine.accepts_prompt());
+        parakeet_engine.unload();
+        assert!(
+            !parakeet_engine.accepts_prompt(),
+            "the Model file does not change when unloaded"
         );
     }
 
