@@ -50,11 +50,17 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             models::commands::cancel_model_download,
             models::commands::activate_model,
             models::commands::delete_model,
+            shortcut::app::set_record_shortcut,
+            shortcut::app::begin_shortcut_capture,
+            shortcut::app::end_shortcut_capture,
+            shortcut::app::own_window_key,
         ])
         .events(collect_events![
             SettingsChanged,
             ModelsChanged,
-            ModelProblemOccurred
+            ModelProblemOccurred,
+            shortcut::app::CapturedKeyEvent,
+            shortcut::app::RecordIntentEvent,
         ])
 }
 
@@ -82,6 +88,7 @@ pub fn run() {
             let data_dir = DataDir::new(app.path().app_local_data_dir()?);
             open_settings(app.handle(), &data_dir);
             open_models(app.handle(), &data_dir);
+            shortcut::app::install(app.handle());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
             let autostart = window::launched_by_autostart(std::env::args());

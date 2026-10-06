@@ -354,6 +354,8 @@ mod tests {
                 "onboardingCompleted": true,
                 "activeModel": null,
                 "unloadModelAfter": "never",
+                "recordShortcut": "Ctrl+Win",
+                "shortcutMode": "toggle",
             })
             .to_string(),
         )
@@ -441,6 +443,59 @@ mod tests {
         assert!(dir.path().join("settings.json.broken").exists());
     }
 
+    // record-shortcut.md rule 20: a stored Record Shortcut that is not allowed falls back to
+    // Ctrl+Space; the other settings are kept.
+    #[test]
+    fn a_stored_record_shortcut_that_is_not_allowed_is_reset() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({
+                "version": 1,
+                "uiLanguage": "pl",
+                "onboardingWelcomeDone": true,
+                "onboardingCompleted": true,
+                "activeModel": null,
+                "unloadModelAfter": "never",
+                "recordShortcut": "Space",
+                "shortcutMode": "toggle",
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(
+            outcome,
+            LoadOutcome::Repaired {
+                reset: vec!["recordShortcut".into()],
+                added: vec![]
+            }
+        );
+        assert_eq!(String::from(store.get().record_shortcut), "Ctrl+Space");
+        assert_eq!(
+            store.get().shortcut_mode,
+            crate::shortcut::modes::ShortcutMode::Toggle
+        );
+        assert_eq!(read_json(&path)["recordShortcut"], "Ctrl+Space");
+    }
+
+    #[test]
+    fn a_record_shortcut_patch_must_be_an_allowed_combination() {
+        let (_dir, path) = settings_path();
+        let (store, _) = SettingsStore::open(&path, defaults());
+
+        let invalid: Result<SettingsPatch, _> =
+            serde_json::from_value(json!({ "recordShortcut": "A" }));
+        assert!(invalid.is_err());
+
+        let patch: SettingsPatch =
+            serde_json::from_value(json!({ "recordShortcut": "Win+Ctrl" })).unwrap();
+        store.apply_patch(patch).unwrap();
+        assert_eq!(read_json(&path)["recordShortcut"], "Ctrl+Win");
+    }
+
     // Rule 14: settings added in a newer version get their defaults.
     #[test]
     fn settings_missing_from_an_older_file_get_their_defaults() {
@@ -461,7 +516,9 @@ mod tests {
                     "activeModel".into(),
                     "onboardingCompleted".into(),
                     "onboardingWelcomeDone".into(),
-                    "unloadModelAfter".into()
+                    "recordShortcut".into(),
+                    "shortcutMode".into(),
+                    "unloadModelAfter".into(),
                 ]
             }
         );

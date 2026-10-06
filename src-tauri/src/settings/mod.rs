@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use crate::models::ModelId;
+use crate::shortcut::modes::ShortcutMode;
+use crate::shortcut::validation::RecordShortcutCombination;
 
 /// Generates [`Settings`] and its all-optional twin [`SettingsPatch`] from one list of fields, so
 /// the two can never drift apart.
@@ -68,6 +70,10 @@ settings_model! {
     /// Unload the active Model from memory after this much time without a Dictation
     /// (`models.md` rule 24a).
     unload_model_after: UnloadModelAfter,
+    /// The key combination that starts and stops a Recording (`record-shortcut.md`).
+    record_shortcut: RecordShortcutCombination,
+    /// Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`).
+    shortcut_mode: ShortcutMode,
 }
 
 impl Settings {
@@ -80,6 +86,8 @@ impl Settings {
             onboarding_completed: false,
             active_model: None,
             unload_model_after: UnloadModelAfter::Never,
+            record_shortcut: RecordShortcutCombination::default(),
+            shortcut_mode: ShortcutMode::default(),
         }
     }
 }
@@ -160,6 +168,17 @@ mod tests {
             Settings::defaults(Some("de-DE")).ui_language,
             UiLanguage::En
         );
+    }
+
+    // record-shortcut.md rules 5 and 18.
+    #[test]
+    fn the_record_shortcut_defaults_to_ctrl_space_in_push_to_talk_mode() {
+        let settings = Settings::defaults(None);
+        assert_eq!(
+            settings.record_shortcut.combination().to_string(),
+            "Ctrl+Space"
+        );
+        assert_eq!(settings.shortcut_mode, ShortcutMode::PushToTalk);
     }
 
     #[test]

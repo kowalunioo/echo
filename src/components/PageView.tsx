@@ -5,6 +5,7 @@ import type { Page } from "../store/shell";
 import { NoModelPanel } from "../models/ModelIndicator";
 import { ModelsSection } from "../models/ModelsSection";
 import { AppSettings } from "./AppSettings";
+import { RecordShortcutSettings } from "./RecordShortcutSettings";
 
 export function PageView({ page }: { page: Page }) {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export function PageView({ page }: { page: Page }) {
       <NoModelPanel onModelsPage={page === "model"} />
 
       {page === "model" && <ModelsSection />}
+      {page === "dictation" && <RecordShortcutSettings />}
       {page === "app" && <AppSettings />}
 
       <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>

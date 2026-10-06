@@ -24,6 +24,7 @@ beforeEach(async () => {
   microphone.checks = 0;
   backend.settings = {
     ...DEFAULT_SETTINGS,
+    uiLanguage: "en",
     onboardingWelcomeDone: false,
     onboardingCompleted: false,
   };
