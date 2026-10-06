@@ -24,7 +24,6 @@ export const pl: Translation = {
     model: {
       title: "Model i język",
       description: "Model mowy, który zamienia Twój głos na tekst, oraz język, w którym mówisz.",
-      upcoming: "Język dyktowania.",
     },
     vocabulary: {
       title: "Słownik",

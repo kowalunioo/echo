@@ -24,7 +24,7 @@ export function PageView({ page }: { page: Page }) {
       {page === "dictation" && <MicrophoneSettings />}
       {page === "app" && <AppSettings />}
 
-      <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>
+      {page !== "model" && <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>}
     </article>
   );
 }

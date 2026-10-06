@@ -26,7 +26,6 @@ export const en = {
     model: {
       title: "Model & language",
       description: "The speech Model that turns your voice into text, and the language you speak.",
-      upcoming: "The Dictation Language.",
     },
     vocabulary: {
       title: "Vocabulary",
