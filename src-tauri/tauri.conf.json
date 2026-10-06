@@ -49,11 +49,21 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "windows": {
       "nsis": {
         "installerHooks": "./windows/hooks.nsh"
       }
     },
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM1MDQyMzY5Njg5OEFDMgpSV1RDaW9tV05rSlFESm90TXAybHpxbVBrV3NQZ3JleGJGTllYUFZCTVV4bG5PaklGNHF5S2luLwo=",
+      "endpoints": ["https://github.com/kowalunioo/echo/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

@@ -387,6 +387,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "checkUpdatesAutomatically": true,
             })
             .to_string(),
         )
@@ -428,6 +429,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "checkUpdatesAutomatically": true,
             })
             .to_string(),
         )
@@ -553,6 +555,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "checkUpdatesAutomatically": true,
             })
             .to_string(),
         )
@@ -641,6 +644,7 @@ mod tests {
                 added: vec![
                     "activeModel".into(),
                     "cancelShortcut".into(),
+                    "checkUpdatesAutomatically".into(),
                     "historyLimit".into(),
                     "microphone".into(),
                     "onboardingCompleted".into(),

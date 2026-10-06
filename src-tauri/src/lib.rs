@@ -23,6 +23,7 @@ pub mod settings;
 pub mod shortcut;
 pub mod system;
 pub mod tray;
+pub mod updater;
 pub mod window;
 
 use std::sync::Arc;
@@ -80,6 +81,10 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             overlay::app::overlay_message_clicked,
             overlay::app::overlay_shape,
             dictation::app::get_test_audio,
+            updater::app::get_updater_view,
+            updater::app::check_for_updates,
+            updater::app::install_update,
+            updater::app::dismiss_update_notice,
         ])
         .events(collect_events![
             SettingsChanged,
@@ -92,6 +97,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             overlay::app::OverlayViewChanged,
             overlay::app::OverlayFrame,
             overlay::app::MainPageRequested,
+            updater::app::UpdaterChanged,
         ])
 }
 
@@ -110,6 +116,7 @@ pub fn run() {
         }))
         .plugin(logging::plugin())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             logging::log_panics();
@@ -127,6 +134,16 @@ pub fn run() {
             dictation::app::install(app.handle());
             shortcut::app::install(app.handle());
             autostart::commands::install(app.handle());
+            let after_update =
+                updater::marker::take(&data_dir.update_marker_file(), env!("CARGO_PKG_VERSION"));
+            updater::app::install(
+                app.handle(),
+                data_dir.update_marker_file(),
+                updater::disabled_by_env(|key| std::env::var_os(key)),
+                after_update
+                    .as_ref()
+                    .and_then(|after| after.updated_to.clone()),
+            );
             tray::app::install(app.handle())?;
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
@@ -134,7 +151,12 @@ pub fn run() {
             if let Some(main) = app.get_webview_window(window::MAIN_WINDOW) {
                 tracker.restore(&main);
                 let completed = app.state::<SettingsStore>().get().onboarding_completed;
-                if window::show_at_launch(autostart, completed) {
+                // After an update's restart, the window comes back as it was (updater.md rule 6).
+                let show = after_update
+                    .map_or(window::show_at_launch(autostart, completed), |after| {
+                        after.show_window || !completed
+                    });
+                if show {
                     main.show()?;
                     main.set_focus()?;
                 }

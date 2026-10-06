@@ -1,6 +1,7 @@
 //! What the tray menu items do (rules 8–10), against the app or fakes.
 
 use crate::models::ModelId;
+use crate::overlay::app::MainPage;
 
 use super::TrayAction;
 
@@ -13,7 +14,10 @@ pub trait ActionTarget {
     fn copy_to_clipboard(&self, text: &str) -> Result<(), String>;
     /// Makes a downloaded Model active (`models.md`).
     fn activate_model(&self, model: ModelId);
-    fn show_main_window(&self);
+    /// Shows the main window on `page`.
+    fn open_main_page(&self, page: MainPage);
+    /// Runs a manual update check (`updater.md` rule 7).
+    fn check_for_updates(&self);
     /// Ends the process: downloads stop, the Model is unloaded, the tray icon is removed.
     fn exit(&self);
 }
@@ -29,7 +33,12 @@ pub fn perform(action: TrayAction, target: &impl ActionTarget) {
             }
         }
         TrayAction::ActivateModel(model) => target.activate_model(model),
-        TrayAction::Settings => target.show_main_window(),
+        TrayAction::Settings => target.open_main_page(MainPage::App),
+        TrayAction::CheckForUpdates => {
+            // The result shows on the App page.
+            target.open_main_page(MainPage::App);
+            target.check_for_updates();
+        }
         TrayAction::Quit => {
             // A Recording is cancelled and a Transcribing abandoned, so nothing is inserted or
             // stored on the way out (rule 10).

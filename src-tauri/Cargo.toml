@@ -48,6 +48,9 @@ tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"
 cpal = "0.18"
 # Voice-activity detection during a Recording (`dictation-pipeline.md` rules 14-17).
 earshot = "1.2"
+# The in-app updater (`docs/specs/updater.md`); native TLS like reqwest above.
+tauri-plugin-updater = { version = "2.13", default-features = false, features = ["native-tls", "system-proxy"] }
+semver = "1"
 
 [features]
 # Vulkan GPU acceleration with automatic CPU fallback (`docs/specs/models.md` rule 29). On by
@@ -59,6 +62,8 @@ vulkan = ["transcribe-cpp/vulkan"]
 
 [dev-dependencies]
 tempfile = "3"
+# A mock Tauri app for the updater's feed tests against a local server.
+tauri = { version = "2", features = ["test"] }
 # The fixture acceptance normaliser (`tests/common/acceptance.rs`).
 regex = "1"
 unicode-normalization = "0.1"

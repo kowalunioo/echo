@@ -1,0 +1,126 @@
+//! The real release feed and installer, over `tauri-plugin-updater`.
+//!
+//! The plugin fetches the update manifest (`latest.json` of the latest GitHub
+//! release), offers only newer versions, and verifies the package's minisign
+//! signature against the public key in `tauri.conf.json` while downloading.
+
+use std::time::Duration;
+
+use semver::Version;
+use tauri::{AppHandle, Runtime, Url};
+use tauri_plugin_updater::{Error, Update, UpdaterExt};
+
+use super::{CheckError, DownloadError, Found, Installer, UpdateFeed};
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// The release feed of Echo's public repository.
+pub struct PluginFeed<R: Runtime> {
+    app: AppHandle<R>,
+    /// Replaces the endpoints from `tauri.conf.json` (tests use a local server).
+    endpoints: Option<Vec<Url>>,
+}
+
+impl<R: Runtime> PluginFeed<R> {
+    pub fn new(app: AppHandle<R>) -> Self {
+        Self {
+            app,
+            endpoints: None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn with_endpoint(app: AppHandle<R>, endpoint: Url) -> Self {
+        Self {
+            app,
+            endpoints: Some(vec![endpoint]),
+        }
+    }
+
+    fn updater(&self) -> Result<tauri_plugin_updater::Updater, Error> {
+        let mut builder = self
+            .app
+            .updater_builder()
+            // Rule 3: only newer versions, never a downgrade.
+            .version_comparator(|current, release| release.version > current)
+            .configure_client(|client| {
+                client
+                    .connect_timeout(CONNECT_TIMEOUT)
+                    .read_timeout(READ_TIMEOUT)
+            });
+        if let Some(endpoints) = &self.endpoints {
+            builder = builder.endpoints(endpoints.clone())?;
+        }
+        builder.build()
+    }
+}
+
+impl<R: Runtime> UpdateFeed for PluginFeed<R> {
+    type Release = Update;
+    type Package = Vec<u8>;
+
+    fn check(&self) -> Result<Option<Found<Update>>, CheckError> {
+        let updater = self
+            .updater()
+            .map_err(|error| CheckError(error.to_string()))?;
+        let update = tauri::async_runtime::block_on(updater.check())
+            .map_err(|error| CheckError(error.to_string()))?;
+        update
+            .map(|update| {
+                let version = Version::parse(&update.version)
+                    .map_err(|error| CheckError(format!("invalid version: {error}")))?;
+                Ok(Found {
+                    version,
+                    release: update,
+                })
+            })
+            .transpose()
+    }
+
+    fn download(
+        &self,
+        release: &Update,
+        progress: &mut dyn FnMut(u64, Option<u64>),
+    ) -> Result<Vec<u8>, DownloadError> {
+        let mut received = 0u64;
+        let on_chunk = |chunk: usize, total: Option<u64>| {
+            received += chunk as u64;
+            progress(received, total);
+        };
+        tauri::async_runtime::block_on(release.download(on_chunk, || {})).map_err(|error| {
+            if is_signature_error(&error) {
+                DownloadError::Unverified(error.to_string())
+            } else {
+                DownloadError::Failed(error.to_string())
+            }
+        })
+    }
+}
+
+fn is_signature_error(error: &Error) -> bool {
+    matches!(
+        error,
+        Error::Minisign(_)
+            | Error::Base64(_)
+            | Error::SignedVersionMismatch { .. }
+            | Error::MissingSignedVersion
+    )
+}
+
+/// Runs the downloaded NSIS installer, which replaces Echo and starts it again.
+/// On Windows the plugin exits Echo right after starting the installer.
+pub struct PluginInstaller;
+
+impl Installer<Update, Vec<u8>> for PluginInstaller {
+    fn install(&self, release: &Update, package: Vec<u8>) -> Result<(), String> {
+        if cfg!(debug_assertions) {
+            // A development run must never replace the user's installed Echo.
+            return Err(format!(
+                "development build: not installing update {}",
+                release.version
+            ));
+        }
+        release.install(package).map_err(|error| error.to_string())
+    }
+}

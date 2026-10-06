@@ -136,6 +136,11 @@ export const commands = {
 	 *  `null` in normal operation.
 	 */
 	getTestAudio: () => __TAURI_INVOKE<string | null>("get_test_audio"),
+	getUpdaterView: () => __TAURI_INVOKE<UpdaterView>("get_updater_view"),
+	checkForUpdates: () => __TAURI_INVOKE<void>("check_for_updates"),
+	/**  The user confirmed "Install and restart". */
+	installUpdate: () => __TAURI_INVOKE<void>("install_update"),
+	dismissUpdateNotice: () => __TAURI_INVOKE<void>("dismiss_update_notice"),
 };
 
 /** Events */
@@ -150,6 +155,7 @@ export const events = {
 	overlayViewChanged: makeEvent<OverlayViewChanged>("overlay-view-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 	trayHintRequested: makeEvent<TrayHintRequested>("tray-hint-requested"),
+	updaterChanged: makeEvent<UpdaterChanged>("updater-changed"),
 };
 
 /* Types */
@@ -522,6 +528,8 @@ export type Settings = {
 	showOverlay: boolean,
 	/**  Where the Overlay sits on the monitor (`overlay.md` rule 14). */
 	overlayPosition: OverlayPosition,
+	/**  Check for updates automatically (`updater.md` rule 4, 10). */
+	checkUpdatesAutomatically: boolean,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -571,6 +579,8 @@ export type SettingsPatch = {
 	showOverlay?: boolean | null,
 	/**  Where the Overlay sits on the monitor (`overlay.md` rule 14). */
 	overlayPosition?: OverlayPosition | null,
+	/**  Check for updates automatically (`updater.md` rule 4, 10). */
+	checkUpdatesAutomatically?: boolean | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */
@@ -623,6 +633,47 @@ export type UiLanguage = "pl" | "en";
 
 /**  The "Unload Model after inactivity" choices (`models.md` "Settings"). */
 export type UnloadModelAfter = "never" | "minutes2" | "minutes5" | "minutes10" | "minutes15" | "minutes60";
+
+/**  What the main window's update status line shows (spec, UI section). */
+export type UpdateStatus = 
+/**  Nothing to show. */
+{ state: "idle" } | 
+/**  A manual check is running. */
+{ state: "checking" } | 
+/**  A manual check found nothing newer; shows for [`UP_TO_DATE_FOR`]. */
+{ state: "upToDate" } | 
+/**  A newer version waits for the user to confirm "Install and restart". */
+{ state: "available"; version: string } | 
+/**  A package is downloading. */
+{ state: "downloading"; version: string; 
+/**  Whole percent, when the size is known. */
+percent: number | null } | 
+/**  An automatic update is downloaded and installs when Echo has been Idle for 10 s. */
+{ state: "ready"; version: string } | 
+/**  The package is being installed; Echo restarts next. */
+{ state: "installing"; version: string } | 
+/**  A manual check failed: "Couldn't check for updates" (rule 9). */
+{ state: "checkFailed" } | 
+/**  The package's signature did not verify: "Update could not be verified" (rule 2). */
+{ state: "unverified" } | 
+/**  Downloading the package failed. */
+{ state: "downloadFailed" } | 
+/**  Starting the installer failed. */
+{ state: "installFailed" };
+
+/**  The updater's view changed. */
+export type UpdaterChanged = UpdaterView;
+
+/**  What the main window shows about updates. */
+export type UpdaterView = {
+	/**  The running version. */
+	currentVersion: string,
+	/**  The updater is disabled by the environment: "Updates are managed by your system" (rule 11). */
+	managed: boolean,
+	status: UpdateStatus,
+	/**  "Echo was updated to <version>" after an update's restart (rule 6), until dismissed. */
+	updatedTo: string | null,
+};
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

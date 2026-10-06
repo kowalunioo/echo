@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trayHintShown: false,
   showOverlay: true,
   overlayPosition: "bottom",
+  checkUpdatesAutomatically: true,
 };
 
 /** The three Models as the backend lists them, none downloaded. */

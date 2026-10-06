@@ -91,6 +91,8 @@ settings_model! {
     show_overlay: bool,
     /// Where the Overlay sits on the monitor (`overlay.md` rule 14).
     overlay_position: OverlayPosition,
+    /// Check for updates automatically (`updater.md` rule 4, 10).
+    check_updates_automatically: bool,
 }
 
 impl Settings {
@@ -112,6 +114,7 @@ impl Settings {
             tray_hint_shown: false,
             show_overlay: true,
             overlay_position: OverlayPosition::Bottom,
+            check_updates_automatically: true,
         }
     }
 }
@@ -273,6 +276,12 @@ mod tests {
         let parse = |v| serde_json::from_value::<SettingsPatch>(v);
         assert!(parse(serde_json::json!({"overlayPosition": "top"})).is_ok());
         assert!(parse(serde_json::json!({"overlayPosition": "left"})).is_err());
+    }
+
+    // updater.md "Settings".
+    #[test]
+    fn automatic_update_checks_are_on_by_default() {
+        assert!(Settings::defaults(None).check_updates_automatically);
     }
 
     #[test]
