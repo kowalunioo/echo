@@ -10,19 +10,38 @@
 
 pub mod audio;
 pub mod commands;
+pub mod data_dir;
 pub mod engine;
 pub mod insertion;
+pub mod logging;
+pub mod settings;
 pub mod shortcut;
+pub mod system;
+pub mod window;
 
 use specta_typescript::Typescript;
-use tauri_specta::{Builder, collect_commands};
+use tauri::Manager;
+use tauri_specta::{Builder, Event, collect_commands, collect_events};
+
+use data_dir::DataDir;
+use settings::{LoadOutcome, Settings, SettingsChanged, SettingsStore};
+use window::WindowTracker;
 
 /// Where the generated TypeScript bindings live, relative to `src-tauri/`.
 pub const BINDINGS_PATH: &str = "../src/bindings.ts";
 
 /// The typed command and event surface shared with the frontend.
 pub fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::app_info])
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
+            commands::app_info,
+            settings::commands::get_settings,
+            settings::commands::update_settings,
+            settings::commands::reset_setting,
+            system::open_log_folder,
+            system::open_microphone_privacy_settings,
+        ])
+        .events(collect_events![SettingsChanged])
 }
 
 /// The exporter used for `src/bindings.ts`.
@@ -34,13 +53,74 @@ pub fn typescript_exporter() -> Typescript {
 pub fn run() {
     let builder = specta_builder();
     tauri::Builder::default()
+        // Must be the first plugin: a second launch hands over to the running Echo and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            window::show_main(app);
+        }))
+        .plugin(logging::plugin())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
+            logging::log_panics();
+            log::info!("Echo {} starting", env!("CARGO_PKG_VERSION"));
             builder.mount_events(app);
+
+            let data_dir = DataDir::new(app.path().app_local_data_dir()?);
+            open_settings(app.handle(), &data_dir);
+
+            let tracker = WindowTracker::new(data_dir.window_state_file());
+            let autostart = window::launched_by_autostart(std::env::args());
+            if let Some(main) = app.get_webview_window(window::MAIN_WINDOW) {
+                tracker.restore(&main);
+                let completed = app.state::<SettingsStore>().get().onboarding_completed;
+                if window::show_at_launch(autostart, completed) {
+                    main.show()?;
+                    main.set_focus()?;
+                }
+            }
+            app.manage(tracker);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Echo");
+        .on_window_event(|window, event| {
+            if window.label() == window::MAIN_WINDOW {
+                window.state::<WindowTracker>().on_event(window, event);
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building Echo")
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                app.state::<WindowTracker>().save();
+                log::info!("Echo exiting");
+            }
+        });
+}
+
+/// Loads the settings, makes them available to commands, and forwards every change to the
+/// frontend as a [`SettingsChanged`] event.
+fn open_settings(app: &tauri::AppHandle, data_dir: &DataDir) {
+    let defaults = Settings::defaults(sys_locale::get_locale().as_deref());
+    let (store, outcome) = SettingsStore::open(data_dir.settings_file(), defaults);
+    match &outcome {
+        LoadOutcome::Fresh => log::info!("no settings yet; first run"),
+        LoadOutcome::Clean => log::info!("settings loaded"),
+        LoadOutcome::Repaired { reset, added } => {
+            log::warn!("settings repaired; reset: {reset:?}, added: {added:?}")
+        }
+        LoadOutcome::Broken { renamed_to } => {
+            log::warn!("settings file was unreadable; moved to {renamed_to:?}, using defaults")
+        }
+    }
+    let handle = app.clone();
+    store.subscribe(move |_, _| {
+        // Send the latest settings rather than this change's, so that when two changes race the
+        // last event a window receives is always the current state.
+        let latest = handle.state::<SettingsStore>().get();
+        if let Err(error) = SettingsChanged(latest).emit(&handle) {
+            log::warn!("could not send settings to the windows: {error}");
+        }
+    });
+    app.manage(store);
 }
 
 #[cfg(test)]

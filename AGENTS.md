@@ -11,8 +11,9 @@ This is a clean-room rewrite ([ADR 0001](docs/adr/0001-clean-room-rewrite.md)). 
 1. One issue per branch and worktree; branch name `<type>/<issue-number>-<slug>` (e.g. `feat/12-history`).
 2. Work test-first: a failing test for each behaviour in the spec, then the code.
 3. A slice is vertical — backend, UI and tests together. UI strings go through i18n with both Polish and English text.
-4. Hardware-dependent code (microphone, keyboard hook, insertion, autostart) stays behind its trait; tests use the fakes, including the WAV **Audio Source**.
-5. Before opening the PR, run every check from the definition of done in `docs/plan.md` and make them green. Include in the PR: `Closes #N`, what you verified and how, and screenshots for any UI or Overlay change.
+4. A feature's settings go into the shared settings model; [`docs/settings.md`](docs/settings.md) shows how to add one.
+5. Hardware-dependent code (microphone, keyboard hook, insertion, autostart) stays behind its trait; tests use the fakes, including the WAV **Audio Source**.
+6. Before opening the PR, run every check from the definition of done in `docs/plan.md` and make them green. Include in the PR: `Closes #N`, what you verified and how, and screenshots for any UI or Overlay change.
 
 ## Conventions
 

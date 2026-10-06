@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { en } from "./en";
-import { uiLanguageForLocale } from "./index";
+import { changeUiLanguage, formatDate, formatNumber, uiLanguageForLocale } from "./index";
 import { pl } from "./pl";
 
 /** Every leaf key path of a nested string record, e.g. "nav.history". */
@@ -28,6 +28,21 @@ describe("translations", () => {
       expect(typeof value).toBe("string");
       expect((value as string).trim()).not.toBe("");
     }
+  });
+});
+
+// settings-and-first-run.md rule 10.
+describe("formatting", () => {
+  it("formats numbers and dates per the UI Language", async () => {
+    const date = new Date(2026, 9, 6, 14, 5);
+
+    await changeUiLanguage("pl");
+    expect(formatNumber(12345.5)).toBe("12 345,5");
+    expect(formatDate(date, { dateStyle: "long" })).toBe("6 października 2026");
+
+    await changeUiLanguage("en");
+    expect(formatNumber(12345.5)).toBe("12,345.5");
+    expect(formatDate(date, { dateStyle: "long" })).toBe("6 October 2026");
   });
 });
 
