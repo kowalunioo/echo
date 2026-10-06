@@ -26,15 +26,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      # package.json, tauri.conf.json, Cargo.toml and Cargo.lock must all carry the tag's version.
       - name: Check the tag matches the app version
         id: version
         shell: pwsh
         run: |
+          bun scripts/release-check.ts versions $env:GITHUB_REF_NAME
+          if ($LASTEXITCODE -ne 0) { exit 1 }
           $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
-          if ("v$version" -ne $env:GITHUB_REF_NAME) {
-            Write-Error "Tag $env:GITHUB_REF_NAME does not match version $version in src-tauri/tauri.conf.json"
-            exit 1
-          }
           "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Set up Rust
@@ -47,11 +51,6 @@ jobs:
           install_runtime: false
           cache: true
           stripdown: true
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile
@@ -91,6 +90,16 @@ jobs:
           "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
           "signature=$signature" >> $env:GITHUB_OUTPUT
           "latest=$latest" >> $env:GITHUB_OUTPUT
+
+      # A wrong TAURI_SIGNING_PRIVATE_KEY secret must fail the release: installed Echos verify
+      # updates against the public key in tauri.conf.json and require the signed version.
+      - name: Verify the installer's signature
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          bun scripts/release-check.ts signature "${{ steps.assets.outputs.installer }}" "${{ steps.assets.outputs.signature }}" $env:VERSION
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Publish the GitHub Release
         shell: pwsh
