@@ -201,19 +201,23 @@ struct TauriTray {
 
 impl TrayView for TauriTray {
     fn show_icon(&mut self, state: TrayIconState, theme: TaskbarTheme) {
-        let image = glyph(state, theme, self.size.load(Ordering::Relaxed));
+        let size = self.size.load(Ordering::Relaxed);
+        log::debug!("tray icon: {state:?}, {theme:?} taskbar, {size} px");
+        let image = glyph(state, theme, size);
         if let Err(error) = self.tray.set_icon(Some(image)) {
             log::warn!("could not change the tray icon: {error}");
         }
     }
 
     fn show_tooltip(&mut self, text: &str) {
+        log::debug!("tray tooltip: {text}");
         if let Err(error) = self.tray.set_tooltip(Some(text)) {
             log::warn!("could not change the tray tooltip: {error}");
         }
     }
 
     fn show_menu(&mut self, entries: &[MenuEntry]) {
+        log::debug!("tray menu: {entries:?}");
         match build_menu(&self.app, entries) {
             Ok(menu) => {
                 if let Err(error) = self.tray.set_menu(Some(menu)) {
