@@ -32,12 +32,12 @@ The global key combination that starts and stops a Recording from any applicatio
 18. The default Record Shortcut is **Ctrl+Space**.
 19. Allowed combinations:
     - one or more modifiers (Ctrl, Alt, Shift, Win) plus one main key, e.g. Ctrl+Space, Ctrl+Alt+D;
-    - modifier-only combinations of two or more modifiers (e.g. Ctrl+Win, Ctrl+Shift), or a single right-side Alt or right-side Ctrl alone;
+    - modifier-only combinations of two or more modifiers (e.g. Ctrl+Win, Ctrl+Shift);
     - a single function key F1–F24 or another non-character key (Pause, Scroll Lock, Insert) without modifiers.
 20. Not allowed (rejected with a message explaining why):
     - an empty combination;
     - a single character key or Space without a modifier (it would make that key unusable for typing);
-    - a single modifier alone other than right Alt or right Ctrl (e.g. left Ctrl, either Shift, Win);
+    - a single modifier alone, either side (e.g. Ctrl, Shift, Win, right Alt, right Ctrl);
     - Escape alone (reserved as the default Cancel Shortcut);
     - combinations Windows reserves and does not deliver to applications (Ctrl+Alt+Delete, Win+L);
     - a combination identical to the Cancel Shortcut.
@@ -81,7 +81,7 @@ The global key combination that starts and stops a Recording from any applicatio
 9. *Swallowing.* With Notepad focused and Ctrl+Space as shortcut, a Push-to-Talk Dictation whose Transcript is empty leaves Notepad's text unchanged (no space typed). (HW.)
 10. *Pass-through.* Typing "abc" while no shortcut is held reaches Notepad unchanged while Echo runs. (HW.)
 11. *Win modifier-only.* With Ctrl+Win as shortcut, a full press/release does not open the Start menu. (HW.)
-12. *Validation.* Proposals "Space", "A", "Escape", empty, left Ctrl alone, Shift alone, Win alone, and the current Cancel Shortcut are rejected with a message; "Ctrl+Alt+D", "F9", "Ctrl+Win", right Alt alone and right Ctrl alone are accepted. (Unit test of validation.)
+12. *Validation.* Proposals "Space", "A", "Escape", empty, left Ctrl alone, Shift alone, Win alone, right Alt alone, right Ctrl alone, and the current Cancel Shortcut are rejected with a message; "Ctrl+Alt+D", "F9" and "Ctrl+Win" are accepted. (Unit test of validation.)
 13. *Failed change keeps old.* When activation of a new combination fails (fake ShortcutListener reports failure), the old combination still triggers. (FSL.)
 14. *Capture UI.* Simulated key events Ctrl down, Space down, Space up → proposal "Ctrl+Space"; Ctrl down, Win down, Win up, Ctrl up → proposal "Ctrl+Win"; click outside → no change. (Frontend test with mocked events.)
 15. *Inactive during capture.* While capture is active, pressing the current Record Shortcut starts no Recording. (FSL.)
@@ -92,4 +92,4 @@ The global key combination that starts and stops a Recording from any applicatio
 - **Conflicts:** a Record Shortcut identical to the Cancel Shortcut is rejected; no detection of other applications' shortcuts in 0.1.0 — legacy did not check at all.
 - **Escape during capture:** Escape alone cancels capture — Escape alone is not an allowed Record Shortcut anyway.
 - **Swallowing:** the shortcut's keystrokes are swallowed in both modes — otherwise Ctrl+Space would also reach the focused application.
-- **Modifier-only combinations:** allowed only as two or more modifiers, or a single right-side Alt or right-side Ctrl — reduces accidental triggers during normal typing while keeping one-key Push-to-Talk possible.
+- **Modifier-only combinations:** allowed only as two or more modifiers — reduces accidental triggers during normal typing. A single right Alt or right Ctrl was allowed at first and dropped (issue #33): on a Polish keyboard right Alt is AltGr, needed for Polish characters, so it must stay free for typing; right Ctrl went with it to keep one rule. A stored single right Alt or right Ctrl falls back to the default like any other value that is not allowed.

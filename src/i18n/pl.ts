@@ -286,7 +286,7 @@ export const pl: Translation = {
       needsModifier:
         "Sam klawisz {{shortcut}} przestałby działać przy pisaniu. Dodaj Ctrl, Alt, Shift lub Win.",
       singleModifier:
-        "Pojedynczy modyfikator łatwo nacisnąć przypadkiem. Użyj dwóch modyfikatorów, modyfikatora z klawiszem albo samego prawego Alt lub prawego Ctrl.",
+        "Użyj co najmniej dwóch modyfikatorów, np. Ctrl+Win, albo modyfikatora z klawiszem.",
       escapeReserved: "Klawisz Esc jest zarezerwowany do anulowania dyktowania.",
       reservedByWindows:
         "Windows zatrzymuje {{shortcut}} dla siebie i nie przekazuje go aplikacjom.",

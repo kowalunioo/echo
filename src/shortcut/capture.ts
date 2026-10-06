@@ -1,6 +1,6 @@
 /**
  * Shortcut capture (record-shortcut.md, "UI"): turns the keys the user presses and releases into
- * a proposed combination in canonical text form ("Ctrl+Space", "Ctrl+Win", "RightAlt").
+ * a proposed combination in canonical text form ("Ctrl+Space", "Ctrl+Win", "F9").
  *
  * Keys arrive by their capture names from the keyboard hook: side-specific for modifiers
  * ("LeftCtrl", "RightAlt", …) and canonical names for other keys ("Space", "F9", "Escape").
@@ -58,10 +58,7 @@ export function canonical(modifiers: readonly Modifier[], main: string | null): 
 
 /** What the held keys look like right now, in canonical form, for showing during capture. */
 export function heldCombination(state: CaptureState): string {
-  const modifiers = state.held.filter(isModifier);
-  const lone = modifiers.length === 1 ? modifiers[0] : undefined;
-  if (!state.main && (lone === "RightCtrl" || lone === "RightAlt")) return lone;
-  return canonical(modifiersOf(modifiers), state.main);
+  return canonical(modifiersOf(state.held.filter(isModifier)), state.main);
 }
 
 export interface CaptureOptions {
@@ -106,8 +103,8 @@ export function captureKey(
 
   const peak = state.peak ?? state.held.filter(isModifier);
   if (held.some(isModifier)) return { kind: "continue", state: { ...state, held, peak } };
-  const lone = peak.length === 1 ? peak[0] : undefined;
-  if (lone === "RightCtrl" || lone === "RightAlt") return { kind: "propose", combination: lone };
+  // A single modifier, right Alt and right Ctrl included, is proposed as the plain modifier,
+  // which validation rejects (issue #33).
   return { kind: "propose", combination: canonical(modifiersOf(peak), null) };
 }
 

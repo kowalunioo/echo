@@ -53,11 +53,11 @@ describe("History page", () => {
   });
 
   it("shows the Record Shortcut actually set, in the UI Language", async () => {
-    backend.settings.recordShortcut = "RightAlt";
+    backend.settings.recordShortcut = "F9";
     await openHistory();
 
     expect(screen.getByText(/No Transcripts yet/)).toHaveTextContent(
-      "No Transcripts yet. Press Right Alt and speak.",
+      "No Transcripts yet. Press F9 and speak.",
     );
   });
 
