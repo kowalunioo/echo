@@ -39,7 +39,6 @@ export const pl: Translation = {
     app: {
       title: "Aplikacja",
       description: "Język interfejsu, uruchamianie, aktualizacje i informacje o Echo.",
-      upcoming: "Wskaźnik nagrywania i automatyczne aktualizacje.",
     },
   },
   placeholder: {
@@ -81,6 +80,27 @@ export const pl: Translation = {
         "Zdarzenia i błędy zapisywane na tym komputerze, pomocne przy rozwiązywaniu problemów. Nigdy nie zawiera tego, co dyktujesz.",
       open: "Otwórz folder logów",
       failed: "Nie udało się otworzyć folderu logów.",
+    },
+    updates: {
+      automatic: "Automatycznie sprawdzaj aktualizacje",
+      automaticDescription:
+        "Echo instaluje aktualizacje, gdy nie dyktujesz, i samo się uruchamia ponownie.",
+      managed: "Aktualizacjami zarządza Twój system.",
+      check: "Sprawdź aktualizacje",
+      install: "Zainstaluj i uruchom ponownie",
+      status: {
+        checking: "Sprawdzanie…",
+        upToDate: "Echo jest aktualne",
+        available: "Dostępna jest wersja {{version}}",
+        ready: "Wersja {{version}} jest gotowa. Echo zainstaluje ją, gdy nie będziesz dyktować.",
+        downloading: "Pobieranie… {{percent}}%",
+        downloadingUnknown: "Pobieranie…",
+        installing: "Instalowanie…",
+        checkFailed: "Nie udało się sprawdzić aktualizacji",
+        unverified: "Nie udało się zweryfikować aktualizacji",
+        downloadFailed: "Nie udało się pobrać aktualizacji",
+        installFailed: "Nie udało się zainstalować aktualizacji",
+      },
     },
     microphone: {
       label: "Mikrofon",
@@ -297,6 +317,10 @@ export const pl: Translation = {
     description: "Anuluje bieżące dyktowanie. Działa tylko podczas nagrywania lub transkrypcji.",
     change: "Zmień skrót anulowania, obecnie {{shortcut}}",
     captureHint: "Kliknięcie obok anuluje.",
+  },
+  updatedNotice: {
+    text: "Echo zostało zaktualizowane do wersji {{version}}",
+    dismiss: "Zamknij",
   },
   dictationNotices: {
     title: "Problemy z dyktowaniem",

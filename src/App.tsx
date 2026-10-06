@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { events } from "./bindings";
 import { DictationNotices } from "./components/DictationNotices";
+import { UpdatedNotice } from "./components/UpdatedNotice";
 import { PageView } from "./components/PageView";
 import { TestAudioMarker } from "./components/TestAudioMarker";
 import { Sidebar } from "./components/Sidebar";
@@ -70,6 +71,7 @@ function MainWindow() {
     <div className="flex h-full">
       <Sidebar />
       <main className="min-w-0 flex-1 overflow-y-auto">
+        <UpdatedNotice />
         <DictationNotices />
         <PageView page={page} />
       </main>

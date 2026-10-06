@@ -40,7 +40,6 @@ export const en = {
     app: {
       title: "App",
       description: "Language of the interface, start-up, updates and information about Echo.",
-      upcoming: "The recording indicator and automatic updates.",
     },
   },
   placeholder: {
@@ -83,6 +82,27 @@ export const en = {
         "Events and errors, kept on this computer to help solve problems. It never contains what you dictate.",
       open: "Open log folder",
       failed: "The log folder could not be opened.",
+    },
+    updates: {
+      automatic: "Check for updates automatically",
+      automaticDescription:
+        "Echo installs updates when you are not dictating and restarts on its own.",
+      managed: "Updates are managed by your system.",
+      check: "Check for updates",
+      install: "Install and restart",
+      status: {
+        checking: "Checking…",
+        upToDate: "Echo is up to date",
+        available: "Version {{version}} is available",
+        ready: "Version {{version}} is ready. Echo will install it when you are not dictating.",
+        downloading: "Downloading… {{percent}}%",
+        downloadingUnknown: "Downloading…",
+        installing: "Installing…",
+        checkFailed: "Couldn't check for updates",
+        unverified: "Update could not be verified",
+        downloadFailed: "Couldn't download the update",
+        installFailed: "Couldn't install the update",
+      },
     },
     microphone: {
       label: "Microphone",
@@ -300,6 +320,10 @@ export const en = {
     description: "Cancels the current Dictation. Active only while recording or transcribing.",
     change: "Change the Cancel Shortcut, currently {{shortcut}}",
     captureHint: "A click elsewhere cancels.",
+  },
+  updatedNotice: {
+    text: "Echo was updated to {{version}}",
+    dismiss: "Dismiss",
   },
   dictationNotices: {
     title: "Dictation problems",

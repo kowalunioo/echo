@@ -6,6 +6,7 @@ import { useShell } from "../store/shell";
 import { AutostartSettings } from "./AutostartSettings";
 import { OverlaySettings } from "./OverlaySettings";
 import { UiLanguagePicker } from "./UiLanguagePicker";
+import { UpdateSettings } from "./UpdateSettings";
 
 export function AppSettings() {
   const { t } = useTranslation();
@@ -37,11 +38,7 @@ export function AppSettings() {
       <Row label={t("settings.systemLanguage.label")}>
         <span className="text-muted">{systemLanguage}</span>
       </Row>
-      <Row label={t("settings.version.label")}>
-        <span className="text-muted tabular-nums" data-testid="app-version">
-          {version}
-        </span>
-      </Row>
+      <UpdateSettings version={version} />
       <Row label={t("settings.logFolder.label")} description={t("settings.logFolder.description")}>
         <OpenLogFolder />
       </Row>

@@ -1,0 +1,107 @@
+name: Release
+
+# Pushing a tag vX.Y.Z (made by the release flow after `bun run bump`) builds the signed NSIS
+# installer and publishes it with its signature and the updater manifest (`latest.json`) as a
+# GitHub Release. Installed Echos read that manifest (`docs/specs/updater.md` rule 1).
+on:
+  push:
+    tags: ["v*"]
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish (Windows)
+    runs-on: windows-latest
+    env:
+      CARGO_TERM_COLOR: always
+      # The native Vulkan build (default `vulkan` feature) breaks on long paths; keep the target
+      # directory short.
+      CARGO_TARGET_DIR: C:\t
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the app version
+        id: version
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            Write-Error "Tag $env:GITHUB_REF_NAME does not match version $version in src-tauri/tauri.conf.json"
+            exit 1
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install the Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: latest
+          install_runtime: false
+          cache: true
+          stripdown: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      # `createUpdaterArtifacts` in tauri.conf.json makes the build sign the installer (.sig)
+      # with the updater key from these secrets.
+      - name: Build the signed installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: bun tauri build --bundles nsis
+
+      - name: Write the updater manifest
+        id: assets
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $bundle = Join-Path $env:CARGO_TARGET_DIR "release/bundle/nsis"
+          $installer = Get-ChildItem $bundle -Filter "*_${env:VERSION}_x64-setup.exe" | Select-Object -First 1
+          if (-not $installer) { Write-Error "No installer for $env:VERSION in $bundle"; exit 1 }
+          $signature = "$($installer.FullName).sig"
+          if (-not (Test-Path $signature)) { Write-Error "Missing $signature"; exit 1 }
+          $url = "https://github.com/${{ github.repository }}/releases/download/$env:GITHUB_REF_NAME/$($installer.Name)"
+          $platform = @{ signature = (Get-Content $signature -Raw).Trim(); url = $url }
+          $manifest = [ordered]@{
+            version   = $env:VERSION
+            notes     = "Echo $env:VERSION"
+            pub_date  = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = [ordered]@{
+              "windows-x86_64"      = $platform
+              "windows-x86_64-nsis" = $platform
+            }
+          }
+          $latest = Join-Path $bundle "latest.json"
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content $latest -Encoding utf8NoBOM
+          "installer=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+          "signature=$signature" >> $env:GITHUB_OUTPUT
+          "latest=$latest" >> $env:GITHUB_OUTPUT
+
+      - name: Publish the GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create $env:GITHUB_REF_NAME `
+            "${{ steps.assets.outputs.installer }}" `
+            "${{ steps.assets.outputs.signature }}" `
+            "${{ steps.assets.outputs.latest }}" `
+            --title "Echo $env:VERSION" `
+            --generate-notes `
+            --verify-tag
