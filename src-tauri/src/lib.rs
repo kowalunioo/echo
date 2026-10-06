@@ -71,6 +71,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             dictation::app::get_dictation_status,
             dictation::app::dictation_window_seen,
             dictation::app::dismiss_dictation_notices,
+            dictation::app::get_test_audio,
         ])
         .events(collect_events![
             SettingsChanged,

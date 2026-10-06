@@ -112,6 +112,11 @@ export const commands = {
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
 	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
+	/**
+	 *  The test-audio marker (rule 41): the name of the WAV file that replaces the Microphone, or
+	 *  `null` in normal operation.
+	 */
+	getTestAudio: () => __TAURI_INVOKE<string | null>("get_test_audio"),
 };
 
 /** Events */

@@ -300,6 +300,13 @@ export const en = {
       insertionFailed: "Couldn't insert the text — it is in History.",
     },
   },
+  /** Fake-microphone mode marker (dictation-pipeline.md rule 41). */
+  testAudio: {
+    title: "Test audio",
+    badge: "TEST AUDIO",
+    description: "Dictations record from {{file}} instead of the microphone.",
+    windowTitle: "Echo — TEST AUDIO: {{file}}",
+  },
   keys: {
     Space: "Space",
     Escape: "Esc",
