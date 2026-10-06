@@ -633,7 +633,7 @@ export type ShortcutProblem =
  *  for typing.
  */
 "needsModifier" | 
-/**  A single modifier other than right Alt or right Ctrl. */
+/**  A single modifier, right Alt (AltGr) and right Ctrl included (issue #33). */
 "singleModifier" | 
 /**  Escape alone is reserved as the default Cancel Shortcut. */
 "escapeReserved" | 
