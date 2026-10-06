@@ -547,6 +547,8 @@ export type Settings = {
 	 *  intent as chosen; it is resolved against the active Model for each Dictation.
 	 */
 	dictationLanguage: DictationLanguageSetting,
+	/**  The words and phrases Dictations favour and spell as listed (`vocabulary.md`). */
+	vocabulary: Vocabulary,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -601,6 +603,8 @@ export type SettingsPatch = {
 	 *  intent as chosen; it is resolved against the active Model for each Dictation.
 	 */
 	dictationLanguage?: DictationLanguageSetting | null,
+	/**  The words and phrases Dictations favour and spell as listed (`vocabulary.md`). */
+	vocabulary?: Vocabulary | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */
@@ -653,6 +657,16 @@ export type UiLanguage = "pl" | "en";
 
 /**  The "Unload Model after inactivity" choices (`models.md` "Settings"). */
 export type UnloadModelAfter = "never" | "minutes2" | "minutes5" | "minutes10" | "minutes15" | "minutes60";
+
+/**
+ *  The Vocabulary setting: an ordered list of normalised, non-empty entries of at most
+ *  [`MAX_ENTRY_CHARS`] characters, without case-insensitive duplicates. Empty by default
+ *  (rule 1).
+ * 
+ *  Deserialising accepts exactly such lists, so a stored or patched list that breaks a rule is
+ *  rejected (`docs/settings.md`). The frontend normalises and checks an entry before adding it.
+ */
+export type Vocabulary = string[];
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

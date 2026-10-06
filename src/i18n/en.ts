@@ -29,7 +29,6 @@ export const en = {
     vocabulary: {
       title: "Vocabulary",
       description: "Names and terms Echo should recognise and spell exactly as you write them.",
-      upcoming: "Your list of words and phrases, and how much of the hint budget they use.",
     },
     history: {
       title: "History",
@@ -377,6 +376,20 @@ export const en = {
     detectsItself: "This Model detects the language automatically.",
     unavailable: "{{language}} is not available for this Model — {{fallback}} will be used.",
     reset: "Reset to Automatic",
+  },
+  vocabulary: {
+    addLabel: "Add a word or phrase",
+    placeholder: "e.g. GitHub",
+    add: "Add",
+    listLabel: "Vocabulary entries",
+    remove: "Remove {{entry}}",
+    empty: "Your Vocabulary is empty. Add names and terms you use often.",
+    duplicate: "“{{entry}}” is already in your Vocabulary.",
+    tooLong: "An entry can have at most {{max}} characters.",
+    budget: "Vocabulary uses {{percent}}% of the hint budget",
+    nearlyFull: "Vocabulary is nearly full — words beyond the limit are ignored by Whisper models.",
+    noPrompt:
+      "{{model}} takes no hint, so entries are applied as spelling corrections instead — only for entries written in Latin letters without diacritics and digits.",
   },
 };
 

@@ -27,7 +27,6 @@ export const pl: Translation = {
     vocabulary: {
       title: "Słownik",
       description: "Nazwy i terminy, które Echo ma rozpoznawać i zapisywać dokładnie tak jak Ty.",
-      upcoming: "Twoja lista słów i fraz oraz to, ile budżetu podpowiedzi zajmują.",
     },
     history: {
       title: "Historia",
@@ -376,5 +375,19 @@ export const pl: Translation = {
     detectsItself: "Ten model sam rozpoznaje język.",
     unavailable: "{{language}}: niedostępny dla tego modelu — Echo użyje opcji: {{fallback}}.",
     reset: "Przywróć Automatycznie",
+  },
+  vocabulary: {
+    addLabel: "Dodaj słowo lub frazę",
+    placeholder: "np. GitHub",
+    add: "Dodaj",
+    listLabel: "Wpisy w Słowniku",
+    remove: "Usuń {{entry}}",
+    empty: "Słownik jest pusty. Dodaj nazwy i terminy, których często używasz.",
+    duplicate: "„{{entry}}” jest już w Słowniku.",
+    tooLong: "Wpis może mieć najwyżej {{max}} znaków.",
+    budget: "Słownik zajmuje {{percent}}% budżetu podpowiedzi",
+    nearlyFull: "Słownik jest prawie pełny — słowa ponad limit są pomijane przez modele Whisper.",
+    noPrompt:
+      "{{model}} nie przyjmuje podpowiedzi, więc wpisy są stosowane jako poprawki pisowni — tylko te zapisane literami łacińskimi bez znaków diakrytycznych i cyframi.",
   },
 };
