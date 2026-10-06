@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, WebviewWindow, WindowEvent};
 
-use crate::data_dir::write_atomic;
+use crate::data_dir::{without_utf8_bom, write_atomic};
 
 /// The label of the main window in `tauri.conf.json`.
 pub const MAIN_WINDOW: &str = "main";
@@ -99,7 +99,7 @@ pub struct WindowState {
 impl WindowState {
     pub fn load(path: &Path) -> Option<Self> {
         let bytes = std::fs::read(path).ok()?;
-        serde_json::from_slice(&bytes)
+        serde_json::from_slice(without_utf8_bom(&bytes))
             .inspect_err(|error| log::warn!("ignoring unreadable window state: {error}"))
             .ok()
     }
@@ -316,6 +316,22 @@ mod tests {
         assert_eq!(WindowState::load(&path), Some(state));
         std::fs::write(&path, b"garbage").unwrap();
         assert_eq!(WindowState::load(&path), None);
+    }
+
+    // Issue #34: a hand-edited file saved with a UTF-8 BOM is still read.
+    #[test]
+    fn window_state_with_a_utf8_bom_is_still_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("window-state.json");
+        let state = WindowState {
+            bounds: window_at(10, 20),
+            maximized: false,
+        };
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend(serde_json::to_vec(&state).unwrap());
+        std::fs::write(&path, bytes).unwrap();
+
+        assert_eq!(WindowState::load(&path), Some(state));
     }
 
     #[test]

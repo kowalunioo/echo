@@ -9,6 +9,7 @@
 //! - [`insertion::Inserter`] — delivers a Transcript into the focused application.
 
 pub mod audio;
+pub mod autostart;
 pub mod commands;
 pub mod data_dir;
 pub mod dictation;
@@ -54,6 +55,8 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             history::commands::reinsert_history_entry,
             system::open_log_folder,
             system::open_microphone_privacy_settings,
+            autostart::commands::autostart_status,
+            autostart::commands::open_startup_apps_settings,
             audio::microphone::commands::list_microphones,
             audio::microphone::commands::microphone_access,
             models::commands::get_models,
@@ -109,6 +112,7 @@ pub fn run() {
             open_models(app.handle(), &data_dir);
             dictation::app::install(app.handle());
             shortcut::app::install(app.handle());
+            autostart::commands::install(app.handle());
 
             let tracker = WindowTracker::new(data_dir.window_state_file());
             let autostart = window::launched_by_autostart(std::env::args());

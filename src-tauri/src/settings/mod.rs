@@ -79,6 +79,8 @@ settings_model! {
     record_shortcut: RecordShortcutCombination,
     /// Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`).
     shortcut_mode: ShortcutMode,
+    /// Start Echo, hidden, when the user signs in to Windows (`autostart.md`).
+    start_with_windows: bool,
 }
 
 impl Settings {
@@ -95,6 +97,7 @@ impl Settings {
             unload_model_after: UnloadModelAfter::Never,
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
+            start_with_windows: false,
         }
     }
 }

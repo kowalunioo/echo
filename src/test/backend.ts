@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   unloadModelAfter: "never",
   recordShortcut: "Ctrl+Space",
   shortcutMode: "pushToTalk",
+  startWithWindows: false,
 };
 
 /** The three Models as the backend lists them, none downloaded. */
@@ -74,6 +75,8 @@ export class FakeBackend {
   microphoneAccess: MicrophoneAccess = "allowed";
   models: ModelsState = freshModels();
   dictation: DictationStatus = { state: "idle", listening: false, error: null, notices: [] };
+  /** Whether Windows "Startup apps" has Echo's sign-in entry turned off. */
+  autostartDisabledInWindows = false;
   /** Every command invoked, in order, with its arguments. */
   calls: { command: string; args: Record<string, unknown> }[] = [];
   /** Commands that never answer (to test loading states). */
@@ -138,6 +141,10 @@ export class FakeBackend {
     },
     open_log_folder: () => null,
     open_microphone_privacy_settings: () => null,
+    autostart_status: () => ({
+      disabledInWindows: this.settings.startWithWindows && this.autostartDisabledInWindows,
+    }),
+    open_startup_apps_settings: () => null,
     list_microphones: () => this.microphones,
     microphone_access: () => this.microphoneAccess,
     get_models: () => this.models,
