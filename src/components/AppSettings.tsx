@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { UI_LANGUAGES } from "../i18n";
+import { commands } from "../bindings";
 import { useShell } from "../store/shell";
+import { UiLanguagePicker } from "./UiLanguagePicker";
 
 export function AppSettings() {
   const { t } = useTranslation();
@@ -37,6 +38,9 @@ export function AppSettings() {
           {version}
         </span>
       </Row>
+      <Row label={t("settings.logFolder.label")} description={t("settings.logFolder.description")}>
+        <OpenLogFolder />
+      </Row>
     </section>
   );
 }
@@ -61,34 +65,29 @@ function Row({
   );
 }
 
-function UiLanguagePicker() {
+function OpenLogFolder() {
   const { t } = useTranslation();
-  const uiLanguage = useShell((s) => s.uiLanguage);
-  const chooseUiLanguage = useShell((s) => s.chooseUiLanguage);
+  const [failed, setFailed] = useState(false);
+
+  const open = async () => {
+    const result = await commands.openLogFolder();
+    setFailed(result.status === "error");
+  };
 
   return (
-    <fieldset className="flex rounded-lg bg-raised p-0.5">
-      <legend className="sr-only">{t("settings.uiLanguage.label")}</legend>
-      {UI_LANGUAGES.map((language) => (
-        <label
-          key={language}
-          className={`cursor-pointer rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-            uiLanguage === language
-              ? "bg-surface font-medium shadow-sm"
-              : "text-muted hover:text-fg"
-          }`}
-        >
-          <input
-            type="radio"
-            name="ui-language"
-            value={language}
-            checked={uiLanguage === language}
-            onChange={() => void chooseUiLanguage(language)}
-            className="sr-only"
-          />
-          {t(`languages.${language}`)}
-        </label>
-      ))}
-    </fieldset>
+    <div className="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onClick={() => void open()}
+        className="rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
+      >
+        {t("settings.logFolder.open")}
+      </button>
+      {failed && (
+        <span role="alert" className="text-xs text-muted">
+          {t("settings.logFolder.failed")}
+        </span>
+      )}
+    </div>
   );
 }

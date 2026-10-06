@@ -1,23 +1,52 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 import { PageView } from "./components/PageView";
 import { Sidebar } from "./components/Sidebar";
+import { changeUiLanguage } from "./i18n";
+import { Onboarding } from "./onboarding/Onboarding";
+import { useSettings } from "./store/settings";
 import { useShell } from "./store/shell";
 
 export function App() {
-  const page = useShell((s) => s.page);
   const loadAppInfo = useShell((s) => s.loadAppInfo);
+  const loadSettings = useSettings((s) => s.load);
+  const status = useSettings((s) => s.status);
+  const uiLanguage = useSettings((s) => s.settings?.uiLanguage);
+  const onboardingCompleted = useSettings((s) => s.settings?.onboardingCompleted);
 
   useEffect(() => {
     void loadAppInfo();
-  }, [loadAppInfo]);
+    void loadSettings();
+  }, [loadAppInfo, loadSettings]);
 
+  // The UI Language applies the moment it changes, wherever it was changed (rule 8).
+  useEffect(() => {
+    if (uiLanguage) void changeUiLanguage(uiLanguage);
+  }, [uiLanguage]);
+
+  if (status === "loading") return null;
+  if (status === "error") return <SettingsUnavailable />;
+  return onboardingCompleted ? <MainWindow /> : <Onboarding />;
+}
+
+function MainWindow() {
+  const page = useShell((s) => s.page);
   return (
     <div className="flex h-full">
       <Sidebar />
       <main className="min-w-0 flex-1 overflow-y-auto">
         <PageView page={page} />
       </main>
+    </div>
+  );
+}
+
+function SettingsUnavailable() {
+  const { t } = useTranslation();
+  return (
+    <div role="alert" className="flex h-full items-center justify-center p-10 text-muted">
+      {t("errors.settingsUnavailable")}
     </div>
   );
 }

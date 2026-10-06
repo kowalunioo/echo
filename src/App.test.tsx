@@ -1,45 +1,31 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "./App";
-import type { AppInfo } from "./bindings";
-import { changeUiLanguage, initI18n } from "./i18n";
+import { changeUiLanguage } from "./i18n";
 import { useShell } from "./store/shell";
+import { backend } from "./test/backend";
 
-// The generated bindings call Tauri's `invoke`; faking it exercises the real binding code.
-const invoke = vi.hoisted(() => vi.fn());
-vi.mock("@tauri-apps/api/core", () => ({ invoke }));
-
-const polishWindows: AppInfo = {
-  version: "0.1.0",
-  systemLocale: "pl-PL",
-  defaultUiLanguage: "pl",
-};
-
-const initialState = useShell.getState();
-initI18n("en");
+const initialShell = useShell.getState();
 
 beforeEach(async () => {
-  invoke.mockReset();
-  useShell.setState(initialState, true);
+  useShell.setState(initialShell, true);
   await changeUiLanguage("en");
 });
 
-function respondWith(info: AppInfo) {
-  invoke.mockImplementation((command: string) =>
-    command === "app_info"
-      ? Promise.resolve(info)
-      : Promise.reject(new Error(`unexpected ${command}`)),
-  );
-}
-
 describe("app shell", () => {
-  it("shows the five sections in the navigation", () => {
-    invoke.mockReturnValue(new Promise(() => undefined));
+  it("shows nothing until the settings have loaded", () => {
+    backend.hanging.add("get_settings");
+    const { container } = render(<App />);
+
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("shows the five sections in the navigation", async () => {
     render(<App />);
 
-    const nav = screen.getByRole("navigation", { name: "Sections" });
+    const nav = await screen.findByRole("navigation", { name: "Sections" });
     const labels = within(nav)
       .getAllByRole("button")
       .map((b) => b.textContent);
@@ -51,44 +37,82 @@ describe("app shell", () => {
   });
 
   it("switches pages from the navigation", async () => {
-    invoke.mockReturnValue(new Promise(() => undefined));
     render(<App />);
 
-    await userEvent.click(screen.getByRole("button", { name: "History" }));
+    await userEvent.click(await screen.findByRole("button", { name: "History" }));
 
     expect(screen.getByRole("heading", { level: 1, name: "History" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "History" })).toHaveAttribute("aria-current", "page");
   });
 
-  it("follows the Windows display language reported by the backend", async () => {
-    respondWith(polishWindows);
+  it("uses the saved UI Language", async () => {
+    backend.settings.uiLanguage = "pl";
     render(<App />);
 
     expect(await screen.findByRole("navigation", { name: "Sekcje" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Historia" })).toBeInTheDocument();
-    expect(invoke).toHaveBeenCalledWith("app_info");
   });
 
   it("shows the version from the app_info command on the App page", async () => {
-    respondWith({ ...polishWindows, defaultUiLanguage: "en", version: "9.8.7" });
+    backend.appInfo = { version: "9.8.7", systemLocale: "pl-PL" };
     render(<App />);
 
-    await userEvent.click(screen.getByRole("button", { name: "App" }));
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
 
     await waitFor(() => {
       expect(screen.getByTestId("app-version")).toHaveTextContent("9.8.7");
     });
   });
 
-  it("switches the UI Language immediately and keeps the user's choice", async () => {
-    respondWith({ ...polishWindows, defaultUiLanguage: "en" });
+  // settings-and-first-run.md rules 8 and 11.
+  it("switches the UI Language immediately and saves it", async () => {
     render(<App />);
-    await userEvent.click(screen.getByRole("button", { name: "App" }));
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
 
     await userEvent.click(screen.getByRole("radio", { name: "Polski" }));
 
-    expect(screen.getByRole("heading", { level: 1, name: "Aplikacja" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Aplikacja" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Polski" })).toBeChecked();
     expect(document.documentElement.lang).toBe("pl");
+    expect(backend.settings.uiLanguage).toBe("pl");
+  });
+
+  // Acceptance test 7 (window part): a change made elsewhere, e.g. from the tray, applies live.
+  it("follows a UI Language change made outside the window", async () => {
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Sections" });
+
+    backend.changeSettings({ uiLanguage: "pl" });
+
+    expect(await screen.findByRole("navigation", { name: "Sekcje" })).toBeInTheDocument();
+  });
+
+  it("opens the log folder from the App page", async () => {
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Open log folder" }));
+
+    expect(backend.commandsCalled("open_log_folder")).toHaveLength(1);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says so when the log folder cannot be opened", async () => {
+    backend.failing.set("open_log_folder", "no explorer");
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Open log folder" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The log folder could not be opened.",
+    );
+  });
+
+  it("explains when the settings cannot be loaded", async () => {
+    backend.failing.set("get_settings", "broken backend");
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not load its settings");
   });
 });

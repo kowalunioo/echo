@@ -40,8 +40,7 @@ export const pl: Translation = {
     app: {
       title: "Aplikacja",
       description: "Język interfejsu, uruchamianie, aktualizacje i informacje o Echo.",
-      upcoming:
-        "Uruchamianie z systemem Windows, wskaźnik nagrywania, automatyczne aktualizacje i folder logów.",
+      upcoming: "Uruchamianie z systemem Windows, wskaźnik nagrywania i automatyczne aktualizacje.",
     },
   },
   placeholder: {
@@ -62,6 +61,60 @@ export const pl: Translation = {
       label: "Język wyświetlania Windows",
       unknown: "Nieznany",
     },
+    logFolder: {
+      label: "Dziennik diagnostyczny",
+      description:
+        "Zdarzenia i błędy zapisywane na tym komputerze, pomocne przy rozwiązywaniu problemów. Nigdy nie zawiera tego, co dyktujesz.",
+      open: "Otwórz folder logów",
+      failed: "Nie udało się otworzyć folderu logów.",
+    },
+  },
+  onboarding: {
+    progress: "Kroki konfiguracji",
+    steps: {
+      welcome: "Powitanie",
+      microphone: "Mikrofon",
+      model: "Model",
+      tryIt: "Wypróbuj",
+    },
+    welcome: {
+      title: "Witamy w Echo",
+      lead: "Mów, a Echo wpisze Twoje słowa w aplikacji, której używasz.",
+      local: "Wszystko działa na tym komputerze. Twój głos i tekst nigdy go nie opuszczają.",
+      model: "Echo potrzebuje modelu mowy: jednorazowe pobranie kilkuset MB.",
+      shortcut: "Potem przytrzymaj skrót, mów i puść. Tekst pojawi się tam, gdzie piszesz.",
+      start: "Zaczynamy",
+    },
+    microphone: {
+      title: "Zezwól na dostęp do mikrofonu",
+      lead: "Windows blokuje aplikacjom klasycznym dostęp do mikrofonu, więc Echo Cię nie słyszy.",
+      howTo:
+        "Otwórz ustawienia prywatności Windows i włącz dostęp dla aplikacji klasycznych. Echo przejdzie dalej samo, gdy tylko dostęp zostanie przyznany.",
+      open: "Otwórz ustawienia prywatności Windows",
+      checking: "Sprawdzam ponownie co kilka sekund…",
+      skip: "Pomiń na razie",
+      skipNote: "Nagrania nie będą działać, dopóki dostęp nie zostanie przyznany.",
+    },
+    model: {
+      title: "Wybierz model",
+      lead: "Model zamienia Twoją mowę na tekst. Pobierasz go raz i zostaje na tym komputerze.",
+      upcoming:
+        "Trzy modele z rozmiarami, zalecany Whisper large-v3-turbo oraz pobieranie z postępem.",
+      continueWithout: "Kontynuuj bez modelu",
+    },
+    tryIt: {
+      title: "Wypróbuj",
+      lead: "Echo jest gotowe. Kliknij pole poniżej i podyktuj zdanie.",
+      holdShortcut: "Przytrzymaj <kbd>{{shortcut}}</kbd> i mów, potem puść.",
+      pressShortcut: "Naciśnij <kbd>{{shortcut}}</kbd> i mów, potem naciśnij ponownie.",
+      fieldLabel: "Pole testowe",
+      fieldPlaceholder: "Tu pojawią się Twoje słowa…",
+      later: "Skrót możesz później zmienić w sekcji Dyktowanie.",
+      finish: "Zakończ",
+    },
+  },
+  errors: {
+    settingsUnavailable: "Echo nie może wczytać ustawień. Uruchom Echo ponownie.",
   },
   status: {
     label: "Stan",
