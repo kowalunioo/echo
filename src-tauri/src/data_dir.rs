@@ -35,6 +35,11 @@ impl DataDir {
         self.root.join("window-state.json")
     }
 
+    /// Written right before an update installs, read on the next start (`updater.md` rule 6).
+    pub fn update_marker_file(&self) -> PathBuf {
+        self.root.join("update-restart.json")
+    }
+
     /// The History database (`history.md` rule 5).
     pub fn history_file(&self) -> PathBuf {
         self.root.join("history.db")
@@ -114,5 +119,9 @@ mod tests {
         assert!(data.window_state_file().starts_with(data.root()));
         assert_eq!(data.history_file(), Path::new("C:/data/history.db"));
         assert_eq!(data.models_dir(), Path::new("C:/data/models"));
+        assert_eq!(
+            data.update_marker_file(),
+            Path::new("C:/data/update-restart.json")
+        );
     }
 }

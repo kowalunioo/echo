@@ -8,6 +8,7 @@ import { resetDictationStore } from "../store/dictation";
 import { resetModelsStore } from "../store/models";
 import { resetRecordShortcutStore } from "../store/recordShortcut";
 import { resetSettingsStore } from "../store/settings";
+import { resetUpdaterStore } from "../store/updater";
 import { backend, resetBackend } from "./backend";
 
 // Every test talks to a fresh in-memory FakeBackend through the real generated bindings.
@@ -28,6 +29,7 @@ beforeEach(() => {
   resetModelsStore();
   resetDictationStore();
   resetRecordShortcutStore();
+  resetUpdaterStore();
 });
 
 afterEach(() => {

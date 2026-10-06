@@ -13,6 +13,7 @@ pub struct Labels {
     pub model: &'static str,
     pub no_model_downloaded: &'static str,
     pub settings: &'static str,
+    pub check_for_updates: &'static str,
     pub quit: &'static str,
     problems: [&'static str; 9],
 }
@@ -50,6 +51,7 @@ static EN: Labels = Labels {
     model: "Model",
     no_model_downloaded: "No Model downloaded",
     settings: "Settings…",
+    check_for_updates: "Check for updates…",
     quit: "Quit Echo",
     problems: [
         "No Model",
@@ -72,6 +74,7 @@ static PL: Labels = Labels {
     model: "Model",
     no_model_downloaded: "Brak pobranego Modelu",
     settings: "Ustawienia…",
+    check_for_updates: "Sprawdź aktualizacje…",
     quit: "Zakończ Echo",
     problems: [
         "Brak Modelu",

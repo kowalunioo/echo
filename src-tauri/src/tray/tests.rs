@@ -18,6 +18,7 @@ use crate::engine::{EngineError, FakeEngine};
 use crate::history::{EntryLanguage, History, HistoryStore, NewEntry};
 use crate::insertion::{FakeInserter, SharedInserter};
 use crate::models::NoActiveModel;
+use crate::overlay::app::MainPage;
 use crate::shortcut::modes::RecordIntent::{Start, Stop};
 
 const VERSION: &str = "0.1.0";
@@ -86,6 +87,7 @@ fn inputs() -> TrayInputs {
             busy: false,
         },
         history_empty: false,
+        updates_enabled: true,
     }
 }
 
@@ -498,6 +500,7 @@ fn acceptance_3_while_busy_the_menu_offers_cancel_and_locks_the_model() {
             "Whisper large-v3-turbo",
             "---",
             "Settings…",
+            "Check for updates…",
             "---",
             "Quit Echo"
         ]
@@ -516,6 +519,7 @@ fn acceptance_3_while_busy_the_menu_offers_cancel_and_locks_the_model() {
             "Whisper large-v3-turbo",
             "---",
             "Settings…",
+            "Check for updates…",
             "---",
             "Quit Echo"
         ]
@@ -558,6 +562,7 @@ fn menu_item_ids_round_trip() {
         TrayAction::Cancel,
         TrayAction::CopyLastTranscript,
         TrayAction::Settings,
+        TrayAction::CheckForUpdates,
         TrayAction::Quit,
     ];
     actions.extend(ModelId::ALL.map(TrayAction::ActivateModel));
@@ -616,7 +621,8 @@ struct Target<'a> {
     history: &'a History,
     clipboard: RefCell<Vec<String>>,
     activated: RefCell<Vec<ModelId>>,
-    shown: RefCell<usize>,
+    shown: RefCell<Vec<MainPage>>,
+    update_checks: RefCell<usize>,
     exited: RefCell<bool>,
 }
 
@@ -628,6 +634,7 @@ impl<'a> Target<'a> {
             clipboard: RefCell::default(),
             activated: RefCell::default(),
             shown: RefCell::default(),
+            update_checks: RefCell::default(),
             exited: RefCell::default(),
         }
     }
@@ -647,8 +654,11 @@ impl ActionTarget for Target<'_> {
     fn activate_model(&self, model: ModelId) {
         self.activated.borrow_mut().push(model);
     }
-    fn show_main_window(&self) {
-        *self.shown.borrow_mut() += 1;
+    fn open_main_page(&self, page: MainPage) {
+        self.shown.borrow_mut().push(page);
+    }
+    fn check_for_updates(&self) {
+        *self.update_checks.borrow_mut() += 1;
     }
     fn exit(&self) {
         *self.exited.borrow_mut() = true;
@@ -712,7 +722,7 @@ fn acceptance_5_copy_last_transcript_copies_the_newest_entry() {
 }
 
 #[test]
-fn acceptance_6_choosing_another_model_activates_it_and_settings_opens_the_window() {
+fn acceptance_6_choosing_another_model_activates_it_and_settings_opens_the_app_page() {
     let rig = rig(FakeEngine::returning("x"), finite_source());
     let history = history(&[]);
     let target = Target::new(&rig.dictation, &history);
@@ -721,7 +731,7 @@ fn acceptance_6_choosing_another_model_activates_it_and_settings_opens_the_windo
     perform(TrayAction::Settings, &target);
 
     assert_eq!(*target.activated.borrow(), [ModelId::WhisperSmall]);
-    assert_eq!(*target.shown.borrow(), 1);
+    assert_eq!(*target.shown.borrow(), [MainPage::App]);
 }
 
 #[test]
@@ -749,4 +759,45 @@ fn acceptance_9_quit_during_recording_inserts_and_stores_nothing() {
 fn closing_the_main_window_shows_the_hint_once_then_hides() {
     assert_eq!(close_outcome(false), CloseOutcome::ShowHint);
     assert_eq!(close_outcome(true), CloseOutcome::Hide);
+}
+
+// updater.md "UI" and rule 11.
+#[test]
+fn check_for_updates_follows_settings_and_is_hidden_when_updates_are_disabled() {
+    let entries = menu(VERSION, &inputs());
+    let shown = labels(&entries);
+    let settings = shown.iter().position(|label| label == "Settings…").unwrap();
+    assert_eq!(shown[settings + 1], "Check for updates…");
+    assert_eq!(
+        item(&entries, TrayAction::CheckForUpdates),
+        Some(("Check for updates…".into(), true))
+    );
+
+    let mut disabled = inputs();
+    disabled.updates_enabled = false;
+    assert_eq!(
+        item(&menu(VERSION, &disabled), TrayAction::CheckForUpdates),
+        None
+    );
+
+    let mut polish = inputs();
+    polish.language = UiLanguage::Pl;
+    assert_eq!(
+        item(&menu(VERSION, &polish), TrayAction::CheckForUpdates)
+            .unwrap()
+            .0,
+        "Sprawdź aktualizacje…"
+    );
+}
+
+#[test]
+fn check_for_updates_opens_the_app_page_and_runs_a_manual_check() {
+    let rig = rig(FakeEngine::returning("x"), finite_source());
+    let history = history(&[]);
+    let target = Target::new(&rig.dictation, &history);
+
+    perform(TrayAction::CheckForUpdates, &target);
+
+    assert_eq!(*target.shown.borrow(), [MainPage::App]);
+    assert_eq!(*target.update_checks.borrow(), 1);
 }

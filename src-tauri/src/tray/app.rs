@@ -27,6 +27,7 @@ use super::{
 use crate::dictation::{Dictation, DictationStatus};
 use crate::history::History;
 use crate::models::{ModelId, ModelManager};
+use crate::overlay::app::{MainPage, MainPageRequested};
 use crate::settings::SettingsStore;
 use crate::window::{MAIN_WINDOW, show_main};
 
@@ -77,6 +78,7 @@ pub fn install(app: &AppHandle) -> tauri::Result<()> {
             .state::<History>()
             .latest()
             .map_or(true, |entry| entry.is_none()),
+        updates_enabled: crate::updater::app::enabled(app),
     };
     let size = Arc::new(AtomicU32::new(icon_size(app)));
     let tray = TrayIconBuilder::with_id("echo")
@@ -309,8 +311,15 @@ impl ActionTarget for AppTarget<'_> {
         });
     }
 
-    fn show_main_window(&self) {
+    fn open_main_page(&self, page: MainPage) {
         show_main(self.0);
+        if let Err(error) = MainPageRequested(page).emit_to(self.0, MAIN_WINDOW) {
+            log::warn!("could not open the {page:?} page: {error}");
+        }
+    }
+
+    fn check_for_updates(&self) {
+        crate::updater::app::check_now(self.0);
     }
 
     fn exit(&self) {

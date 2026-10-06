@@ -11,6 +11,7 @@ import type {
   OverlayView,
   Settings,
   SettingsPatch,
+  UpdaterView,
 } from "../bindings";
 
 /**
@@ -33,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trayHintShown: false,
   showOverlay: true,
   overlayPosition: "bottom",
+  checkUpdatesAutomatically: true,
   dictationLanguage: "automatic",
   vocabulary: [],
 };
@@ -111,6 +113,13 @@ export class FakeBackend {
   overlay: OverlayView = { kind: "hidden" };
   /** The WAV file of fake-microphone mode, `null` in normal operation. */
   testAudio: string | null = null;
+  /** What the updater shows; tests change it with `changeUpdater`. */
+  updater: UpdaterView = {
+    currentVersion: "0.1.0",
+    managed: false,
+    status: { state: "idle" },
+    updatedTo: null,
+  };
   /** Whether Windows "Startup apps" has Echo's sign-in entry turned off. */
   autostartDisabledInWindows = false;
   /** Every command invoked, in order, with its arguments. */
@@ -169,6 +178,13 @@ export class FakeBackend {
     },
     get_dictation_status: () => this.dictation,
     get_test_audio: () => this.testAudio,
+    get_updater_view: () => this.updater,
+    check_for_updates: () => null,
+    install_update: () => null,
+    dismiss_update_notice: () => {
+      this.changeUpdater({ updatedTo: null });
+      return null;
+    },
     dictation_window_seen: () => {
       this.changeDictation({ error: null });
       return null;
@@ -259,6 +275,12 @@ export class FakeBackend {
   changeDictation(patch: Partial<DictationStatus>) {
     this.dictation = { ...this.dictation, ...patch };
     this.emit("dictation-status-changed", this.dictation);
+  }
+
+  /** Changes what the updater shows and sends `updater-changed`. */
+  changeUpdater(patch: Partial<UpdaterView>) {
+    this.updater = { ...this.updater, ...patch };
+    this.emit("updater-changed", this.updater);
   }
 
   /** Changes what the Overlay shows and sends `overlay-view-changed`. */

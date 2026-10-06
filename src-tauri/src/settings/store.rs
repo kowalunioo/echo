@@ -387,6 +387,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "checkUpdatesAutomatically": true,
                 "dictationLanguage": "automatic",
                 "vocabulary": [],
             })
@@ -503,6 +504,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "checkUpdatesAutomatically": true,
                 "dictationLanguage": "automatic",
                 "vocabulary": [],
             })
@@ -630,6 +632,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "checkUpdatesAutomatically": true,
                 "dictationLanguage": "automatic",
                 "vocabulary": [],
             })
@@ -720,6 +723,7 @@ mod tests {
                 added: vec![
                     "activeModel".into(),
                     "cancelShortcut".into(),
+                    "checkUpdatesAutomatically".into(),
                     "dictationLanguage".into(),
                     "historyLimit".into(),
                     "microphone".into(),

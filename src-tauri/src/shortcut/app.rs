@@ -12,6 +12,7 @@ use specta::Type;
 use tauri::{AppHandle, Manager, State};
 use tauri_specta::Event;
 
+use super::modes::RecordIntent;
 use super::record::{
     RecordShortcut, RecordShortcutConfig, RecordShortcutHandle, ShortcutChangeError, spawn,
 };
@@ -91,6 +92,13 @@ pub fn install(app: &AppHandle) {
         core,
         // The dictation pipeline is installed before the Record Shortcut.
         Box::new(move |intent| {
+            // An update is installing and Echo is about to restart (updater.md rule 5).
+            if matches!(intent, RecordIntent::Start)
+                && crate::updater::app::installing(&intents_app)
+            {
+                log::info!("Not starting a Dictation: an update is installing");
+                return;
+            }
             if let Some(dictation) = intents_app.try_state::<Dictation>() {
                 dictation.intent(intent);
             }

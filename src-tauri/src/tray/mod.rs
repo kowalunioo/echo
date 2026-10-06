@@ -112,6 +112,7 @@ pub enum TrayAction {
     CopyLastTranscript,
     ActivateModel(ModelId),
     Settings,
+    CheckForUpdates,
     Quit,
 }
 
@@ -123,6 +124,7 @@ impl TrayAction {
             TrayAction::CopyLastTranscript => "copy-last-transcript".into(),
             TrayAction::ActivateModel(model) => format!("model-{}", model.index()),
             TrayAction::Settings => "settings".into(),
+            TrayAction::CheckForUpdates => "check-for-updates".into(),
             TrayAction::Quit => "quit".into(),
         }
     }
@@ -133,6 +135,7 @@ impl TrayAction {
             "cancel" => TrayAction::Cancel,
             "copy-last-transcript" => TrayAction::CopyLastTranscript,
             "settings" => TrayAction::Settings,
+            "check-for-updates" => TrayAction::CheckForUpdates,
             "quit" => TrayAction::Quit,
             other => {
                 let index: usize = other.strip_prefix("model-")?.parse().ok()?;
@@ -202,6 +205,8 @@ pub struct TrayInputs {
     pub language: UiLanguage,
     pub models: MenuModels,
     pub history_empty: bool,
+    /// The updater runs: "Check for updates…" is shown (`updater.md` rule 11).
+    pub updates_enabled: bool,
 }
 
 /// The tray menu (rules 7–9, 11).
@@ -234,7 +239,13 @@ pub fn menu(version: &str, inputs: &TrayInputs) -> Vec<MenuEntry> {
     entries.push(models_entry(labels, &inputs.models, busy));
     entries.push(MenuEntry::Separator);
     entries.push(item(TrayAction::Settings, labels.settings, true));
-    // "Check for updates…" (rule 7.8) goes here; it arrives with the updater (#24).
+    if inputs.updates_enabled {
+        entries.push(item(
+            TrayAction::CheckForUpdates,
+            labels.check_for_updates,
+            true,
+        ));
+    }
     entries.push(MenuEntry::Separator);
     entries.push(item(TrayAction::Quit, labels.quit, true));
     entries
