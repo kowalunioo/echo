@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import type { UnloadModelAfter } from "../bindings";
 import { useModels } from "../store/models";
 import { useSetting } from "../store/settings";
+import { DictationLanguagePicker } from "./DictationLanguagePicker";
 import { ModelCard } from "./ModelCard";
 
 /** The Models part of the "Model & language" page (models.md "UI"). */
@@ -29,6 +30,7 @@ export function ModelsSection() {
           <ModelCard key={entry.id} entry={entry} models={models} />
         ))}
       </ul>
+      <DictationLanguagePicker />
       <UnloadAfterPicker />
     </section>
   );

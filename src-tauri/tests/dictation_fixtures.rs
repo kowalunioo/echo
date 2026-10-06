@@ -19,6 +19,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use echo_lib::audio::{Pace, WavAudioSource, WavOptions};
+use echo_lib::dictation::language::{DictationLanguageSetting, effective_language};
 use echo_lib::dictation::vad::Earshot;
 use echo_lib::dictation::{
     Dictation, DictationContext, DictationDeps, DictationModel, DictationModels, DictationState,
@@ -26,7 +27,7 @@ use echo_lib::dictation::{
 };
 use echo_lib::engine::{DictationLanguage, FakeEngine, TranscribeCppEngine};
 use echo_lib::insertion::{FakeInserter, SharedInserter};
-use echo_lib::models::NoActiveModel;
+use echo_lib::models::{ModelId, NoActiveModel};
 use echo_lib::shortcut::modes::RecordIntent;
 
 use common::acceptance;
@@ -151,20 +152,24 @@ fn cisza_never_reaches_the_engine() {
 }
 
 /// The default Model, as the user selects it for the threshold table (rule 50).
-const DEFAULT_MODEL: (&str, &str) = ("Whisper large-v3-turbo", "whisper-large-v3-turbo-Q8_0.gguf");
+const DEFAULT_MODEL: ModelId = ModelId::WhisperLargeV3Turbo;
 /// The other Models of `models.md`: `cisza.wav` stays mandatory, WER is reported (rule 52).
-const OTHER_MODELS: [(&str, &str); 2] = [
-    ("Whisper small", "whisper-small-Q8_0.gguf"),
-    ("Parakeet TDT 0.6B v3", "parakeet-tdt-0.6b-v3-Q8_0.gguf"),
-];
+const OTHER_MODELS: [ModelId; 2] = [ModelId::WhisperSmall, ModelId::ParakeetTdt06bV3];
 
-fn real_model((name, file): (&str, &str)) -> Option<Arc<dyn DictationModel>> {
+/// A real Model as a run uses it: its id decides the effective Dictation Language.
+struct RealModel {
+    id: ModelId,
+    model: Arc<dyn DictationModel>,
+}
+
+fn real_model(id: ModelId) -> Option<RealModel> {
+    let info = id.info();
     let models = dir("ECHO_MODELS_DIR", &[".toolchain", "models"]);
-    let path = existing(models.join(file), &format!("Model {name}"))?;
-    Some(Arc::new(EngineModel::new(
-        name,
-        TranscribeCppEngine::new(path),
-    )))
+    let path = existing(models.join(info.file_name), &format!("Model {}", info.name))?;
+    Some(RealModel {
+        id,
+        model: Arc::new(EngineModel::new(info.name, TranscribeCppEngine::new(path))),
+    })
 }
 
 /// Which Dictation Language a run uses.
@@ -179,7 +184,7 @@ enum Language {
 /// Runs every fixture of the rule 50 table that is present through `model` and returns one
 /// report line per fixture plus the failures among the rows `mandatory` selects.
 fn run_table(
-    model: &Arc<dyn DictationModel>,
+    model: &RealModel,
     language: Language,
     mandatory: impl Fn(&acceptance::Fixture) -> bool,
 ) -> (Vec<String>, Vec<String>) {
@@ -189,14 +194,17 @@ fn run_table(
         let Some(wav) = fixture(row.file) else {
             continue;
         };
+        // The setting path of the app: the intent, resolved against the Model (rule 4).
+        let intent = match language {
+            Language::Table => DictationLanguageSetting::try_from(row.language.to_owned())
+                .expect("the table's language is one a Model supports"),
+            Language::Automatic => DictationLanguageSetting::automatic(),
+        };
         let context = DictationContext {
-            language: match language {
-                Language::Table => DictationLanguage::Specific(row.language.to_owned()),
-                Language::Automatic => DictationLanguage::Automatic,
-            },
+            language: effective_language(&intent, Some(model.id)),
             vocabulary: row.vocabulary.iter().map(|t| (*t).to_owned()).collect(),
         };
-        let outcome = dictate_with(Arc::clone(model), &wav, context);
+        let outcome = dictate_with(Arc::clone(&model.model), &wav, context);
         let actual = outcome.inserted.join(" ");
         let verdict = match row.accepts(&actual) {
             Ok(()) => "ok".to_owned(),
@@ -291,10 +299,14 @@ fn other_models_keep_silence_empty() {
         };
         let (report, failed) = run_table(&model, Language::Table, |row| row.max_wer.is_none());
         print_report(
-            &format!("{}, table language (cisza mandatory)", spec.0),
+            &format!("{}, table language (cisza mandatory)", spec.info().name),
             &report,
         );
-        failures.extend(failed.into_iter().map(|f| format!("{}: {f}", spec.0)));
+        failures.extend(
+            failed
+                .into_iter()
+                .map(|f| format!("{}: {f}", spec.info().name)),
+        );
     }
     assert!(
         failures.is_empty(),

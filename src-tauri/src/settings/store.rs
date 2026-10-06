@@ -387,6 +387,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "dictationLanguage": "automatic",
             })
             .to_string(),
         )
@@ -405,6 +406,26 @@ mod tests {
         assert_eq!(settings.ui_language, UiLanguage::En);
         assert!(settings.onboarding_completed);
         assert_eq!(read_json(&path)["uiLanguage"], "en", "file is rewritten");
+    }
+
+    #[test]
+    fn an_unknown_dictation_language_is_reset_to_automatic() {
+        let (_dir, path) = settings_path();
+        let mut stored = serde_json::to_value(defaults()).unwrap();
+        stored["version"] = json!(1);
+        stored["dictationLanguage"] = json!("klingon");
+        fs::write(&path, stored.to_string()).unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(
+            outcome,
+            LoadOutcome::Repaired {
+                reset: vec!["dictationLanguage".into()],
+                added: vec![]
+            }
+        );
+        assert_eq!(store.get().dictation_language.code(), None);
     }
 
     #[test]
@@ -428,6 +449,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "dictationLanguage": "automatic",
             })
             .to_string(),
         )
@@ -553,6 +575,7 @@ mod tests {
                 "trayHintShown": false,
                 "showOverlay": true,
                 "overlayPosition": "bottom",
+                "dictationLanguage": "automatic",
             })
             .to_string(),
         )
@@ -641,6 +664,7 @@ mod tests {
                 added: vec![
                     "activeModel".into(),
                     "cancelShortcut".into(),
+                    "dictationLanguage".into(),
                     "historyLimit".into(),
                     "microphone".into(),
                     "onboardingCompleted".into(),
