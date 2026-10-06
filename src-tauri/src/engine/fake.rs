@@ -27,6 +27,7 @@ struct State {
     outcome: Result<String, EngineError>,
     delay: Duration,
     loads: usize,
+    unloads: usize,
     requests: Vec<ReceivedRequest>,
 }
 
@@ -62,12 +63,18 @@ impl FakeEngine {
         self.state().loads
     }
 
+    /// How many times [`Engine::unload`] was called.
+    pub fn unload_count(&self) -> usize {
+        self.state().unloads
+    }
+
     fn with_outcome(outcome: Result<String, EngineError>) -> Self {
         Self {
             state: Arc::new(Mutex::new(State {
                 outcome,
                 delay: Duration::ZERO,
                 loads: 0,
+                unloads: 0,
                 requests: Vec::new(),
             })),
         }
@@ -99,6 +106,10 @@ impl Engine for FakeEngine {
             thread::sleep(delay);
         }
         self.state().outcome.clone()
+    }
+
+    fn unload(&mut self) {
+        self.state().unloads += 1;
     }
 }
 
@@ -166,10 +177,11 @@ mod tests {
     }
 
     #[test]
-    fn counts_loads_and_follows_outcome_changes() {
+    fn counts_loads_and_unloads_and_follows_outcome_changes() {
         let probe = FakeEngine::returning("a");
         let mut engine = probe.clone();
         engine.load().unwrap();
+        engine.unload();
         probe.set_outcome(Ok("b".into()));
 
         let text = engine
@@ -177,6 +189,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(probe.load_count(), 1);
+        assert_eq!(probe.unload_count(), 1);
         assert_eq!(text, "b");
     }
 }

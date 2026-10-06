@@ -1,11 +1,20 @@
 //! The **Engine** seam: converts speech audio into a Transcript using a Model.
 //!
-//! The real Engine (transcribe-cpp, ADR 0003) arrives in a later slice; nothing outside its own
-//! module will see transcribe-cpp types. [`FakeEngine`] stands in for it in tests.
+//! [`TranscribeCppEngine`] is the real Engine (transcribe-cpp, ADR 0003); no transcribe-cpp type
+//! appears outside this module. [`FakeEngine`] stands in for it in tests.
 
+mod acceleration;
 mod fake;
+mod model_engine;
+mod transcribe_cpp;
 
+pub use acceleration::{Acceleration, ComputeDevice};
 pub use fake::{FakeEngine, ReceivedRequest};
+pub use transcribe_cpp::TranscribeCppEngine;
+
+/// Joins Vocabulary entries into the hint a prompt-accepting Model receives (`vocabulary.md`
+/// rule 8).
+pub const VOCABULARY_SEPARATOR: &str = ", ";
 
 /// Sample rate of the audio an Engine accepts.
 pub const ENGINE_SAMPLE_RATE: u32 = crate::audio::TARGET_SAMPLE_RATE;
@@ -60,6 +69,8 @@ pub enum EngineError {
 ///   correction) is applied by the caller (rule 25). An empty string means "no speech" and is
 ///   not an error.
 /// - Cancellation does not interrupt an Engine: the caller discards a late result (rule 39).
+/// - [`unload`](Engine::unload) frees the Model's memory (idle unload, `models.md` rule 24a;
+///   quitting). The Engine stays usable: the next `load` or `transcribe` loads it again.
 /// - After an [`EngineError::Transcription`] the Engine stays usable; an implementation that
 ///   detects a crashed Model unloads it so the next call reloads it (rule 23).
 pub trait Engine: Send {
@@ -68,4 +79,7 @@ pub trait Engine: Send {
 
     /// Transcribes one Dictation's speech audio.
     fn transcribe(&mut self, request: TranscriptionRequest<'_>) -> Result<String, EngineError>;
+
+    /// Frees the Model's memory if it is loaded; does nothing otherwise.
+    fn unload(&mut self);
 }
