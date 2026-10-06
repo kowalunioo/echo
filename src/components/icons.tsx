@@ -72,3 +72,47 @@ const pageIcons: Record<Page, ReactNode> = {
 export function PageIcon({ page }: { page: Page }) {
   return pageIcons[page];
 }
+
+export function CopyIcon() {
+  return (
+    <Icon width="16" height="16">
+      <rect x="8.5" y="8.5" width="11" height="11" rx="2" />
+      <path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" />
+    </Icon>
+  );
+}
+
+/** Re-insert: text going back into the application. */
+export function ReinsertIcon() {
+  return (
+    <Icon width="16" height="16">
+      <path d="M19 5v6.5a3 3 0 0 1-3 3H5.5" />
+      <path d="m9.5 10.5-4 4 4 4" />
+    </Icon>
+  );
+}
+
+export function TrashIcon() {
+  return (
+    <Icon width="16" height="16">
+      <path d="M4.5 7h15M9.5 7V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v2" />
+      <path d="m6.5 7 .8 11.2a2 2 0 0 0 2 1.8h5.4a2 2 0 0 0 2-1.8L17.5 7" />
+    </Icon>
+  );
+}
+
+export function MinusIcon() {
+  return (
+    <Icon width="14" height="14">
+      <path d="M6 12h12" />
+    </Icon>
+  );
+}
+
+export function PlusIcon() {
+  return (
+    <Icon width="14" height="14">
+      <path d="M6 12h12M12 6v12" />
+    </Icon>
+  );
+}

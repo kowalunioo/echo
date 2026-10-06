@@ -36,6 +36,9 @@ tauri-specta = { version = "=2.0.0-rc.25", features = ["derive", "typescript"] }
 # source with CMake. Default features are off to drop Metal (Apple only); GPU support comes from
 # Echo's own `vulkan` feature below.
 transcribe-cpp = { version = "0.3.1", default-features = false }
+# History storage (`history.md` rule 5). `bundled` compiles SQLite in, so nothing depends on a
+# system copy.
+rusqlite = { version = "0.37", features = ["bundled"] }
 # Model downloads (`models.md`). TLS through Windows' own Schannel (native-tls), so no extra
 # crypto library is compiled in; the system proxy is honoured like any Windows app.
 reqwest = { version = "0.13", default-features = false, features = ["native-tls", "system-proxy"] }

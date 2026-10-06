@@ -64,6 +64,8 @@ settings_model! {
     onboarding_welcome_done: bool,
     /// The user pressed "Finish" in the onboarding; it is never shown again (rule 5).
     onboarding_completed: bool,
+    /// How many Transcripts History keeps (`history.md` rules 6–9).
+    history_limit: HistoryLimit,
     /// The input device Recordings listen to (`microphone.md`).
     microphone: MicrophoneChoice,
     /// The Model Dictations use, or none (`models.md` rules 17–23). Owned by the Model manager:
@@ -87,6 +89,7 @@ impl Settings {
             ui_language: UiLanguage::for_locale(system_locale),
             onboarding_welcome_done: false,
             onboarding_completed: false,
+            history_limit: HistoryLimit::default(),
             microphone: MicrophoneChoice::Default,
             active_model: None,
             unload_model_after: UnloadModelAfter::Never,
@@ -146,6 +149,48 @@ impl UiLanguage {
     }
 }
 
+/// How many entries History keeps: an integer 0–100, default 5; 0 keeps nothing (`history.md`
+/// rules 6–9). Deserialising rejects anything outside the range, so invalid stored values are
+/// salvaged to the default and invalid patches are refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(try_from = "u32", into = "u32")]
+#[specta(transparent)]
+pub struct HistoryLimit(u8);
+
+impl HistoryLimit {
+    pub const MAX: u8 = 100;
+    pub const DEFAULT: u8 = 5;
+
+    /// The number of entries to keep.
+    pub fn get(self) -> u32 {
+        u32::from(self.0)
+    }
+}
+
+impl Default for HistoryLimit {
+    fn default() -> Self {
+        Self(Self::DEFAULT)
+    }
+}
+
+impl TryFrom<u32> for HistoryLimit {
+    type Error = String;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        u8::try_from(value)
+            .ok()
+            .filter(|v| *v <= Self::MAX)
+            .map(Self)
+            .ok_or_else(|| format!("History limit must be 0–{}, got {value}", Self::MAX))
+    }
+}
+
+impl From<HistoryLimit> for u32 {
+    fn from(limit: HistoryLimit) -> Self {
+        limit.get()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,6 +217,21 @@ mod tests {
             Settings::defaults(Some("de-DE")).ui_language,
             UiLanguage::En
         );
+    }
+
+    // history.md acceptance test 7.
+    #[test]
+    fn the_history_limit_accepts_0_to_100_only() {
+        let parse = |v: serde_json::Value| serde_json::from_value::<HistoryLimit>(v);
+        assert_eq!(parse(serde_json::json!(0)).unwrap().get(), 0);
+        assert_eq!(parse(serde_json::json!(100)).unwrap().get(), 100);
+        assert!(parse(serde_json::json!(-1)).is_err());
+        assert!(parse(serde_json::json!(101)).is_err());
+        assert!(parse(serde_json::json!(2.5)).is_err());
+        assert_eq!(Settings::defaults(None).history_limit.get(), 5);
+        let patch =
+            serde_json::from_value::<SettingsPatch>(serde_json::json!({"historyLimit": 101}));
+        assert!(patch.is_err());
     }
 
     // record-shortcut.md rules 5 and 18.

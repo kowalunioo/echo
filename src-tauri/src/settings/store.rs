@@ -352,6 +352,7 @@ mod tests {
                 "uiLanguage": "klingon",
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
+                "historyLimit": 5,
                 "microphone": { "kind": "device", "name": "USB Mic" },
                 "activeModel": null,
                 "unloadModelAfter": "never",
@@ -375,6 +376,40 @@ mod tests {
         assert_eq!(settings.ui_language, UiLanguage::En);
         assert!(settings.onboarding_completed);
         assert_eq!(read_json(&path)["uiLanguage"], "en", "file is rewritten");
+    }
+
+    #[test]
+    fn an_out_of_range_history_limit_is_reset_to_its_default() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({
+                "version": 1,
+                "uiLanguage": "pl",
+                "onboardingWelcomeDone": true,
+                "onboardingCompleted": true,
+                "historyLimit": 101,
+                "microphone": { "kind": "default" },
+                "activeModel": null,
+                "unloadModelAfter": "never",
+                "recordShortcut": "Ctrl+Space",
+                "shortcutMode": "pushToTalk",
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert_eq!(
+            outcome,
+            LoadOutcome::Repaired {
+                reset: vec!["historyLimit".into()],
+                added: vec![]
+            }
+        );
+        assert_eq!(store.get().history_limit.get(), 5);
+        assert_eq!(store.get().ui_language, UiLanguage::Pl);
     }
 
     #[test]
@@ -474,6 +509,7 @@ mod tests {
                 "onboardingWelcomeDone": true,
                 "onboardingCompleted": true,
                 "activeModel": null,
+                "historyLimit": 5,
                 "microphone": { "kind": "default" },
                 "unloadModelAfter": "never",
                 "recordShortcut": "Space",
@@ -533,6 +569,7 @@ mod tests {
                 reset: vec![],
                 added: vec![
                     "activeModel".into(),
+                    "historyLimit".into(),
                     "microphone".into(),
                     "onboardingCompleted".into(),
                     "onboardingWelcomeDone".into(),

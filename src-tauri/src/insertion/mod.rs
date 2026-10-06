@@ -11,6 +11,8 @@ pub mod paste;
 #[cfg(windows)]
 mod win32;
 
+use std::sync::{Arc, Mutex, PoisonError};
+
 pub use fake::FakeInserter;
 #[cfg(windows)]
 pub use win32::{WindowsInserter, system_inserter};
@@ -41,4 +43,63 @@ pub enum InsertionError {
 pub trait Inserter: Send {
     /// Inserts `text` into the focused application.
     fn insert(&mut self, text: &str) -> Result<(), InsertionError>;
+}
+
+/// The app-wide Inserter, kept in Tauri's managed state so every feature that inserts text
+/// (a Dictation, History's Re-insert) uses the same Insertion method (`history.md` rule 13).
+///
+/// It starts empty: until the real Inserter is registered with [`set`](Self::set), every
+/// Insertion fails with [`InsertionError::Failed`]. Clones share the same Inserter, and
+/// insertions are serialised so two never interleave.
+#[derive(Clone, Default)]
+pub struct SharedInserter {
+    inner: Arc<Mutex<Option<Box<dyn Inserter>>>>,
+}
+
+impl SharedInserter {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Registers the Inserter every later Insertion uses, replacing any earlier one.
+    pub fn set(&self, inserter: impl Inserter + 'static) {
+        *self.inner.lock().unwrap_or_else(PoisonError::into_inner) = Some(Box::new(inserter));
+    }
+
+    /// Inserts `text` with the registered Inserter. Blocking; call it from a worker thread.
+    pub fn insert(&self, text: &str) -> Result<(), InsertionError> {
+        match self
+            .inner
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .as_mut()
+        {
+            Some(inserter) => inserter.insert(text),
+            None => Err(InsertionError::Failed("no Inserter is available".into())),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_shared_inserter_without_an_inserter_fails() {
+        assert!(matches!(
+            SharedInserter::new().insert("x"),
+            Err(InsertionError::Failed(_))
+        ));
+    }
+
+    #[test]
+    fn a_shared_inserter_uses_the_registered_inserter() {
+        let probe = FakeInserter::new();
+        let shared = SharedInserter::new();
+        shared.set(probe.clone());
+
+        shared.clone().insert("Ala ma kota").unwrap();
+
+        assert_eq!(probe.inserted(), vec!["Ala ma kota"]);
+    }
 }
