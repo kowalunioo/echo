@@ -59,6 +59,13 @@ export const commands = {
 	 */
 	openMicrophonePrivacySettings: () => typedError<null, string>(__TAURI_INVOKE("open_microphone_privacy_settings")),
 	/**
+	 *  The effective autostart state: whether Windows "Startup apps" has turned Echo off while the
+	 *  setting is on (rule 9). The setting itself comes with the other settings.
+	 */
+	autostartStatus: () => __TAURI_INVOKE<AutostartStatus>("autostart_status"),
+	/**  Opens the Windows Startup apps settings page. */
+	openStartupAppsSettings: () => typedError<null, string>(__TAURI_INVOKE("open_startup_apps_settings")),
+	/**
 	 *  A fresh list of the input devices and the current Windows default. The Microphone picker
 	 *  asks for it every time it opens (`microphone.md` rule 8).
 	 */
@@ -126,6 +133,15 @@ export type AppInfo = {
 	version: string,
 	/**  The Windows display language as a BCP 47 tag, if Windows reports one. */
 	systemLocale: string | null,
+};
+
+/**  The effective autostart state the App page shows. */
+export type AutostartStatus = {
+	/**
+	 *  The setting is on but Windows "Startup apps" has Echo's entry turned off, so Echo will not
+	 *  start at sign-in (rule 9).
+	 */
+	disabledInWindows: boolean,
 };
 
 /**
@@ -353,6 +369,8 @@ export type Settings = {
 	recordShortcut: RecordShortcutCombination,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
 	shortcutMode: ShortcutMode,
+	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
+	startWithWindows: boolean,
 };
 
 /**  Sent to every window after any change to the settings, with the complete new settings. */
@@ -389,6 +407,8 @@ export type SettingsPatch = {
 	recordShortcut?: RecordShortcutCombination | null,
 	/**  Push-to-Talk Mode or Toggle Mode (`record-shortcut.md`). */
 	shortcutMode?: ShortcutMode | null,
+	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
+	startWithWindows?: boolean | null,
 };
 
 /**  Why a new Record Shortcut was not taken; the previous one stays active (rule 23). */

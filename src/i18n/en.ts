@@ -41,7 +41,7 @@ export const en = {
     app: {
       title: "App",
       description: "Language of the interface, start-up, updates and information about Echo.",
-      upcoming: "Start with Windows, the recording indicator and automatic updates.",
+      upcoming: "The recording indicator and automatic updates.",
     },
   },
   placeholder: {
@@ -62,6 +62,13 @@ export const en = {
     systemLanguage: {
       label: "Windows display language",
       unknown: "Not reported",
+    },
+    autostart: {
+      label: "Start Echo when I sign in to Windows",
+      description: "Echo starts in the tray when you sign in.",
+      disabledInWindows: "Turned off in Windows Startup apps",
+      openStartupApps: "Open Startup apps",
+      openFailed: "The Windows settings could not be opened.",
     },
     logFolder: {
       label: "Diagnostic log",
