@@ -13,7 +13,7 @@ use std::sync::{Mutex, MutexGuard, PoisonError, RwLock};
 use serde_json::{Map, Value};
 
 use super::{Settings, SettingsPatch};
-use crate::data_dir::write_atomic;
+use crate::data_dir::{without_utf8_bom, write_atomic};
 
 /// The version written into the settings file. Bump it only together with a migration step in
 /// [`migrate`]; adding a setting does not need a new version (missing keys get defaults).
@@ -194,7 +194,7 @@ fn load(path: &Path, defaults: &Settings) -> (Settings, Map<String, Value>, Load
             return broken(path, defaults);
         }
     };
-    let Ok(Value::Object(file)) = serde_json::from_slice::<Value>(&bytes) else {
+    let Ok(Value::Object(file)) = serde_json::from_slice::<Value>(without_utf8_bom(&bytes)) else {
         log::warn!("settings file is not a JSON object; using defaults");
         return broken(path, defaults);
     };
@@ -339,6 +339,30 @@ mod tests {
         let (reopened, outcome) = SettingsStore::open(&path, defaults());
         assert_eq!(outcome, LoadOutcome::Clean);
         assert_eq!(reopened.get().ui_language, UiLanguage::Pl);
+    }
+
+    // Issue #34: Windows PowerShell 5.1 and Notepad may save a manual edit with a UTF-8 BOM.
+    #[test]
+    fn a_file_starting_with_a_utf8_bom_loads_intact_and_is_rewritten_without_it() {
+        let (dir, path) = settings_path();
+        let mut bytes = b"\xEF\xBB\xBF".to_vec();
+        bytes.extend(
+            json!({ "version": SETTINGS_FORMAT_VERSION, "uiLanguage": "pl" })
+                .to_string()
+                .into_bytes(),
+        );
+        fs::write(&path, bytes).unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert!(
+            !matches!(outcome, LoadOutcome::Broken { .. }),
+            "{outcome:?}"
+        );
+        assert!(!dir.path().join("settings.json.broken").exists());
+        assert_eq!(store.get().ui_language, UiLanguage::Pl);
+        store.update(|s| s.ui_language = UiLanguage::En).unwrap();
+        assert!(!fs::read(&path).unwrap().starts_with(b"\xEF\xBB\xBF"));
     }
 
     // settings-and-first-run.md acceptance test 9.

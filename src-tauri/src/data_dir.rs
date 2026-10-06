@@ -71,6 +71,13 @@ pub fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
     })
 }
 
+/// The bytes of a JSON file Echo reads back, without a leading UTF-8 byte order mark. Windows
+/// PowerShell 5.1 and Notepad may add one when the user edits the file by hand, and `serde_json`
+/// rejects it. Echo itself always writes without one.
+pub fn without_utf8_bom(bytes: &[u8]) -> &[u8] {
+    bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,6 +96,14 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(leftovers, vec![std::ffi::OsString::from("file.json")]);
+    }
+
+    #[test]
+    fn a_leading_utf8_bom_is_stripped_and_nothing_else_is() {
+        assert_eq!(without_utf8_bom(b"\xEF\xBB\xBF{}"), b"{}");
+        assert_eq!(without_utf8_bom(b"{}"), b"{}");
+        assert_eq!(without_utf8_bom(b"\xEF\xBB"), b"\xEF\xBB");
+        assert_eq!(without_utf8_bom(b""), b"");
     }
 
     #[test]
