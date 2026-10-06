@@ -183,9 +183,19 @@ where
         } else {
             self.idle_since = None;
         }
-        if self.up_to_date_until.is_some_and(|until| now >= until) {
+        // "Up to date" counts its 3 s from the first tick after the result: the feed check
+        // blocks, so the time the check started can already be 3 s in the past.
+        if self.status == UpdateStatus::UpToDate {
+            match self.up_to_date_until {
+                None => self.up_to_date_until = Some(now + UP_TO_DATE_FOR),
+                Some(until) if now >= until => {
+                    self.up_to_date_until = None;
+                    self.set(UpdateStatus::Idle, host);
+                }
+                Some(_) => {}
+            }
+        } else {
             self.up_to_date_until = None;
-            self.set(UpdateStatus::Idle, host);
         }
         let automatic = host.automatic();
         if !automatic {
@@ -213,7 +223,7 @@ where
     }
 
     /// "Check for updates" from the tray or the settings (rule 7).
-    pub fn check_manually(&mut self, now: Duration, host: &impl Host) {
+    pub fn check_manually(&mut self, host: &impl Host) {
         if let Some(pending) = &self.pending {
             // Already found or downloaded: offer it without asking the feed again.
             let version = pending.version().to_string();
@@ -238,7 +248,6 @@ where
                 self.set(UpdateStatus::Available { version }, host);
             }
             Ok(_) => {
-                self.up_to_date_until = Some(now + UP_TO_DATE_FOR);
                 self.set(UpdateStatus::UpToDate, host);
             }
         }

@@ -109,7 +109,7 @@ fn acceptance_1_same_version_is_up_to_date() {
     serve(&server, "0.1.0", SIGNATURE);
     let mut updater = updater(&app, &server, &installer);
 
-    updater.check_manually(SECOND, &Host::new(true));
+    updater.check_manually(&Host::new(true));
     assert_eq!(updater.status(), &UpdateStatus::UpToDate);
     assert_eq!(server.received(), vec!["/latest.json"]);
 }
@@ -125,7 +125,7 @@ fn acceptance_2_a_newer_signed_version_installs_after_confirmation() {
     let mut updater = updater(&app, &server, &installer);
     let host = Host::new(true);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(
         updater.status(),
         &UpdateStatus::Available {
@@ -151,7 +151,7 @@ fn acceptance_3_a_package_signed_with_another_key_is_rejected() {
     let mut updater = updater(&app, &server, &installer);
     let host = Host::new(true);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     updater.install_confirmed(&host);
     assert_eq!(updater.status(), &UpdateStatus::Unverified);
     assert!(installer.installed.borrow().is_empty());
@@ -169,7 +169,7 @@ fn acceptance_3_a_missing_signature_is_rejected() {
     let mut updater = updater(&app, &server, &installer);
     let host = Host::new(true);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     updater.install_confirmed(&host);
     assert_eq!(updater.status(), &UpdateStatus::Unverified);
     assert!(installer.installed.borrow().is_empty());
@@ -186,7 +186,7 @@ fn acceptance_4_an_older_version_is_not_offered() {
     let mut updater = updater(&app, &server, &installer);
     let host = Host::new(true);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(updater.status(), &UpdateStatus::UpToDate);
     // Nor installed by an automatic check.
     for second in 2..=40 {
@@ -213,7 +213,7 @@ fn acceptance_6_with_automatic_checks_off_no_request_reaches_the_server() {
     updater.tick(CHECK_INTERVAL + 31 * SECOND, &host);
     assert!(server.received().is_empty());
 
-    updater.check_manually(CHECK_INTERVAL + 32 * SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(server.received(), vec!["/latest.json"]);
     assert_eq!(
         updater.status(),
@@ -257,6 +257,6 @@ fn acceptance_8_a_server_error_is_silent_when_automatic_and_shown_when_manual() 
     assert_eq!(server.received(), vec!["/latest.json"]);
     assert_eq!(updater.status(), &UpdateStatus::Idle);
 
-    updater.check_manually(32 * SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(updater.status(), &UpdateStatus::CheckFailed);
 }

@@ -113,7 +113,7 @@ pub fn install(app: &AppHandle, marker_file: PathBuf, disabled: bool, updated_to
                 let mut core = UpdaterCore::new(feed, PluginInstaller, version, Duration::ZERO);
                 loop {
                     match receiver.recv_timeout(Duration::from_secs(1)) {
-                        Ok(Command::Check) => core.check_manually(started.elapsed(), &host),
+                        Ok(Command::Check) => core.check_manually(&host),
                         Ok(Command::Install) => core.install_confirmed(&host),
                         Err(RecvTimeoutError::Timeout) => {}
                         Err(RecvTimeoutError::Disconnected) => break,

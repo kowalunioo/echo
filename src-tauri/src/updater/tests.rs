@@ -154,14 +154,34 @@ fn acceptance_1_manual_check_up_to_date_shows_for_3_s() {
     let host = FakeHost::default();
     let mut updater = core(&feed, &installer);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(
         *host.published.borrow(),
         vec![UpdateStatus::Checking, UpdateStatus::UpToDate]
     );
-    updater.tick(3 * SECOND, &host);
-    assert_eq!(updater.status(), &UpdateStatus::UpToDate);
+    // The 3 s count from the first tick after the result.
+    updater.tick(2 * SECOND, &host);
     updater.tick(4 * SECOND, &host);
+    assert_eq!(updater.status(), &UpdateStatus::UpToDate);
+    updater.tick(5 * SECOND, &host);
+    assert_eq!(updater.status(), &UpdateStatus::Idle);
+}
+
+#[test]
+fn up_to_date_still_shows_for_3_s_when_the_feed_answers_slowly() {
+    // The check started at 1 s, but the feed took 4 s to answer, so the first tick after
+    // the result is at 5 s; the user must still see "up to date" for 3 s from then.
+    let feed = FakeFeed::offering("0.1.0");
+    let installer = FakeInstaller::default();
+    let host = FakeHost::default();
+    let mut updater = core(&feed, &installer);
+
+    updater.check_manually(&host);
+    updater.tick(5 * SECOND, &host);
+    assert_eq!(updater.status(), &UpdateStatus::UpToDate);
+    updater.tick(7 * SECOND, &host);
+    assert_eq!(updater.status(), &UpdateStatus::UpToDate);
+    updater.tick(8 * SECOND, &host);
     assert_eq!(updater.status(), &UpdateStatus::Idle);
 }
 
@@ -172,7 +192,7 @@ fn acceptance_2_manual_install_happens_only_after_confirmation() {
     let host = FakeHost::default();
     let mut updater = core(&feed, &installer);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(updater.status(), &available("0.2.0"));
     assert_eq!(feed.downloads.get(), 0);
     // Idle for a long time: a manual find never installs on its own.
@@ -218,7 +238,7 @@ fn acceptance_3_an_unverified_package_is_never_installed() {
     let host = FakeHost::default();
     let mut updater = core(&feed, &installer);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     updater.install_confirmed(&host);
     assert_eq!(updater.status(), &UpdateStatus::Unverified);
     assert!(installer.installed.borrow().is_empty());
@@ -237,7 +257,7 @@ fn acceptance_4_an_older_version_is_never_offered() {
     let host = FakeHost::default();
     let mut updater = core(&feed, &installer);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(updater.status(), &UpdateStatus::UpToDate);
     run(&mut updater, &host, 2 * SECOND, 60 * SECOND);
     assert_eq!(feed.downloads.get(), 0);
@@ -288,7 +308,7 @@ fn acceptance_6_with_automatic_checks_off_only_manual_checks_reach_the_feed() {
     updater.tick(CHECK_INTERVAL + 60 * SECOND, &host);
     assert_eq!(feed.checks.get(), 0);
 
-    updater.check_manually(CHECK_INTERVAL + 61 * SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(feed.checks.get(), 1);
     assert_eq!(updater.status(), &available("0.2.0"));
 }
@@ -326,7 +346,7 @@ fn acceptance_8_automatic_check_errors_are_silent_manual_ones_are_shown() {
     assert_eq!(feed.checks.get(), 1);
     assert!(host.published.borrow().is_empty());
 
-    updater.check_manually(32 * SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(updater.status(), &UpdateStatus::CheckFailed);
 }
 
@@ -358,7 +378,7 @@ fn a_failed_manual_download_is_shown() {
     let host = FakeHost::default();
     let mut updater = core(&feed, &installer);
 
-    updater.check_manually(SECOND, &host);
+    updater.check_manually(&host);
     updater.install_confirmed(&host);
     assert_eq!(updater.status(), &UpdateStatus::DownloadFailed);
     assert!(installer.installed.borrow().is_empty());
@@ -373,7 +393,7 @@ fn a_manual_check_offers_an_update_already_downloaded_without_asking_again() {
     let mut updater = core(&feed, &installer);
     run(&mut updater, &host, Duration::ZERO, 30 * SECOND);
 
-    updater.check_manually(31 * SECOND, &host);
+    updater.check_manually(&host);
     assert_eq!(feed.checks.get(), 1);
     assert_eq!(updater.status(), &available("0.2.0"));
     updater.install_confirmed(&host);
