@@ -15,14 +15,28 @@ pub mod insertion;
 pub mod shortcut;
 
 use specta_typescript::Typescript;
-use tauri_specta::{Builder, collect_commands};
+use tauri_specta::{Builder, collect_commands, collect_events};
 
 /// Where the generated TypeScript bindings live, relative to `src-tauri/`.
 pub const BINDINGS_PATH: &str = "../src/bindings.ts";
 
 /// The typed command and event surface shared with the frontend.
 pub fn specta_builder() -> Builder<tauri::Wry> {
-    Builder::<tauri::Wry>::new().commands(collect_commands![commands::app_info])
+    Builder::<tauri::Wry>::new()
+        .commands(collect_commands![
+            commands::app_info,
+            shortcut::app::record_shortcut,
+            shortcut::app::set_record_shortcut,
+            shortcut::app::reset_record_shortcut,
+            shortcut::app::set_shortcut_mode,
+            shortcut::app::begin_shortcut_capture,
+            shortcut::app::end_shortcut_capture,
+            shortcut::app::own_window_key,
+        ])
+        .events(collect_events![
+            shortcut::app::CapturedKeyEvent,
+            shortcut::app::RecordIntentEvent,
+        ])
 }
 
 /// The exporter used for `src/bindings.ts`.
@@ -37,6 +51,7 @@ pub fn run() {
         .invoke_handler(builder.invoke_handler())
         .setup(move |app| {
             builder.mount_events(app);
+            shortcut::app::install(app.handle());
             Ok(())
         })
         .run(tauri::generate_context!())
