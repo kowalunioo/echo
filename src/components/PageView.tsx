@@ -9,6 +9,7 @@ import { AppSettings } from "./AppSettings";
 import { PageHeader } from "./PageHeader";
 import { MicrophoneSettings } from "./MicrophoneSettings";
 import { RecordShortcutSettings } from "./RecordShortcutSettings";
+import { VocabularySection } from "../vocabulary/VocabularySection";
 
 export function PageView({ page }: { page: Page }) {
   const { t } = useTranslation();
@@ -23,9 +24,10 @@ export function PageView({ page }: { page: Page }) {
       {page === "dictation" && <RecordShortcutSettings />}
       {page === "dictation" && <MicrophoneSettings />}
       {page === "app" && <AppSettings />}
+      {page === "vocabulary" && <VocabularySection />}
 
-      {/* The Model and Dictation pages are fully built, so they have no placeholder. */}
-      {page !== "model" && page !== "dictation" && (
+      {/* The Model, Dictation and Vocabulary pages are fully built, so they have no placeholder. */}
+      {page !== "model" && page !== "dictation" && page !== "vocabulary" && (
         <Placeholder>{t(`pages.${page}.upcoming`)}</Placeholder>
       )}
     </article>

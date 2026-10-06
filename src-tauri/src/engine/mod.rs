@@ -82,4 +82,11 @@ pub trait Engine: Send {
 
     /// Frees the Model's memory if it is loaded; does nothing otherwise.
     fn unload(&mut self);
+
+    /// Whether the Model takes the Vocabulary as a text prompt (`vocabulary.md` rule 8). If not,
+    /// the caller corrects the Transcript's spelling instead (rule 10). Known once the Model has
+    /// been loaded; an Engine that cannot tell yet answers `true`, so nothing is corrected.
+    fn accepts_prompt(&self) -> bool {
+        true
+    }
 }

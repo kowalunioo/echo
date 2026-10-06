@@ -32,6 +32,7 @@ struct State {
     loads: usize,
     unloads: usize,
     requests: Vec<ReceivedRequest>,
+    accepts_prompt: bool,
 }
 
 impl FakeEngine {
@@ -54,6 +55,13 @@ impl FakeEngine {
     /// Makes every `load` call take `delay` (a slow Model load).
     pub fn with_load_delay(self, delay: Duration) -> Self {
         self.state().load_delay = delay;
+        self
+    }
+
+    /// Makes the fake report a Model without a text prompt, like Parakeet (`vocabulary.md`
+    /// rule 10). By default it reports one that accepts a prompt.
+    pub fn without_prompt(self) -> Self {
+        self.state().accepts_prompt = false;
         self
     }
 
@@ -98,6 +106,7 @@ impl FakeEngine {
                 loads: 0,
                 unloads: 0,
                 requests: Vec::new(),
+                accepts_prompt: true,
             })),
         }
     }
@@ -147,6 +156,10 @@ impl Engine for FakeEngine {
         let mut state = self.state();
         state.unloads += 1;
         state.loaded = false;
+    }
+
+    fn accepts_prompt(&self) -> bool {
+        self.state().accepts_prompt
     }
 }
 

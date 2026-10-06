@@ -23,6 +23,7 @@ use crate::models::ModelId;
 use crate::overlay::OverlayPosition;
 use crate::shortcut::modes::ShortcutMode;
 use crate::shortcut::validation::{CancelShortcutCombination, RecordShortcutCombination};
+use crate::vocabulary::Vocabulary;
 
 /// Generates [`Settings`] and its all-optional twin [`SettingsPatch`] from one list of fields, so
 /// the two can never drift apart.
@@ -95,6 +96,8 @@ settings_model! {
     /// The spoken language Dictations expect, or "automatic" (`dictation-language.md`). The
     /// intent as chosen; it is resolved against the active Model for each Dictation.
     dictation_language: DictationLanguageSetting,
+    /// The words and phrases Dictations favour and spell as listed (`vocabulary.md`).
+    vocabulary: Vocabulary,
 }
 
 impl Settings {
@@ -117,6 +120,7 @@ impl Settings {
             show_overlay: true,
             overlay_position: OverlayPosition::Bottom,
             dictation_language: DictationLanguageSetting::automatic(),
+            vocabulary: Vocabulary::default(),
         }
     }
 }
