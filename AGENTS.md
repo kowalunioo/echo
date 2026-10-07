@@ -15,6 +15,10 @@ This is a clean-room rewrite ([ADR 0001](docs/adr/0001-clean-room-rewrite.md)). 
 5. Hardware-dependent code (microphone, keyboard hook, insertion, autostart) stays behind its trait; tests use the fakes, including the WAV **Audio Source**.
 6. Before opening the PR, run every check from the definition of done in `docs/plan.md` and make them green. Include in the PR: `Closes #N`, what you verified and how, and screenshots for any UI or Overlay change.
 
+## Build settings
+
+Set `CARGO_TARGET_DIR=D:\ECHO\.toolchain\target` and `CARGO_BUILD_JOBS=4` for every cargo/bun build (`bun run check`, releases): the Vulkan build breaks on long worktree paths and parallel builds exhaust the page file. Parallel implementers may use their own short per-issue dir (`D:\ECHO\.toolchain\t<issue>`) to avoid waiting on each other's cargo lock. Details in [`docs/plan.md`](docs/plan.md#how-work-is-done).
+
 ## Conventions
 
 - Commits: conventional prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `ci:`); the message says why.

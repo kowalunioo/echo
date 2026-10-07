@@ -74,6 +74,12 @@ The pipeline (shortcut → record → transcribe → insert → history) depends
 3. Screenshots of any UI/overlay change attached to the PR.
 4. Before a release: the user's real-microphone test.
 
+**Build settings.** The native transcribe-cpp/Vulkan build breaks on long Windows paths, and parallel builds have exhausted the page file, so every local cargo/bun build sets:
+- `CARGO_TARGET_DIR=D:\ECHO\.toolchain\target` — one short, warm target directory for `bun run check` and releases. An implementer working in parallel with others may use its own short per-issue directory (`D:\ECHO\.toolchain\t<issue>`) instead, so builds don't wait on each other's cargo lock.
+- `CARGO_BUILD_JOBS=4`.
+
+sccache is not used: measured on a clean Vulkan `cargo test --no-run` into a fresh target directory, a warm sccache gave 0 hits out of 346 Rust compilations (also with `SCCACHE_BASEDIRS`), most likely because its Rust cache keys still carry paths into the target directory; and it never covers the native transcribe-cpp/Vulkan part, which cmake builds. A warm shared target directory is what saves the time.
+
 **Commits:** conventional prefixes (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `ci:`); the message explains *why*.
 
 ## Test audio
