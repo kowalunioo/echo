@@ -202,6 +202,8 @@ struct Rig {
     tray: FakeTray,
     inserter: FakeInserter,
     stored: Arc<Mutex<Vec<String>>>,
+    /// The last status the tray controller finished applying.
+    applied: Arc<Mutex<DictationStatus>>,
 }
 
 fn rig(engine: FakeEngine, source: impl AudioSource + 'static) -> Rig {
@@ -214,6 +216,8 @@ fn rig(engine: FakeEngine, source: impl AudioSource + 'static) -> Rig {
     shared.set(inserter.clone());
     let stored = Arc::new(Mutex::new(Vec::new()));
     let history = Arc::clone(&stored);
+    let applied = Arc::new(Mutex::new(DictationStatus::default()));
+    let shown = Arc::clone(&applied);
     let dictation = Dictation::spawn(DictationDeps {
         models: Box::new(Models(Arc::new(EngineModel::new("Fake", engine)))),
         source: Box::new(source),
@@ -230,6 +234,7 @@ fn rig(engine: FakeEngine, source: impl AudioSource + 'static) -> Rig {
                 .lock()
                 .unwrap()
                 .apply(TrayUpdate::Status(status.clone()));
+            *shown.lock().unwrap() = status.clone();
         }),
         max_recording: Duration::from_secs(600),
     });
@@ -238,13 +243,16 @@ fn rig(engine: FakeEngine, source: impl AudioSource + 'static) -> Rig {
         tray,
         inserter,
         stored,
+        applied,
     }
 }
 
 impl Rig {
+    /// Waits for a status the tray has already applied: Dictation stores its status before it
+    /// publishes it, so waiting on `Dictation::status` races the tray update.
     fn wait(&self, what: &str, check: impl Fn(&DictationStatus) -> bool) {
         let until = Instant::now() + Duration::from_secs(5);
-        while !check(&self.dictation.status()) {
+        while !check(&self.applied.lock().unwrap()) {
             assert!(Instant::now() < until, "timed out waiting for {what}");
             std::thread::sleep(Duration::from_millis(5));
         }
@@ -260,7 +268,7 @@ impl Rig {
         loop {
             let ended = shown() > before
                 && matches!(self.tray.icon(), TrayIconState::Idle | TrayIconState::Error)
-                && self.dictation.status().state == DictationState::Idle;
+                && self.applied.lock().unwrap().state == DictationState::Idle;
             if ended {
                 return;
             }
