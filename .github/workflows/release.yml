@@ -20,11 +20,18 @@ jobs:
     runs-on: windows-latest
     env:
       CARGO_TERM_COLOR: always
-      # The native Vulkan build (default `vulkan` feature) breaks on long paths; keep the target
-      # directory short.
-      CARGO_TARGET_DIR: C:\t
     steps:
       - uses: actions/checkout@v4
+
+      # The native Vulkan build (default `vulkan` feature) breaks on long paths, so the target
+      # directory is short: `<workspace>\..\t` (D:\a\echo\t). It sits on the workspace drive
+      # because Swatinem/rust-cache only takes a target relative to the Cargo workspace. Keep it
+      # the same as in release-cache.yml, which warms this cache.
+      - name: Use a short target directory
+        shell: pwsh
+        run: |
+          $target = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) "t"
+          "CARGO_TARGET_DIR=$target" >> $env:GITHUB_ENV
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -44,6 +51,17 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # A tag run can read caches saved on main but not ones saved on another tag, so this job only
+      # restores; release-cache.yml saves the cache on main. The version bump does not change the
+      # key: rust-cache ignores the app's own version in Cargo.toml and Cargo.lock.
+      - name: Restore the Rust release build cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> ../../t
+          shared-key: release-vulkan
+          save-if: false
+
+      # Its cache is likewise saved on main by release-cache.yml.
       - name: Install the Vulkan SDK
         uses: jakoch/install-vulkan-sdk-action@v1
         with:
@@ -51,6 +69,13 @@ jobs:
           install_runtime: false
           cache: true
           stripdown: true
+
+      - name: Cache Bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
 
       - name: Install frontend dependencies
         run: bun install --frozen-lockfile

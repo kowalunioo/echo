@@ -35,6 +35,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          # Pull requests restore main's cache but do not save their own: each save is ~1.4 GB,
+          # mostly duplicating main's, and they filled the repository's 10 GB cache quota, which
+          # evicts main's and the release cache.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2

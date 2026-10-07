@@ -1,0 +1,84 @@
+name: Release cache
+
+# Keeps the release build cache warm so a release (release.yml) does not compile every dependency
+# and the native Vulkan backend from scratch. Release runs start from a tag, and a tag run can only
+# read caches saved on the default branch, never ones saved on another tag; so the cache is saved
+# here, on main. GitHub drops a cache nobody has read for 7 days, hence the twice-weekly run: it
+# restores the cache (keeping it alive) and builds only when the cache is missing or stale.
+on:
+  push:
+    branches: [main]
+    paths:
+      - src-tauri/Cargo.toml
+      - src-tauri/Cargo.lock
+      - .github/workflows/release.yml
+      - .github/workflows/release-cache.yml
+  schedule:
+    - cron: "17 3 * * 1,4"
+  workflow_dispatch:
+
+concurrency:
+  group: release-cache-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: Warm the release build cache (Windows)
+    runs-on: windows-latest
+    # Everything that feeds the cache key (toolchain, CARGO_* variables, target directory,
+    # shared-key) must match the release job in release.yml.
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use a short target directory
+        shell: pwsh
+        run: |
+          $target = Join-Path (Split-Path $env:GITHUB_WORKSPACE -Parent) "t"
+          "CARGO_TARGET_DIR=$target" >> $env:GITHUB_ENV
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust release build
+        id: rust-cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> ../../t
+          shared-key: release-vulkan
+
+      # Always runs so the SDK's own cache is saved on main and stays fresh for release runs.
+      - name: Install the Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1
+        with:
+          vulkan_version: latest
+          install_runtime: false
+          cache: true
+          stripdown: true
+
+      - name: Cache Bun packages
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install frontend dependencies
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        run: bun install --frozen-lockfile
+
+      # The same `tauri build` as a release, so every dependency is compiled with the same
+      # features and profile, but without bundling, which would need the signing key.
+      - name: Build the release binary
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        run: bun tauri build --no-bundle

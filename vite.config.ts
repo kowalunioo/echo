@@ -20,6 +20,10 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
     css: false,
+    // Each test file still gets a fresh context, but inside a reused worker instead of a new one,
+    // which roughly halves `bun run test`. `isolate: false` was as fast but leaked state between
+    // files (TestAudioMarker failed intermittently), so isolation stays on.
+    pool: "vmThreads",
     // Only the repo's own tests: local agent worktrees under .claude/ hold full repo copies.
     include: ["src/**/*.test.{ts,tsx}", "scripts/**/*.test.ts"],
   },
