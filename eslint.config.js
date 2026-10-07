@@ -5,7 +5,17 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "src-tauri", "src/bindings.ts"] },
+  {
+    ignores: [
+      "dist",
+      "src-tauri",
+      "src/bindings.ts",
+      // Local tooling and agent worktrees (full repo copies) — linting them exhausts the heap.
+      ".claude",
+      ".agents",
+      ".toolchain",
+    ],
+  },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.strictTypeChecked],
