@@ -74,12 +74,13 @@ export function UpdateIndicator() {
   const line = useRef<HTMLDivElement>(null);
   const stacked = useStacked(line, view !== null && !managed, label);
   if (!view) return null;
-  // A newer version gets the one filled control of the sidebar: a small lavender pill.
+  // A newer version gets the one filled control of the sidebar: a small white pill (lavender is
+  // kept for state marks, never for a call to action).
   const look = {
     idle: "text-muted hover:text-fg",
     ready: "text-muted hover:text-fg",
     busy: "text-muted",
-    news: "rounded-full bg-accent-strong px-2.5 py-0.5 font-medium text-accent-fg hover:opacity-90 active:scale-[0.97] motion-reduce:active:scale-100",
+    news: "rounded-full bg-fg px-2.5 py-0.5 font-medium text-bg hover:opacity-90 active:scale-[0.97] motion-reduce:active:scale-100",
     error: "text-danger",
   }[tone];
 

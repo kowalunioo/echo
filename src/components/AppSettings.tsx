@@ -1,11 +1,15 @@
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { type UiLanguage, commands } from "../bindings";
 import { useSetting } from "../store/settings";
 import { useShell } from "../store/shell";
 import { AutostartSettings } from "./AutostartSettings";
+import { Button } from "./Button";
+import { FolderIcon, InfoIcon } from "./icons";
 import { OverlaySettings } from "./OverlaySettings";
+import { SectionHeading } from "./SectionHeading";
+import { SettingRow } from "./SettingRow";
 import { UiLanguagePicker } from "./UiLanguagePicker";
 import { UpdateSettings } from "./UpdateSettings";
 
@@ -40,19 +44,27 @@ export function AppSettings() {
 
   return (
     <>
-      <section className="divide-y divide-line rounded-card border border-line bg-surface">
-        <Row
+      <section aria-labelledby="app-general-heading">
+        <SectionHeading id="app-general-heading">{t("pages.app.sections.general")}</SectionHeading>
+        <SettingRow
           label={t("settings.uiLanguage.label")}
           description={t("settings.uiLanguage.description")}
         >
           <UiLanguagePicker />
-        </Row>
+        </SettingRow>
         <AutostartSettings />
+      </section>
+      <section aria-labelledby="app-overlay-heading">
+        <SectionHeading id="app-overlay-heading">{t("pages.app.sections.overlay")}</SectionHeading>
         <OverlaySettings />
       </section>
-      {/* Facts and upkeep, not choices: no fill, so the settings above lead. */}
-      <section className="divide-y divide-line rounded-card border border-line">
-        <Row label={t("settings.systemLanguage.label")}>
+      <section aria-labelledby="app-updates-heading">
+        <SectionHeading id="app-updates-heading">{t("pages.app.sections.updates")}</SectionHeading>
+        <UpdateSettings version={version} />
+      </section>
+      <section aria-labelledby="app-about-heading">
+        <SectionHeading id="app-about-heading">{t("pages.app.sections.about")}</SectionHeading>
+        <SettingRow label={t("settings.systemLanguage.label")}>
           {systemLocale ? (
             <span className="text-muted" title={systemLocale}>
               {localeName(systemLocale, uiLanguage)}
@@ -60,37 +72,15 @@ export function AppSettings() {
           ) : (
             <span className="text-muted">{t("settings.systemLanguage.unknown")}</span>
           )}
-        </Row>
-        <UpdateSettings version={version} />
-        <Row
-          label={t("settings.logFolder.label")}
-          description={t("settings.logFolder.description")}
-        >
-          <OpenLogFolder />
-        </Row>
+        </SettingRow>
+        <OpenLogFolder />
+        {/* Explains, so it wraps rather than being cut (the one kind of text allowed to). */}
+        <p className="flex items-start gap-2 pt-3 text-note text-muted">
+          <InfoIcon className="mt-0.5 shrink-0" />
+          <span>{t("settings.privacy")}</span>
+        </p>
       </section>
     </>
-  );
-}
-
-export function Row({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description?: string;
-  children: ReactNode;
-}) {
-  return (
-    // Wraps the control under the label when the window is too narrow for both side by side.
-    <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3 px-6 py-4">
-      <div className="flex min-w-0 grow basis-48 flex-col gap-0.5 break-words">
-        <span className="font-medium">{label}</span>
-        {description && <span className="text-note text-muted">{description}</span>}
-      </div>
-      <div className="shrink-0">{children}</div>
-    </div>
   );
 }
 
@@ -104,19 +94,26 @@ function OpenLogFolder() {
   };
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <button
-        type="button"
+    <SettingRow
+      label={t("settings.logFolder.label")}
+      description={t("settings.logFolder.description")}
+      below={
+        failed && (
+          <span role="alert" className="text-note text-danger">
+            {t("settings.logFolder.failed")}
+          </span>
+        )
+      }
+    >
+      {/* Borderless: the text lines up with the row's edge, the hover fill reaches past it. */}
+      <Button
+        variant="quiet"
         onClick={() => void open()}
-        className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
+        className="-mr-3.5 inline-flex items-center gap-1.5"
       >
+        <FolderIcon />
         {t("settings.logFolder.open")}
-      </button>
-      {failed && (
-        <span role="alert" className="text-note text-danger">
-          {t("settings.logFolder.failed")}
-        </span>
-      )}
-    </div>
+      </Button>
+    </SettingRow>
   );
 }

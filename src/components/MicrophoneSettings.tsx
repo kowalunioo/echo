@@ -4,7 +4,8 @@ import { useTranslation } from "react-i18next";
 import { type DeviceList, type MicrophoneChoice, commands } from "../bindings";
 import { useSetting, useSettings } from "../store/settings";
 import { useShell } from "../store/shell";
-import { ChevronIcon } from "./icons";
+import { IconButton } from "./IconButton";
+import { ChevronIcon, ResetIcon } from "./icons";
 import { SectionHeading } from "./SectionHeading";
 import { SettingRow } from "./SettingRow";
 
@@ -112,28 +113,27 @@ export function MicrophoneSettings() {
         label={t("settings.microphone.label")}
         description={t("settings.microphone.description")}
       >
-        <div className="flex flex-col items-end gap-1.5">
-          <Picker
-            label={t("settings.microphone.label")}
-            selectedLabel={selectedLabel}
-            missing={missing}
-            options={options}
-            selected={choice}
-            loading={state.status === "loading"}
-            failed={state.status === "error"}
-            onOpen={refresh}
-            onSelect={(next) => void setChoice(next)}
-          />
-          {choice.kind === "device" && (
-            <button
-              type="button"
-              onClick={() => void useSettings.getState().reset("microphone")}
-              className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
-            >
-              {t("settings.microphone.reset")}
-            </button>
-          )}
-        </div>
+        <Picker
+          label={t("settings.microphone.label")}
+          selectedLabel={selectedLabel}
+          missing={missing}
+          options={options}
+          selected={choice}
+          loading={state.status === "loading"}
+          failed={state.status === "error"}
+          onOpen={refresh}
+          onSelect={(next) => void setChoice(next)}
+        />
+        {/* Only shown once a device is chosen, at the row's right edge. */}
+        {choice.kind === "device" && (
+          <IconButton
+            label={t("settings.microphone.reset")}
+            onClick={() => void useSettings.getState().reset("microphone")}
+            className="-mr-1.5"
+          >
+            <ResetIcon />
+          </IconButton>
+        )}
       </SettingRow>
       {state.status === "ready" && state.list.devices.length === 0 && (
         <p role="status" className="text-note text-muted">

@@ -84,6 +84,8 @@ struct FakeHost {
     prepared: RefCell<Vec<String>>,
     failed_installs: Cell<usize>,
     published: RefCell<Vec<UpdateStatus>>,
+    /// How many checks reached the feed and got an answer ("Last checked").
+    answered: Cell<usize>,
     /// A Dictation starts the moment "Installing" is published.
     busy_when_installing: Cell<bool>,
 }
@@ -96,6 +98,7 @@ impl Default for FakeHost {
             prepared: RefCell::default(),
             failed_installs: Cell::new(0),
             published: RefCell::default(),
+            answered: Cell::new(0),
             busy_when_installing: Cell::new(false),
         }
     }
@@ -113,6 +116,9 @@ impl Host for FakeHost {
     }
     fn install_failed(&self) {
         self.failed_installs.set(self.failed_installs.get() + 1);
+    }
+    fn feed_answered(&self) {
+        self.answered.set(self.answered.get() + 1);
     }
     fn publish(&self, status: &UpdateStatus) {
         if self.busy_when_installing.get() && matches!(status, UpdateStatus::Installing { .. }) {
@@ -166,6 +172,40 @@ fn rule_4_the_first_automatic_check_is_30_s_after_start_then_every_4_hours() {
     assert_eq!(feed.checks.get(), 1);
     updater.tick(next, &host);
     assert_eq!(feed.checks.get(), 2);
+}
+
+#[test]
+fn last_checked_counts_only_checks_the_feed_answered() {
+    let feed = FakeFeed::default();
+    let installer = FakeInstaller::default();
+    let host = FakeHost::default();
+    let mut updater = core(&feed, &installer);
+
+    updater.check_manually(&host);
+    assert_eq!(host.answered.get(), 1, "a manual check that is up to date");
+
+    feed.check_fails.set(true);
+    updater.check_manually(&host);
+    run(&mut updater, &host, Duration::ZERO, Duration::from_secs(31));
+    assert_eq!(
+        host.answered.get(),
+        1,
+        "failed checks, manual or automatic, do not count"
+    );
+
+    feed.check_fails.set(false);
+    feed.offered.replace(Some("0.2.0"));
+    run(
+        &mut updater,
+        &host,
+        Duration::from_secs(32),
+        Duration::from_secs(4 * 60 * 60 + 32),
+    );
+    assert_eq!(
+        host.answered.get(),
+        2,
+        "an automatic check that finds an update"
+    );
 }
 
 #[test]

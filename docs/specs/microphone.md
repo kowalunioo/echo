@@ -13,7 +13,7 @@ Choosing which audio input device a Recording listens to. By default Echo follow
 7. If Windows privacy settings block microphone access for desktop apps, the Recording does not start and the user is told, with a button that opens the Windows microphone privacy page.
 8. The device list shown to the user is refreshed every time the picker is opened, so newly plugged devices appear without restarting Echo.
 9. Changing the Microphone takes effect from the next Recording; a Recording in progress continues on its current device.
-10. **Device lost during a Recording:** if the device stops delivering audio or reports an error during a Recording (unplugged, USB/Bluetooth dropout), the Recording stops automatically; the audio captured up to that moment is transcribed and inserted as usual, and the user sees "Microphone disconnected — recording stopped" (error indication per `dictation-pipeline.md` rules 39a–39d).
+10. **Device lost during a Recording:** if the device stops delivering audio or reports an error during a Recording (unplugged, USB/Bluetooth dropout), the Recording stops automatically; the audio captured up to that moment is transcribed and inserted as usual, and the user sees "Microphone disconnected — recording stopped" (error indication per `dictation-pipeline.md` rules 39a–39d). A buffer underrun or overrun (a momentary glitch, which some USB audio interfaces report right after the stream starts) is not a lost device: the Recording continues.
 11. After a device loss, the next Recording opens the device afresh using rules 3–5.
 12. Echo opens the device only while recording (see `dictation-pipeline.md` rule 9).
 13. Audio from multi-channel devices is averaged into mono (no per-channel choice in 0.1.0).

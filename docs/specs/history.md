@@ -39,7 +39,7 @@ The stored list of recent Transcripts, so the user can recover, copy or re-inser
 
 - A History page listing entries newest first. Each entry shows its local date and time (format per UI Language, e.g. "5 października 2026, 14:03" / "October 5, 2026, 2:03 PM"), the full text (long texts wrap; very long ones are collapsible), and icon buttons for Copy, Re-insert and Delete with tooltips.
 - An empty state: "No Transcripts yet. Press <Record Shortcut> and speak."
-- The History limit control sits in the History page header: a number field with steppers, range 0–100, and a line "Keeps the last N Transcripts".
+- The History limit control is the first row of the History page, under its header: a number field with steppers, range 0–100, and a line "Keeps the last N Transcripts".
 - A "Clear all" action with confirmation.
 
 ## Acceptance tests

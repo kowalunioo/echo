@@ -1,10 +1,11 @@
 import type { ButtonHTMLAttributes, Ref } from "react";
 
-export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
+export type ButtonVariant = "contrast" | "secondary" | "quiet" | "danger";
 export type ButtonSize = "default" | "compact";
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-accent-strong text-accent-fg hover:opacity-90",
+  // Ink on paper: the strong action. Lavender stays for state marks, never for a button.
+  contrast: "bg-fg text-bg hover:opacity-90",
   secondary: "border border-control bg-surface hover:bg-raised",
   quiet: "text-muted hover:bg-raised hover:text-fg",
   danger: "bg-danger text-danger-fg hover:opacity-90",
@@ -22,7 +23,7 @@ const SIZES: Record<ButtonSize, string> = {
 
 /** The one filled or outlined button of the main window. Text links stay plain buttons. */
 export function Button({
-  variant = "primary",
+  variant = "contrast",
   size = "compact",
   type = "button",
   className = "",

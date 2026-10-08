@@ -14,7 +14,7 @@ export function Keycap({
 }) {
   return (
     <kbd
-      className={`rounded-md border border-line bg-raised font-sans font-medium text-fg shadow-[0_1px_0_var(--color-line)] ${
+      className={`rounded-md border border-line bg-raised font-sans font-medium text-fg ${
         size === "inline" ? "px-1.5 py-0.5 text-sm" : "px-1.5 text-xs leading-[18px]"
       }`}
     >

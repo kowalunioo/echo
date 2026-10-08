@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import type { OverlayPosition } from "../bindings";
 import { useSetting } from "../store/settings";
-import { Row } from "./AppSettings";
+import { SettingRow } from "./SettingRow";
 import { Switch } from "./Switch";
 
 const POSITIONS: readonly OverlayPosition[] = ["bottom", "top"];
@@ -19,18 +19,21 @@ export function OverlaySettings() {
 
   return (
     <>
-      <Row label={t("settings.overlay.label")} description={t("settings.overlay.description")}>
+      <SettingRow
+        label={t("settings.overlay.label")}
+        description={t("settings.overlay.description")}
+      >
         <Switch
           checked={show}
           label={t("settings.overlay.label")}
           onChange={(next) => void setShow(next)}
         />
-      </Row>
-      <Row label={t("settings.overlay.position")}>
+      </SettingRow>
+      <SettingRow label={t("settings.overlay.position")}>
         <fieldset
           disabled={!show}
           aria-disabled={!show}
-          className={`flex rounded-lg bg-raised p-0.5 ${show ? "" : "cursor-not-allowed opacity-50"}`}
+          className={`flex rounded-lg border border-line p-0.5 ${show ? "" : "cursor-not-allowed opacity-50"}`}
         >
           <legend className="sr-only">{t("settings.overlay.position")}</legend>
           {POSITIONS.map((value) => (
@@ -40,7 +43,7 @@ export function OverlaySettings() {
                 show ? "cursor-pointer" : "pointer-events-none"
               } ${
                 position === value
-                  ? "bg-surface font-medium shadow-sm"
+                  ? "bg-raised font-medium text-fg"
                   : `text-muted ${show ? "hover:text-fg" : ""}`
               }`}
             >
@@ -56,7 +59,7 @@ export function OverlaySettings() {
             </label>
           ))}
         </fieldset>
-      </Row>
+      </SettingRow>
     </>
   );
 }

@@ -48,11 +48,17 @@ describe("onboarding", () => {
     expect(screen.queryByRole("navigation", { name: "Sections" })).not.toBeInTheDocument();
   });
 
-  // models.md rule 1: the Models are 257 to 845 MB, as their cards show.
-  it("states the real download size on Welcome", async () => {
+  // Rule 2.1: Welcome names no sizes, since the catalogue of Models will grow; each Model's size
+  // shows on the next step.
+  it("says a Model is downloaded once without naming sizes on Welcome", async () => {
     render(<App />);
 
-    expect(await screen.findByText(/a one-time download of 257 to 845 MB/)).toBeVisible();
+    expect(
+      await screen.findByText(
+        "Echo needs a speech Model, downloaded once. You choose it in the next step.",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/MB/)).not.toBeInTheDocument();
   });
 
   it("switches the UI Language on Welcome and saves it", async () => {
@@ -136,9 +142,9 @@ describe("onboarding", () => {
     backend.settings.onboardingWelcomeDone = true;
     render(<App />);
 
-    const recommended = await screen.findByRole("radio", { name: /Whisper large-v3-turbo/ });
-    expect(recommended).toBeChecked();
-    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    // Every Model is a row with its own Download (no radio to pick first), so several can be tried.
+    const list = await screen.findByRole("list", { name: "Models" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
     await userEvent.click(screen.getByRole("button", { name: "Download (845 MB)" }));
     expect(backend.commandsCalled("download_model")).toEqual([
       { command: "download_model", args: { model: "whisperLargeV3Turbo" } },
@@ -172,13 +178,31 @@ describe("onboarding", () => {
     backend.changeModel("whisperSmall", { downloaded: true });
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("radio", { name: /Whisper small/ }));
-    await userEvent.click(screen.getByRole("button", { name: "Use this Model" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Use this Model" }));
 
     expect(backend.commandsCalled("activate_model")).toEqual([
       { command: "activate_model", args: { model: "whisperSmall" } },
     ]);
     expect(screen.queryByRole("button", { name: /Continue without/ })).not.toBeInTheDocument();
+  });
+
+  // models.md rule 7: a second Download while one runs queues it, so the user can try several.
+  it("queues a second Model's download while the first one runs", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Download (845 MB)" }));
+    act(() => {
+      backend.changeModel("whisperLargeV3Turbo", {
+        download: { state: "downloading", downloaded: 0, total: 886_381_760, bytesPerSecond: 0 },
+      });
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Download (257 MB)" }));
+
+    expect(backend.commandsCalled("download_model")).toEqual([
+      { command: "download_model", args: { model: "whisperLargeV3Turbo" } },
+      { command: "download_model", args: { model: "whisperSmall" } },
+    ]);
   });
 
   it("shows the Record Shortcut on Try it and finishes into the main settings", async () => {
@@ -187,10 +211,15 @@ describe("onboarding", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { level: 1, name: "Try it" })).toBeVisible();
+    // The sample phrase is now the test field's own placeholder rather than a separate line, and
+    // the instruction leads into it (rule 2.4).
     expect(screen.getByText("Ctrl + Space").closest("p")).toHaveTextContent(
-      "Hold Ctrl + Space and speak",
+      "Hold Ctrl + Space and say:",
     );
-    expect(screen.getByRole("textbox", { name: "Test field" })).toBeVisible();
+    const field = screen.getByRole("textbox", { name: "Test field" });
+    expect(field).toBeVisible();
+    expect(field).toHaveAttribute("placeholder", "Hello Echo, can you hear me?");
+    expect(field).toHaveAccessibleDescription("Try it Hold Ctrl + Space and say:");
 
     await userEvent.click(screen.getByRole("button", { name: "Finish" }));
 
@@ -226,17 +255,21 @@ describe("onboarding", () => {
   });
 
   // Acceptance test 13 and models.md rule 30.
-  it("says a graphics card was found and pre-selects Whisper large-v3-turbo", async () => {
+  it("says a graphics card was found and marks Whisper large-v3-turbo Recommended", async () => {
     backend.settings.onboardingWelcomeDone = true;
     render(<App />);
 
     expect(
       await screen.findByText("Graphics card found — recommended: Whisper large-v3-turbo"),
     ).toBeVisible();
-    expect(screen.getByRole("radio", { name: /Whisper large-v3-turbo/ })).toBeChecked();
+    expect(
+      within(screen.getByRole("listitem", { name: "Whisper large-v3-turbo" })).getByText(
+        "Recommended",
+      ),
+    ).toBeVisible();
   });
 
-  it("says no graphics card was found and pre-selects Parakeet TDT 0.6B v3", async () => {
+  it("says no graphics card was found and marks Parakeet TDT 0.6B v3 Recommended", async () => {
     backend.computeHardware = "cpu";
     backend.settings.onboardingWelcomeDone = true;
     render(<App />);
@@ -244,12 +277,12 @@ describe("onboarding", () => {
     expect(
       await screen.findByText("No graphics card found — Parakeet TDT 0.6B v3 is faster on this PC"),
     ).toBeVisible();
-    const parakeet = screen.getByRole("radio", { name: /Parakeet TDT 0.6B v3/ });
-    expect(parakeet).toBeChecked();
-    expect(parakeet.closest("label")).toHaveTextContent("Recommended");
-    expect(
-      screen.getByRole("radio", { name: /Whisper large-v3-turbo/ }).closest("label"),
-    ).not.toHaveTextContent("Recommended");
+    expect(screen.getByRole("listitem", { name: "Parakeet TDT 0.6B v3" })).toHaveTextContent(
+      "Recommended",
+    );
+    expect(screen.getByRole("listitem", { name: "Whisper large-v3-turbo" })).not.toHaveTextContent(
+      "Recommended",
+    );
     await userEvent.click(screen.getByRole("button", { name: "Download (705 MB)" }));
     expect(backend.commandsCalled("download_model")).toEqual([
       { command: "download_model", args: { model: "parakeetTdt06bV3" } },
@@ -299,16 +332,151 @@ describe("onboarding", () => {
   });
 
   // Acceptance test 16, rule 2.4.
-  it("acknowledges text arriving in the test field", async () => {
+  it("acknowledges text arriving in the test field and opens the main window by itself", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     backend.settings.onboardingWelcomeDone = true;
     backend.models.active = "whisperSmall";
     render(<App />);
 
     const field = await screen.findByRole("textbox", { name: "Test field" });
-    expect(screen.queryByText("That worked.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Echo heard you.")).not.toBeInTheDocument();
     fireEvent.input(field, { target: { value: "Hello from Echo" } });
 
-    expect(await screen.findByText("That worked.")).toBeVisible();
+    expect(await screen.findByText("Echo heard you.")).toBeVisible();
+    expect(screen.getByText("Opening Echo…")).toBeVisible();
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(backend.settings.onboardingCompleted).toBe(false);
+
+    act(() => {
+      vi.advanceTimersByTime(600);
+    });
+    expect(await screen.findByRole("navigation", { name: "Sections" })).toBeVisible();
+    expect(backend.settings.onboardingCompleted).toBe(true);
+  });
+
+  // Rule 2.4: during onboarding the Transcript comes to the field from the backend, so it lands
+  // there even when keyboard focus is elsewhere.
+  it("puts a Transcript sent for Try it into the test field wherever focus is", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    backend.models.active = "whisperSmall";
+    render(<App />);
+
+    const field = await screen.findByRole("textbox", { name: "Test field" });
+    field.blur();
+    act(() => {
+      backend.emit("try-it-transcript", "Hello Echo, can you hear me?");
+    });
+
+    expect(await screen.findByText("Echo heard you.")).toBeVisible();
+    expect(field).toHaveValue("Hello Echo, can you hear me?");
+  });
+
+  it("focuses the test field on Try it so a Dictation has somewhere to land", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    backend.models.active = "whisperSmall";
+    render(<App />);
+
+    expect(await screen.findByRole("textbox", { name: "Test field" })).toHaveFocus();
+  });
+
+  // Rule 2.4: the status line follows the Dictation with the Overlay's words.
+  it("shows the Dictation's phase under the test field", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    backend.models.active = "whisperSmall";
+    render(<App />);
+    await screen.findByRole("textbox", { name: "Test field" });
+
+    act(() => {
+      backend.changeDictation({ state: "recording", listening: false });
+    });
+    expect(await screen.findByText("Getting ready…")).toBeVisible();
+
+    act(() => {
+      backend.changeDictation({ state: "recording", listening: true });
+    });
+    expect(await screen.findByText("Listening")).toBeVisible();
+    expect(screen.queryByText("Getting ready…")).not.toBeInTheDocument();
+
+    act(() => {
+      backend.changeDictation({ state: "transcribing", listening: false });
+    });
+    expect(await screen.findByText("Transcribing…")).toBeVisible();
+
+    act(() => {
+      backend.changeDictation({ state: "idle" });
+    });
+    expect(screen.queryByText("Transcribing…")).not.toBeInTheDocument();
+  });
+
+  it("stays on Try it when a new Dictation starts before it moves on", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    backend.settings.onboardingWelcomeDone = true;
+    backend.models.active = "whisperSmall";
+    render(<App />);
+
+    const field = await screen.findByRole("textbox", { name: "Test field" });
+    fireEvent.input(field, { target: { value: "Hello Echo" } });
+    expect(await screen.findByText("Opening Echo…")).toBeVisible();
+    act(() => {
+      backend.changeDictation({ state: "recording", listening: true });
+    });
+    expect(await screen.findByText("Listening")).toBeVisible();
+    expect(screen.queryByText("Opening Echo…")).not.toBeInTheDocument();
+    act(() => {
+      backend.changeDictation({ state: "idle", listening: false });
+      vi.advanceTimersByTime(4000);
+    });
+
+    expect(screen.getByRole("heading", { level: 1, name: "Try it" })).toBeVisible();
+    expect(backend.settings.onboardingCompleted).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Finish" }));
+    expect(await screen.findByRole("navigation", { name: "Sections" })).toBeVisible();
+    expect(backend.settings.onboardingCompleted).toBe(true);
+  });
+
+  it("stays on Try it when the user types in the test field before it moves on", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    backend.settings.onboardingWelcomeDone = true;
+    backend.models.active = "whisperSmall";
+    render(<App />);
+
+    const field = await screen.findByRole("textbox", { name: "Test field" });
+    fireEvent.input(field, { target: { value: "Hello Echo" } });
+    expect(await screen.findByText("Opening Echo…")).toBeVisible();
+    fireEvent.keyDown(field, { key: "!" });
+    expect(screen.queryByText("Opening Echo…")).not.toBeInTheDocument();
+    act(() => {
+      vi.advanceTimersByTime(4000);
+    });
+
+    expect(screen.getByRole("heading", { level: 1, name: "Try it" })).toBeVisible();
+    expect(screen.getByText("Echo heard you.")).toBeVisible();
+    expect(backend.settings.onboardingCompleted).toBe(false);
+  });
+
+  it("shows Try it in Polish", async () => {
+    backend.settings.onboardingWelcomeDone = true;
+    backend.settings.uiLanguage = "pl";
+    backend.models.active = "whisperSmall";
+    await changeUiLanguage("pl");
+    render(<App />);
+
+    const field = await screen.findByRole("textbox", { name: "Pole testowe" });
+    expect(field).toHaveAttribute("placeholder", "Cześć Echo, słyszysz mnie?");
+    expect(screen.getByText("Echo jest gotowe. Powiedz poniższe zdanie.")).toBeVisible();
+    expect(screen.getByText(/^Przytrzymaj/)).toHaveTextContent(/^Przytrzymaj .+ i powiedz:$/);
+    act(() => {
+      backend.changeDictation({ state: "recording", listening: true });
+    });
+    expect(await screen.findByText("Słucham")).toBeVisible();
+    act(() => {
+      backend.changeDictation({ state: "idle", listening: false });
+    });
+    fireEvent.input(field, { target: { value: "Cześć" } });
+    expect(await screen.findByText("Echo cię słyszy.")).toBeVisible();
+    expect(screen.getByText("Otwieram Echo…")).toBeVisible();
   });
 
   it("lists what to check when nothing appeared, with actions", async () => {

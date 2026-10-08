@@ -1,11 +1,15 @@
 import { useEffect } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 
 import type { UpdateStatus } from "../bindings";
+import { formatDate } from "../i18n";
+import { ProgressBar } from "../models/ModelCard";
 import { useSetting } from "../store/settings";
 import { useUpdater } from "../store/updater";
-import { Row } from "./AppSettings";
 import { Button } from "./Button";
+import { RefreshIcon } from "./icons";
+import { SettingRow } from "./SettingRow";
 import { Switch } from "./Switch";
 
 /**
@@ -29,54 +33,77 @@ export function UpdateSettings({ version }: { version: string }) {
   const on = automatic && !managed;
   const busy =
     view !== null && ["checking", "downloading", "installing"].includes(view.status.state);
+  const offersInstall =
+    view !== null && !managed && ["available", "ready"].includes(view.status.state);
 
   return (
     <>
-      <Row
+      <SettingRow
         label={t("settings.updates.automatic")}
-        description={t("settings.updates.automaticDescription")}
+        description={t(
+          managed ? "settings.updates.managed" : "settings.updates.automaticDescription",
+        )}
       >
-        <div className="flex flex-col items-end gap-1">
-          <Switch
-            checked={on}
-            label={t("settings.updates.automatic")}
-            disabled={managed}
-            onChange={() => void setAutomatic(!automatic)}
-          />
-          {managed && <span className="text-note text-muted">{t("settings.updates.managed")}</span>}
-        </div>
-      </Row>
-      <Row label={t("settings.version.label")}>
-        <div className="flex flex-col items-end gap-1">
-          <div className="flex items-center gap-4">
-            <span className="text-muted tabular-nums" data-testid="app-version">
-              {version}
-            </span>
-            {!managed && view !== null && (
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void check()}
-                className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
-              >
-                {t("settings.updates.check")}
-              </button>
-            )}
-          </div>
-          {view !== null && !managed && <StatusLine status={view.status} />}
-        </div>
-      </Row>
+        <Switch
+          checked={on}
+          label={t("settings.updates.automatic")}
+          disabled={managed}
+          onChange={() => void setAutomatic(!automatic)}
+        />
+      </SettingRow>
+      <SettingRow
+        label={t("settings.version.label")}
+        description={view?.lastChecked != null ? lastChecked(view.lastChecked, t) : undefined}
+        tag={
+          <span className="text-muted tabular-nums" data-testid="app-version">
+            {version}
+          </span>
+        }
+        below={view !== null && !managed && <StatusLine status={view.status} />}
+      >
+        {/* One action at a time: while an update is on offer, Install takes Check's place. */}
+        {offersInstall && <InstallButton />}
+        {!managed && view !== null && !offersInstall && (
+          // Borderless: the text lines up with the row's edge, the hover fill reaches past it.
+          <Button
+            variant="quiet"
+            disabled={busy}
+            onClick={() => void check()}
+            className="-mr-3.5 inline-flex items-center gap-1.5"
+          >
+            <RefreshIcon />
+            {t("settings.updates.check")}
+          </Button>
+        )}
+      </SettingRow>
     </>
+  );
+}
+
+/** "Last checked: today at 14:02", or with the date when it was not today. */
+function lastChecked(at: number, t: TFunction): string {
+  const when = new Date(at);
+  const today = new Date().toDateString() === when.toDateString();
+  return t("settings.updates.lastChecked", {
+    when: today
+      ? t("settings.updates.today", { time: formatDate(when, { timeStyle: "short" }) })
+      : formatDate(when),
+  });
+}
+
+/** The one strong action of the page, so it is the white button. */
+function InstallButton() {
+  const { t } = useTranslation();
+  const install = useUpdater((s) => s.install);
+  return (
+    <Button variant="contrast" onClick={() => void install()}>
+      {t("settings.updates.install")}
+    </Button>
   );
 }
 
 function StatusLine({ status }: { status: UpdateStatus }) {
   const { t } = useTranslation();
-  const install = useUpdater((s) => s.install);
-
-  const installButton = (
-    <Button onClick={() => void install()}>{t("settings.updates.install")}</Button>
-  );
 
   const text = (() => {
     switch (status.state) {
@@ -111,10 +138,10 @@ function StatusLine({ status }: { status: UpdateStatus }) {
   const failed = ["checkFailed", "unverified", "downloadFailed", "installFailed"].includes(
     status.state,
   );
-  const offersInstall = status.state === "available" || status.state === "ready";
 
+  // Under the row, so a long status (Polish "ready" runs two lines) wraps instead of being cut.
   return (
-    <div className="flex max-w-xs flex-col items-end gap-2 text-right">
+    <>
       <span
         role="status"
         data-testid="update-status"
@@ -122,7 +149,9 @@ function StatusLine({ status }: { status: UpdateStatus }) {
       >
         {text}
       </span>
-      {offersInstall && installButton}
-    </div>
+      {status.state === "downloading" && status.percent !== null && (
+        <ProgressBar percent={status.percent} label={text} />
+      )}
+    </>
   );
 }

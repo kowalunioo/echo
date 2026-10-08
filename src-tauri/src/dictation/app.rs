@@ -31,6 +31,12 @@ use crate::shortcut::record::RecordShortcutHandle;
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct DictationStatusChanged(pub DictationStatus);
 
+/// A Transcript for the onboarding's Try it field, sent to the main window instead of being
+/// inserted into the focused application while first-run setup is not finished
+/// (`settings-and-first-run.md` rule 2.4).
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct TryItTranscript(pub String);
+
 /// Starts the pipeline. Needs the settings, History, the [`SharedInserter`], the Microphones and
 /// the [`ModelManager`] managed already; the Record Shortcut (installed afterwards) feeds it.
 pub fn install(app: &AppHandle) {
@@ -145,7 +151,25 @@ pub fn get_test_audio(test_audio: State<'_, TestAudio>) -> Option<String> {
 fn register_inserter(app: &AppHandle) {
     #[cfg(windows)]
     match crate::insertion::system_inserter() {
-        Ok(inserter) => app.state::<SharedInserter>().set(inserter),
+        Ok(inserter) => {
+            let settings_app = app.clone();
+            let window_app = app.clone();
+            app.state::<SharedInserter>()
+                .set(crate::insertion::TryItInserter::new(
+                    inserter,
+                    move || {
+                        !settings_app
+                            .state::<SettingsStore>()
+                            .get()
+                            .onboarding_completed
+                    },
+                    move |text| {
+                        TryItTranscript(text.to_owned())
+                            .emit_to(&window_app, crate::window::MAIN_WINDOW)
+                            .map_err(|e| crate::insertion::InsertionError::Failed(e.to_string()))
+                    },
+                ));
+        }
         Err(error) => log::error!("Insertion is unavailable: {error}"),
     }
     #[cfg(not(windows))]

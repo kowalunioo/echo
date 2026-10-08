@@ -25,7 +25,7 @@ The global key combination that starts and stops a Recording from any applicatio
 14. While the shortcut-capture UI is active (see UI), the Record Shortcut does not trigger Dictations and is not swallowed.
 15. If a different shortcut is pressed while a Recording made by the Record Shortcut is running, it does not affect the Recording (the Cancel Shortcut is the exception, see `cancel-shortcut.md`).
 16. While Echo is busy Transcribing or Inserting, presses are remembered as specified in `dictation-pipeline.md` (rules 27–30).
-17. The Record Shortcut only becomes active once first-run setup is finished (a Model is selected), see `settings-and-first-run.md`.
+17. The Record Shortcut becomes active as soon as a Model is active, even while onboarding is still on its Try it step, or once first-run setup is finished; see `settings-and-first-run.md` rule 3.
 
 ### Default and allowed combinations
 

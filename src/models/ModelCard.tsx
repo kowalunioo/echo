@@ -6,9 +6,15 @@ import { useModels } from "../store/models";
 import { Button } from "../components/Button";
 import { ConfirmDialog } from "../components/Dialog";
 import { FailureMessage } from "../components/FailureMessage";
+import { IconButton } from "../components/IconButton";
+import { CloseIcon, TrashIcon } from "../components/icons";
+import { SettingRow } from "../components/SettingRow";
 import { type CardState, bytesOnDisk, cardState, megabytes, speed } from "./view";
 
-/** One Model on the Models page: facts, state and the actions that state allows. */
+/**
+ * One Model on the Models page as a flat row: name, a one-line description with size and
+ * languages, the actions its state allows on the right, and progress or failure under it.
+ */
 export function ModelCard({ entry, models }: { entry: ModelEntry; models: ModelsState }) {
   const { t } = useTranslation();
   const state = cardState(entry, models);
@@ -17,64 +23,67 @@ export function ModelCard({ entry, models }: { entry: ModelEntry; models: Models
   const loadFailure = models.loadFailure?.model === entry.id ? models.loadFailure : null;
 
   return (
-    <li
-      aria-label={entry.name}
-      className={`flex flex-col gap-4 rounded-card border px-6 py-5 ${
-        state.kind === "active" ? "border-accent bg-accent-soft/30" : "border-line bg-surface"
-      }`}
+    <SettingRow
+      as="li"
+      ariaLabel={entry.name}
+      label={entry.name}
+      prominent={state.kind === "active"}
+      description={`${t(`models.descriptions.${entry.id}`)} · ${t("models.size", {
+        size: megabytes(entry.sizeBytes),
+      })} · ${t(`models.languagesOf.${entry.id}`)}`}
+      tag={
+        <>
+          {state.kind === "active" && (
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-soft-fg">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+              {t("models.active")}
+            </span>
+          )}
+          {entry.recommended && (
+            <span className="shrink-0 rounded-full bg-raised px-2 py-0.5 text-xs font-medium text-muted">
+              {t("models.recommended")}
+            </span>
+          )}
+        </>
+      }
+      below={
+        <>
+          <StateLine entry={entry} state={state} />
+          {loadFailure && (
+            <FailureMessage
+              message={t("models.loadFailed", { model: entry.name })}
+              detail={t("models.failureDetail", { detail: loadFailure.reason })}
+              className="text-note text-danger"
+            />
+          )}
+          {confirming && (
+            <ConfirmDialog
+              title={t("models.confirmDelete.title", { model: entry.name })}
+              body={t("models.confirmDelete.body", { size: megabytes(bytesOnDisk(entry)) })}
+              confirm={t("models.confirmDelete.confirm")}
+              cancel={t("models.confirmDelete.cancel")}
+              onConfirm={() => {
+                setConfirming(false);
+                void remove(entry.id);
+              }}
+              onCancel={() => {
+                setConfirming(false);
+              }}
+            />
+          )}
+        </>
+      }
     >
-      <div className="flex items-start justify-between gap-6">
-        <div className="flex min-w-0 flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-heading">{entry.name}</h3>
-            {entry.recommended && <Badge tone="soft">{t("models.recommended")}</Badge>}
-            {state.kind === "active" && <Badge tone="strong">{t("models.active")}</Badge>}
-          </div>
-          <p className="text-muted">{t(`models.descriptions.${entry.id}`)}</p>
-          <p className="text-note text-muted">
-            {t("models.size", { size: megabytes(entry.sizeBytes) })} ·{" "}
-            {t(`models.languagesOf.${entry.id}`)}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <Actions
-            entry={entry}
-            state={state}
-            locked={models.dictationInProgress}
-            loadingOther={models.activating !== null && models.activating !== entry.id}
-            onDelete={() => {
-              setConfirming(true);
-            }}
-          />
-        </div>
-      </div>
-
-      <StateLine entry={entry} state={state} />
-
-      {loadFailure && (
-        <FailureMessage
-          message={t("models.loadFailed", { model: entry.name })}
-          detail={t("models.failureDetail", { detail: loadFailure.reason })}
-          className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
-        />
-      )}
-
-      {confirming && (
-        <ConfirmDialog
-          title={t("models.confirmDelete.title", { model: entry.name })}
-          body={t("models.confirmDelete.body", { size: megabytes(bytesOnDisk(entry)) })}
-          confirm={t("models.confirmDelete.confirm")}
-          cancel={t("models.confirmDelete.cancel")}
-          onConfirm={() => {
-            setConfirming(false);
-            void remove(entry.id);
-          }}
-          onCancel={() => {
-            setConfirming(false);
-          }}
-        />
-      )}
-    </li>
+      <Actions
+        entry={entry}
+        state={state}
+        locked={models.dictationInProgress}
+        loadingOther={models.activating !== null && models.activating !== entry.id}
+        onDelete={() => {
+          setConfirming(true);
+        }}
+      />
+    </SettingRow>
   );
 }
 
@@ -94,24 +103,24 @@ function Actions({
   const { t } = useTranslation();
   const { download, cancel, activate } = useModels();
   const deleteButton = (
-    <Button variant="quiet" disabled={locked} onClick={onDelete}>
-      {t("models.actions.delete")}
-    </Button>
+    <IconButton label={t("models.actions.delete")} disabled={locked} onClick={onDelete}>
+      <TrashIcon />
+    </IconButton>
   );
 
   switch (state.kind) {
     case "notDownloaded":
       return (
-        <Button variant="primary" onClick={() => void download(entry.id)}>
+        <Button variant="contrast" onClick={() => void download(entry.id)}>
           {t("models.actions.download", { size: megabytes(entry.sizeBytes) })}
         </Button>
       );
     case "queued":
     case "downloading":
       return (
-        <Button variant="secondary" onClick={() => void cancel(entry.id)}>
-          {t("models.actions.cancel")}
-        </Button>
+        <IconButton label={t("models.actions.cancel")} onClick={() => void cancel(entry.id)}>
+          <CloseIcon />
+        </IconButton>
       );
     case "verifying":
     case "loading":
@@ -119,37 +128,69 @@ function Actions({
     case "paused":
       return (
         <>
-          {deleteButton}
-          <Button variant="secondary" onClick={() => void download(entry.id)}>
+          <Button variant="contrast" onClick={() => void download(entry.id)}>
             {t("models.actions.resume")}
           </Button>
+          {deleteButton}
         </>
       );
     case "failed":
       return (
         <>
-          {state.entry.downloaded > 0 && deleteButton}
-          <Button variant="secondary" onClick={() => void download(entry.id)}>
+          <Button variant="contrast" onClick={() => void download(entry.id)}>
             {t("models.actions.retry")}
           </Button>
+          {state.entry.downloaded > 0 && deleteButton}
         </>
       );
     case "downloaded":
       return (
         <>
-          {deleteButton}
           <Button
-            variant="primary"
+            variant="contrast"
             disabled={locked || loadingOther}
             onClick={() => void activate(entry.id)}
           >
             {t("models.actions.use")}
           </Button>
+          {deleteButton}
         </>
       );
     case "active":
-      return deleteButton;
+      return (
+        <>
+          <ActiveState />
+          {deleteButton}
+        </>
+      );
   }
+}
+
+/**
+ * The active Model's memory state when it needs attention, in the words of the sidebar's Model
+ * indicator: a pulsing dot while loading, grey when freed, red on error. Ready says nothing.
+ */
+function ActiveState() {
+  const { t } = useTranslation();
+  const activeState = useModels((s) => s.state?.activeState ?? "none");
+  if (activeState === "ready" || activeState === "none") return null;
+  const dot = {
+    loading: "bg-accent animate-pulse",
+    unloaded: "bg-muted/50",
+    error: "bg-danger",
+  }[activeState];
+  const text = t(`models.indicator.${activeState}`);
+  return (
+    <span
+      title={text}
+      className={`flex max-w-52 items-center gap-2 text-note ${
+        activeState === "error" ? "text-danger" : "text-muted"
+      }`}
+    >
+      <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${dot}`} />
+      <span className="truncate">{text}</span>
+    </span>
+  );
 }
 
 /** Progress, status and failure text under the card's header. */
@@ -159,13 +200,15 @@ export function StateLine({ entry, state }: { entry: ModelEntry; state: CardStat
     case "downloading":
     case "paused":
       return (
-        <div className="flex flex-col gap-1.5">
-          <ProgressBar
-            percent={state.percent}
-            label={t("models.progress", { model: entry.name })}
-            paused={state.kind === "paused"}
-          />
-          <p className="text-note text-muted tabular-nums" aria-live="polite">
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <ProgressBar
+              percent={state.percent}
+              label={t("models.progress", { model: entry.name })}
+              paused={state.kind === "paused"}
+            />
+          </div>
+          <p className="shrink-0 text-note text-muted tabular-nums" aria-live="polite">
             {state.kind === "downloading"
               ? t("models.state.downloading", {
                   percent: state.percent,
@@ -183,8 +226,8 @@ export function StateLine({ entry, state }: { entry: ModelEntry; state: CardStat
       return <StatusText pulse>{t("models.state.loading")}</StatusText>;
     case "failed":
       return (
-        <div role="alert" className="flex flex-col gap-0.5 rounded-lg bg-danger-soft px-3 py-2">
-          <p className="text-sm text-danger">
+        <div role="alert" className="flex flex-col gap-0.5">
+          <p className="text-note text-danger">
             {t(`models.failure.${state.entry.failure.kind}`, {
               needed: megabytes(state.entry.failure.neededBytes ?? 0),
             })}
@@ -238,17 +281,5 @@ export function ProgressBar({
         style={{ width: `${String(percent)}%` }}
       />
     </div>
-  );
-}
-
-function Badge({ tone, children }: { tone: "soft" | "strong"; children: ReactNode }) {
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-        tone === "soft" ? "bg-accent-soft text-accent-soft-fg" : "bg-accent-strong text-accent-fg"
-      }`}
-    >
-      {children}
-    </span>
   );
 }

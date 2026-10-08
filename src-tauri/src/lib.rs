@@ -97,6 +97,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             HistoryChanged,
             shortcut::app::CapturedKeyEvent,
             dictation::app::DictationStatusChanged,
+            dictation::app::TryItTranscript,
             tray::app::TrayHintRequested,
             overlay::app::OverlayViewChanged,
             overlay::app::OverlayFrame,

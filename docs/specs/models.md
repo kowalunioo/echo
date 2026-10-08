@@ -75,7 +75,7 @@ Selecting, downloading, verifying, switching and deleting the speech-recognition
 
 ### Recommendation
 
-30. Whisper large-v3-turbo is the recommended Model. On a computer where the Engine will use the CPU only (no Vulkan driver installed, or ARM64 emulation — rule 29), the onboarding instead recommends and pre-selects Parakeet TDT 0.6B v3, because Whisper large-v3-turbo is slow on the CPU. The Models page keeps the "Recommended" badge on Whisper large-v3-turbo.
+30. Whisper large-v3-turbo is the recommended Model. On a computer where the Engine will use the CPU only (no Vulkan driver installed, or ARM64 emulation — rule 29), the onboarding instead recommends Parakeet TDT 0.6B v3, because Whisper large-v3-turbo is slow on the CPU. The Models page keeps the "Recommended" badge on Whisper large-v3-turbo.
 
 ## Settings
 

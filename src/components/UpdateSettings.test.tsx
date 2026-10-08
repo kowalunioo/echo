@@ -71,6 +71,8 @@ describe("updates on the App page (updater.md UI)", () => {
     render(<App />);
     expect(await status()).toHaveTextContent("Version 0.2.0 is available");
     expect(backend.commandsCalled("install_update")).toHaveLength(0);
+    // Install takes Check's place while an update is on offer.
+    expect(page().queryByRole("button", { name: "Check for updates" })).not.toBeInTheDocument();
 
     await userEvent.click(page().getByRole("button", { name: "Install and restart" }));
     expect(backend.commandsCalled("install_update")).toHaveLength(1);
@@ -83,6 +85,44 @@ describe("updates on the App page (updater.md UI)", () => {
       backend.changeUpdater({ status: { state: "installing", version: "0.2.0" } });
     });
     expect(await status()).toHaveTextContent("Installing…");
+  });
+
+  it("shows a progress bar while an update downloads", async () => {
+    backend.updater = {
+      ...backend.updater,
+      status: { state: "downloading", version: "0.2.0", percent: 42 },
+    };
+    render(<App />);
+    await screen.findByRole("main");
+    const bar = await page().findByRole("progressbar", { name: "Downloading… 42%" });
+    expect(bar).toHaveAttribute("aria-valuenow", "42");
+
+    act(() => {
+      backend.changeUpdater({ status: { state: "installing", version: "0.2.0" } });
+    });
+    await waitFor(() => {
+      expect(page().queryByRole("progressbar")).not.toBeInTheDocument();
+    });
+  });
+
+  it("says when Echo last reached the release feed", async () => {
+    render(<App />);
+    await screen.findByTestId("app-version");
+    expect(page().queryByText(/^Last checked/)).not.toBeInTheDocument();
+
+    const today = new Date();
+    today.setHours(14, 2, 0, 0);
+    act(() => {
+      backend.changeUpdater({ lastChecked: today.getTime() });
+    });
+    expect(await page().findByText(/^Last checked: today at /)).toBeVisible();
+
+    act(() => {
+      backend.changeUpdater({ lastChecked: new Date(2026, 0, 5, 9, 30).getTime() });
+    });
+    const earlier = await page().findByText(/^Last checked: /);
+    expect(earlier).toHaveTextContent("2026");
+    expect(earlier).not.toHaveTextContent("today");
   });
 
   it.each([

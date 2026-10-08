@@ -145,6 +145,17 @@ describe("app shell", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
+  it("says on the App page that dictation stays on this computer", async () => {
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
+
+    expect(
+      screen.getByText(
+        "Your voice and Transcripts stay on this computer. Echo goes online only to download Models and check for updates.",
+      ),
+    ).toBeVisible();
+  });
+
   it("says so when the log folder cannot be opened", async () => {
     backend.failing.set("open_log_folder", "no explorer");
     render(<App />);

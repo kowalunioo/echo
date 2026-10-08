@@ -80,11 +80,7 @@ pub fn install(app: &AppHandle) {
         }
     }
     let settings = store.get();
-    let core = RecordShortcut::new(
-        listener,
-        config_of(&settings),
-        settings.onboarding_completed,
-    );
+    let core = RecordShortcut::new(listener, config_of(&settings), shortcut_wanted(&settings));
     let intents_app = app.clone();
     let cancel_app = app.clone();
     let keys_app = app.clone();
@@ -134,6 +130,13 @@ pub fn install(app: &AppHandle) {
     app.manage(handle);
 }
 
+/// Whether the Record Shortcut should be active: once first-run setup is finished, or as soon as
+/// a Model is active during it, so the user can dictate on the onboarding's Try it step
+/// (`record-shortcut.md` rule 17, `settings-and-first-run.md` rule 3).
+fn shortcut_wanted(settings: &Settings) -> bool {
+    settings.onboarding_completed || settings.active_model.is_some()
+}
+
 /// Applies a settings change to the running Record Shortcut and Cancel Shortcut. A combination
 /// that cannot be used (it cannot be activated, or it is the other shortcut) is returned to be
 /// put back in the settings, so the settings always show what is in force.
@@ -162,8 +165,8 @@ fn follow_settings(
             put_back.push(PutBack::Cancel(in_force));
         }
     }
-    if old.onboarding_completed != new.onboarding_completed
-        && let Err(error) = shortcut.set_active(new.onboarding_completed)
+    if shortcut_wanted(old) != shortcut_wanted(new)
+        && let Err(error) = shortcut.set_active(shortcut_wanted(new))
     {
         log::warn!("cannot (de)activate the Record Shortcut: {error}");
     }
@@ -239,6 +242,7 @@ mod tests {
     use super::super::modes::ShortcutMode;
     use super::super::{FakeShortcutListener, Shortcut};
     use super::*;
+    use crate::models::ModelId;
 
     fn running_with(
         config: RecordShortcutConfig,
@@ -330,6 +334,33 @@ mod tests {
         follow_settings(&handle, &Settings::defaults(None), &finished_setup());
 
         assert_eq!(bound(&fake).as_deref(), Some("Ctrl+Space"));
+    }
+
+    // settings-and-first-run.md rule 3: a Model made active during onboarding activates the
+    // shortcut before "Finish", so the user can dictate on the Try it step.
+    #[test]
+    fn a_model_made_active_during_onboarding_activates_the_shortcut() {
+        let (fake, handle) = running(false);
+        let onboarding = Settings::defaults(None);
+        let with_model = Settings {
+            active_model: Some(ModelId::WhisperSmall),
+            ..onboarding.clone()
+        };
+
+        follow_settings(&handle, &onboarding, &with_model);
+
+        assert_eq!(bound(&fake).as_deref(), Some("Ctrl+Space"));
+    }
+
+    #[test]
+    fn the_shortcut_is_active_at_start_when_a_model_is_active_but_onboarding_is_not_finished() {
+        let settings = Settings {
+            active_model: Some(ModelId::WhisperSmall),
+            ..Settings::defaults(None)
+        };
+
+        assert!(shortcut_wanted(&settings));
+        assert!(!shortcut_wanted(&Settings::defaults(None)));
     }
 
     // cancel-shortcut.md rule 12 via the settings ("Reset to default" and the like).

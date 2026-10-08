@@ -68,6 +68,7 @@ The core cycle of Echo: the user starts a Dictation, speaks, stops it, and the T
 ### Insertion
 
 31. Insertion delivers the Transcript to whichever application has keyboard focus at the moment of Insertion (not necessarily the one focused when the Recording started).
+31a. Until onboarding is complete, Insertion instead puts the Transcript into the onboarding's Try it field in the main window, wherever keyboard focus is (`settings-and-first-run.md` rule 2.4). If the main window cannot receive it, the Insertion fails as in rule 36.
 32. The inserted text is the cleaned Transcript exactly. Echo adds no leading or trailing space and no newline.
 33. Before inserting, Echo waits until the user has released all modifier keys (Ctrl, Alt, Shift, Win), for at most 1.5 s, so that held modifiers do not combine with the paste keystroke.
 34. **Clipboard paste (primary method):**

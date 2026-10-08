@@ -121,6 +121,73 @@ export function TrashIcon() {
   );
 }
 
+/** An ✕: stop or dismiss. */
+export function CloseIcon() {
+  return (
+    <Icon width="16" height="16">
+      <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />
+    </Icon>
+  );
+}
+
+/** An ⓘ in front of an explanatory note. */
+export function InfoIcon({ className }: { className?: string }) {
+  return (
+    <Icon width="16" height="16" className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5.5M12 7.75v.25" strokeWidth="1.9" />
+    </Icon>
+  );
+}
+
+/** A padlock: stays on this computer (Welcome). */
+export function LockIcon({ className }: { className?: string }) {
+  return (
+    <Icon width="16" height="16" className={className}>
+      <rect x="5" y="10.5" width="14" height="10" rx="2" />
+      <path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3" />
+    </Icon>
+  );
+}
+
+/** An arrow into a tray: download. */
+export function DownloadIcon({ className }: { className?: string }) {
+  return (
+    <Icon width="16" height="16" className={className}>
+      <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />
+    </Icon>
+  );
+}
+
+/** A keyboard: the Record Shortcut (Welcome). */
+export function KeyboardIcon({ className }: { className?: string }) {
+  return (
+    <Icon width="16" height="16" className={className}>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M7 14.5h10M6.5 10h.01M10 10h.01M13.5 10h.01M17 10h.01" />
+    </Icon>
+  );
+}
+
+/** → in front of an action that opens another page of Echo. */
+export function ArrowIcon() {
+  return (
+    <Icon width="16" height="16">
+      <path d="M5 12h14M13 6l6 6-6 6" />
+    </Icon>
+  );
+}
+
+/** A circled "!" in front of a problem: the ⓘ turned upside down. */
+export function AlertIcon({ className }: { className?: string }) {
+  return (
+    <Icon width="16" height="16" className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.5v5.5M12 16.25v.25" strokeWidth="1.9" />
+    </Icon>
+  );
+}
+
 /** The drop-down marker of a picker button. */
 export function ChevronIcon() {
   return (
@@ -151,6 +218,36 @@ export function CheckIcon({ className }: { className?: string }) {
   return (
     <Icon width="12" height="12" strokeWidth="2.4" className={className}>
       <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </Icon>
+  );
+}
+
+/** A clockwise arrow: look again (Check for updates). */
+export function RefreshIcon() {
+  return (
+    <Icon width="15" height="15">
+      <path d="M21 12a9 9 0 1 1-2.6-6.4L21 8" />
+      <path d="M21 3v5h-5" />
+    </Icon>
+  );
+}
+
+/** A folder: opens a folder in File Explorer. */
+export function FolderIcon() {
+  return (
+    <Icon width="15" height="15">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </Icon>
+  );
+}
+
+/** An arrow out of a box: opens something outside Echo (a Windows settings page). */
+export function ExternalIcon() {
+  return (
+    <Icon width="15" height="15">
+      <path d="M14 4h6v6" />
+      <path d="M20 4l-9 9" />
+      <path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" />
     </Icon>
   );
 }

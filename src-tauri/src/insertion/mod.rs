@@ -8,12 +8,14 @@
 
 mod fake;
 pub mod paste;
+mod try_it;
 #[cfg(windows)]
 mod win32;
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 pub use fake::FakeInserter;
+pub use try_it::TryItInserter;
 #[cfg(windows)]
 pub use win32::{WindowsInserter, system_inserter};
 

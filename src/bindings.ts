@@ -164,6 +164,7 @@ export const events = {
 	overlayViewChanged: makeEvent<OverlayViewChanged>("overlay-view-changed"),
 	settingsChanged: makeEvent<SettingsChanged>("settings-changed"),
 	trayHintRequested: makeEvent<TrayHintRequested>("tray-hint-requested"),
+	tryItTranscript: makeEvent<TryItTranscript>("try-it-transcript"),
 	updaterChanged: makeEvent<UpdaterChanged>("updater-changed"),
 };
 
@@ -690,6 +691,13 @@ export type ShortcutProblem =
  */
 export type TrayHintRequested = null;
 
+/**
+ *  A Transcript for the onboarding's Try it field, sent to the main window instead of being
+ *  inserted into the focused application while first-run setup is not finished
+ *  (`settings-and-first-run.md` rule 2.4).
+ */
+export type TryItTranscript = string;
+
 /**  The language of Echo's own interface. Independent of the Dictation Language (rule 9). */
 export type UiLanguage = "pl" | "en";
 
@@ -735,6 +743,11 @@ export type UpdaterView = {
 	status: UpdateStatus,
 	/**  "Echo was updated to <version>" after an update's restart (rule 6), until dismissed. */
 	updatedTo: string | null,
+	/**
+	 *  When a check last reached the release feed, in milliseconds since the Unix epoch (UTC);
+	 *  `None` until the first one since Echo started.
+	 */
+	lastChecked: number | null,
 };
 
 /**

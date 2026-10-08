@@ -142,6 +142,11 @@
     cursor: default;
   }
 
+  /* Scrollbars sit on the surface they scroll: no track of their own, a quiet grey thumb. */
+  * {
+    scrollbar-color: color-mix(in srgb, var(--color-muted) 40%, transparent) transparent;
+  }
+
   /* Light text on a dark ground reads thinner and tighter: a touch more leading and tracking. */
   @media (prefers-color-scheme: dark) {
     body {
@@ -266,5 +271,142 @@
   /* Scale-on-press is movement too: with animations off a press shows no jump. */
   :active {
     scale: none !important;
+  }
+}
+
+/*
+ * Onboarding "Try it" (settings-and-first-run.md rule 2.4). The sample phrase sits behind the
+ * empty test field and follows the Dictation: muted while idle, getting ready and listening, a
+ * soft grey shimmer while transcribing; it blurs away as the dictated words blur in. With Windows
+ * "Show animations" off nothing shimmers, blurs, pulses or draws: everything only fades.
+ */
+.try-it-phrase {
+  transition:
+    opacity 220ms var(--ease-out-strong),
+    filter 220ms var(--ease-out-strong),
+    transform 220ms var(--ease-out-strong);
+}
+
+.try-it-phrase[data-phase="transcribing"] {
+  color: transparent;
+  background: linear-gradient(
+    100deg,
+    var(--echo-muted) 30%,
+    var(--echo-fg) 50%,
+    var(--echo-muted) 70%
+  );
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: try-it-shimmer 1.3s linear infinite;
+}
+
+.try-it-phrase[data-phase="heard"] {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(-4px);
+}
+
+/* A highlight sweeping left across the phrase while the Model works. */
+@keyframes try-it-shimmer {
+  from {
+    background-position: 120% 0;
+  }
+  to {
+    background-position: -120% 0;
+  }
+}
+
+/* The dictated words arrive where the phrase was, just after it leaves. */
+.try-it-words {
+  animation: try-it-words-in 380ms var(--ease-out-strong) 80ms both;
+}
+
+@keyframes try-it-words-in {
+  from {
+    opacity: 0;
+    filter: blur(6px);
+    transform: translateY(6px);
+  }
+}
+
+/* Each status line fades up into the fixed-height row. */
+.try-it-status {
+  transition:
+    opacity 200ms var(--ease-out-strong),
+    transform 200ms var(--ease-out-strong);
+
+  @starting-style {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+/* The status dot breathes while Echo is busy. */
+.try-it-pulse {
+  animation: try-it-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes try-it-pulse {
+  50% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+}
+
+/* The check mark next to "Echo heard you." draws itself (its path has pathLength="1"). */
+.try-it-check path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: try-it-draw 360ms var(--ease-out-strong) 120ms forwards;
+}
+
+@keyframes try-it-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes try-it-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .try-it-phrase {
+    transition-property: opacity;
+  }
+
+  .try-it-phrase[data-phase="transcribing"] {
+    color: var(--echo-muted);
+    background: none;
+    animation: none;
+  }
+
+  .try-it-phrase[data-phase="heard"] {
+    filter: none;
+    transform: none;
+  }
+
+  .try-it-words {
+    animation: try-it-fade-in 200ms var(--ease-out-strong) both;
+  }
+
+  .try-it-status {
+    transition-property: opacity;
+
+    @starting-style {
+      transform: none;
+    }
+  }
+
+  .try-it-pulse {
+    animation: none;
+  }
+
+  .try-it-check path {
+    stroke-dashoffset: 0;
+    animation: none;
   }
 }

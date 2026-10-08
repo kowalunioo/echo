@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../components/Button";
-import { EchoMark } from "../components/icons";
+import { EchoMark, InfoIcon } from "../components/icons";
+import { SectionHeading } from "../components/SectionHeading";
 import { useModels } from "../store/models";
 import { useSetting } from "../store/settings";
 import {
@@ -105,107 +106,130 @@ export function VocabularySection() {
         : null;
 
   return (
-    <section className="flex flex-col gap-4 rounded-card border border-line bg-surface px-6 py-5">
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          add();
-        }}
-      >
-        <label htmlFor="vocabulary-input" className="font-medium">
-          {t("vocabulary.addLabel")}
-        </label>
-        <div className="flex gap-2">
-          <input
-            ref={inputRef}
-            id="vocabulary-input"
-            type="text"
-            value={input}
-            placeholder={t("vocabulary.placeholder")}
-            aria-invalid={hint !== null}
-            aria-describedby={hint !== null ? hintId : undefined}
-            onChange={(event) => {
-              setInput(event.target.value);
-              setDuplicate(null);
-            }}
-            className="min-w-0 flex-1 rounded-lg border border-control bg-bg px-3 py-1.5 text-sm placeholder:text-muted"
-          />
-          <Button type="submit" disabled={check.kind === "empty" || check.kind === "tooLong"}>
-            {t("vocabulary.add")}
-          </Button>
-        </div>
-        {hint !== null && (
-          <p id={hintId} role="alert" className="text-sm text-danger">
-            {hint}
-          </p>
-        )}
-      </form>
-
-      {entries.length === 0 ? (
-        <div className="flex items-center gap-3 text-muted">
-          <EchoMark className="size-6 shrink-0 text-muted/40" />
-          <p className="text-sm">{t("vocabulary.empty")}</p>
-        </div>
-      ) : (
-        <ul ref={list} aria-label={t("vocabulary.listLabel")} className="flex flex-wrap gap-2">
-          {entries.map((entry, index) => (
-            <li
-              key={entry}
-              className="flex max-w-full min-w-0 items-center gap-1 rounded-full bg-accent-soft py-1 pr-1 pl-3 text-sm text-accent-soft-fg"
+    // Flat like the other pages: the add field and the entries under one heading, the budget
+    // below a hairline, the Parakeet note as plain text. Entries stay chips (vocabulary.md "UI").
+    <div className="flex flex-col gap-8">
+      <section aria-labelledby="vocabulary-add-heading" className="flex flex-col gap-3">
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            add();
+          }}
+        >
+          <SectionHeading id="vocabulary-add-heading">
+            <label htmlFor="vocabulary-input">{t("vocabulary.addLabel")}</label>
+          </SectionHeading>
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              id="vocabulary-input"
+              type="text"
+              value={input}
+              placeholder={t("vocabulary.placeholder")}
+              aria-invalid={hint !== null}
+              aria-describedby={hint !== null ? hintId : undefined}
+              onChange={(event) => {
+                setInput(event.target.value);
+                setDuplicate(null);
+              }}
+              className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-3 py-1.5 text-sm transition-colors duration-150 placeholder:text-muted hover:bg-raised/50"
+            />
+            <Button
+              type="submit"
+              variant="contrast"
+              disabled={check.kind === "empty" || check.kind === "tooLong"}
             >
-              <span className="min-w-0 break-words">{entry}</span>
-              {/* 20px circle, 24px hit area (WCAG 2.5.8) through the pseudo-element. */}
-              <button
-                type="button"
-                data-entry={entry}
-                aria-label={t("vocabulary.remove", { entry })}
-                onClick={() => {
-                  remove(index);
-                }}
-                className="relative flex size-5 shrink-0 items-center justify-center rounded-full after:absolute after:-inset-0.5 after:content-[''] hover:bg-accent-strong hover:text-accent-fg"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="12"
-                  height="12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M6 6l12 12M18 6 6 18" />
-                </svg>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              {t("vocabulary.add")}
+            </Button>
+          </div>
+          {hint !== null && (
+            <p id={hintId} role="alert" title={hint} className="truncate text-sm text-danger">
+              {hint}
+            </p>
+          )}
+        </form>
 
-      <div className="flex flex-col gap-1.5">
-        <div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-raised">
+        {entries.length === 0 ? (
+          <div className="flex min-w-0 items-center gap-3 pt-1 text-muted">
+            <EchoMark className="size-5 shrink-0 text-muted/40" />
+            <p title={t("vocabulary.empty")} className="truncate text-sm">
+              {t("vocabulary.empty")}
+            </p>
+          </div>
+        ) : (
+          <ul
+            ref={list}
+            aria-label={t("vocabulary.listLabel")}
+            className="flex flex-wrap gap-2 pt-1"
+          >
+            {entries.map((entry, index) => (
+              <li
+                key={entry}
+                className="flex max-w-full min-w-0 items-center gap-1 rounded-full bg-raised py-1 pr-1 pl-3 text-sm"
+              >
+                <span title={entry} className="min-w-0 truncate">
+                  {entry}
+                </span>
+                {/* 20px circle, 24px hit area (WCAG 2.5.8) through the pseudo-element. */}
+                <button
+                  type="button"
+                  data-entry={entry}
+                  aria-label={t("vocabulary.remove", { entry })}
+                  title={t("vocabulary.remove", { entry })}
+                  onClick={() => {
+                    remove(index);
+                  }}
+                  className="relative grid size-5 shrink-0 place-items-center rounded-full text-muted transition-colors duration-150 after:absolute after:-inset-0.5 after:content-[''] hover:bg-line hover:text-fg"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="12"
+                    height="12"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M6 6l12 12M18 6 6 18" />
+                  </svg>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <div className="flex flex-col gap-2 border-t border-line pt-4">
+        <p
+          title={t("vocabulary.budget", { used: hintChars(entries), max: HINT_CHAR_BUDGET })}
+          className={`truncate text-note ${nearlyFull ? "text-warning" : "text-muted"}`}
+        >
+          {t("vocabulary.budget", { used: hintChars(entries), max: HINT_CHAR_BUDGET })}
+        </p>
+        <div aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-raised">
           <div
             className={`h-full rounded-full ${nearlyFull ? "bg-warning" : "bg-accent"}`}
             style={{ width: `${String(percent)}%` }}
           />
         </div>
-        <p className={`text-note ${nearlyFull ? "text-warning" : "text-muted"}`}>
-          {t("vocabulary.budget", { used: hintChars(entries), max: HINT_CHAR_BUDGET })}
-        </p>
         {nearlyFull && (
-          <p role="alert" className="text-sm text-warning">
+          <p
+            role="alert"
+            title={t("vocabulary.nearlyFull")}
+            className="truncate text-sm text-warning"
+          >
             {t("vocabulary.nearlyFull")}
           </p>
         )}
       </div>
 
       {active !== null && activeName !== undefined && !acceptsPrompt(active) && (
-        <p
-          role="note"
-          className="rounded-lg bg-accent-soft px-4 py-3 text-sm leading-relaxed text-accent-soft-fg"
-        >
-          {t("vocabulary.noPrompt", { model: activeName })}
+        // An explanation rather than a label, so it wraps instead of being cut off.
+        <p role="note" className="flex gap-2.5 text-sm leading-relaxed text-muted">
+          <InfoIcon className="mt-0.5 shrink-0" />
+          <span>{t("vocabulary.noPrompt", { model: activeName })}</span>
         </p>
       )}
 
@@ -228,6 +252,6 @@ export function VocabularySection() {
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }

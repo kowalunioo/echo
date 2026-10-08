@@ -87,6 +87,9 @@ pub trait Host {
     fn before_install(&self, version: &Version);
     /// The install did not start: forget what [`Host::before_install`] remembered.
     fn install_failed(&self);
+    /// A check reached the release feed and got an answer, manual or automatic: the App page
+    /// shows when this last happened ("Last checked").
+    fn feed_answered(&self);
     /// The status shown in the main window changed.
     fn publish(&self, status: &UpdateStatus);
 }
@@ -250,7 +253,11 @@ where
         }
         self.up_to_date_until = None;
         self.set(UpdateStatus::Checking, host);
-        match self.feed.check() {
+        let answer = self.feed.check();
+        if answer.is_ok() {
+            host.feed_answered();
+        }
+        match answer {
             Err(CheckError(error)) => {
                 log::warn!("Manual update check failed: {error}");
                 self.set(UpdateStatus::CheckFailed, host);
@@ -325,7 +332,10 @@ where
             return;
         }
         let found = match self.feed.check() {
-            Ok(found) => found,
+            Ok(found) => {
+                host.feed_answered();
+                found
+            }
             Err(CheckError(error)) => {
                 // Rule 9: silent for automatic checks.
                 log::warn!("Automatic update check failed: {error}");

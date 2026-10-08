@@ -25,7 +25,7 @@ A simple in-app updater: Echo checks for a newer signed release, downloads and i
 
 ## UI
 
-- In settings (about/app area): current version, the automatic-updates toggle, a "Check for updates" button, and the update status line (checking / up to date / available with Install / downloading x% / installing).
+- In settings (about/app area): current version, the automatic-updates toggle, a "Check for updates" button, and the update status line (checking / up to date / available with Install / downloading x% / installing). While an update is available or ready, the Install button takes the place of "Check for updates": only one of them shows at a time. While an update downloads, a progress bar sits under the status line. The version row also says when a check (manual or automatic) last got an answer from the release feed: "Last checked: today at 14:02", or with the date when it was not today; failed checks do not count, and it is remembered only while Echo runs (hidden until the first check after a start).
 - The tray menu item "Check for updates…" opens the main window and runs a manual check.
 
 ## Acceptance tests

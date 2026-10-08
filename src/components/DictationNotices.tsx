@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { type DictationProblem, commands } from "../bindings";
 import { useDictation } from "../store/dictation";
 import { useShell } from "../store/shell";
+import { Button } from "./Button";
+import { AlertIcon, ArrowIcon, CopyIcon, ExternalIcon, FolderIcon } from "./icons";
 
 /**
  * Dictation errors in the main window (dictation-pipeline.md rules 39b–39d): every error since
@@ -40,25 +42,26 @@ export function DictationNotices() {
 
   if (notices.length === 0) return null;
   // The section is a labelled region; each message line is the alert, so a screen reader
-  // announces the message rather than the buttons around it.
+  // announces the message rather than the buttons around it. It opens the page column, above the
+  // title, with a hairline closing it off from the page.
   return (
-    <section
-      aria-labelledby="dictation-notices-title"
-      className="mx-auto mt-6 flex max-w-2xl flex-col gap-3 rounded-card border border-danger/40 bg-surface px-6 py-4"
-    >
+    <section aria-labelledby="dictation-notices-title" className="border-b border-line pb-2">
       <div className="flex items-center justify-between gap-4">
-        <h2 id="dictation-notices-title" className="text-heading text-danger">
+        <h2
+          id="dictation-notices-title"
+          className="truncate pb-1 text-sm font-semibold text-danger"
+        >
           {t("dictationNotices.title")}
         </h2>
         <button
           type="button"
           onClick={() => void dismiss()}
-          className="rounded-lg px-3 py-1 text-sm text-muted hover:bg-bg hover:text-fg focus-visible:outline-2 focus-visible:outline-focus"
+          className="-mr-2 shrink-0 rounded-md px-2 py-1 text-note font-medium text-muted transition-colors duration-150 hover:bg-raised hover:text-fg"
         >
           {t("dictationNotices.dismiss")}
         </button>
       </div>
-      <ul className="flex flex-col gap-3">
+      <ul className="flex flex-col">
         {[...notices].reverse().map((notice) => (
           <Notice key={notice.id} notice={notice} kept={keptTranscript === notice.id} />
         ))}
@@ -67,26 +70,38 @@ export function DictationNotices() {
   );
 }
 
-/** One error: a plain message, the technical detail below it, and what the user can do. */
+/**
+ * One error as a row: an alert mark, the plain message with the technical detail under it, and
+ * what the user can do at the right. Message and detail stay on one line each, cut with an
+ * ellipsis and shown whole in the tooltip.
+ */
 function Notice({ notice, kept }: { notice: DictationProblem; kept: boolean }) {
   const { t } = useTranslation();
   const setPage = useShell((s) => s.setPage);
   const openSection = useShell((s) => s.openSection);
+  const message = t(`dictationNotices.kinds.${notice.kind}`);
+  const detail = notice.detail ? t("dictationNotices.detail", { detail: notice.detail }) : null;
   return (
-    <li className="flex items-start justify-between gap-4 text-sm">
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <p role="alert">{t(`dictationNotices.kinds.${notice.kind}`)}</p>
-        {notice.detail && (
-          <p className="cursor-text text-note break-words text-muted select-text">
-            {t("dictationNotices.detail", { detail: notice.detail })}
+    <li className="flex items-center justify-between gap-8 border-b border-line py-3.5 last:border-b-0">
+      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+        <AlertIcon className="mt-0.5 text-danger" />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p role="alert" title={message} className="truncate font-medium">
+            {message}
           </p>
-        )}
+          {detail && (
+            <p title={detail} className="cursor-text truncate text-note text-muted select-text">
+              {detail}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="flex shrink-0 flex-wrap justify-end gap-2">
+      <div className="-mr-3.5 flex shrink-0 items-center">
         {(notice.kind === "noModel" ||
           notice.kind === "modelLoadFailed" ||
           notice.kind === "modelDownloadFailed") && (
           <NoticeAction
+            icon={<ArrowIcon />}
             onClick={() => {
               setPage("model");
             }}
@@ -95,7 +110,10 @@ function Notice({ notice, kept }: { notice: DictationProblem; kept: boolean }) {
           </NoticeAction>
         )}
         {notice.kind === "microphoneAccessDenied" && (
-          <NoticeAction onClick={() => void commands.openMicrophonePrivacySettings()}>
+          <NoticeAction
+            icon={<ExternalIcon />}
+            onClick={() => void commands.openMicrophonePrivacySettings()}
+          >
             {t("dictationNotices.openPrivacy")}
           </NoticeAction>
         )}
@@ -103,6 +121,7 @@ function Notice({ notice, kept }: { notice: DictationProblem; kept: boolean }) {
           notice.kind === "microphoneFailed" ||
           notice.kind === "microphoneDisconnected") && (
           <NoticeAction
+            icon={<ArrowIcon />}
             onClick={() => {
               openSection("dictation", "microphone");
             }}
@@ -112,6 +131,7 @@ function Notice({ notice, kept }: { notice: DictationProblem; kept: boolean }) {
         )}
         {notice.kind === "transcriptionFailed" && (
           <NoticeAction
+            icon={<FolderIcon />}
             onClick={() => {
               commands.openLogFolder().catch((error: unknown) => {
                 console.error("open_log_folder failed", error);
@@ -124,6 +144,7 @@ function Notice({ notice, kept }: { notice: DictationProblem; kept: boolean }) {
         {kept && <CopyKeptTranscript />}
         {notice.kind === "insertionFailed" && (
           <NoticeAction
+            icon={<ArrowIcon />}
             onClick={() => {
               setPage("history");
             }}
@@ -178,22 +199,28 @@ function CopyKeptTranscript() {
   }[result ?? "none"];
   return (
     <span aria-live="polite" className="contents">
-      <NoticeAction onClick={() => void copy()}>
+      <NoticeAction icon={<CopyIcon />} onClick={() => void copy()}>
         <SwapLabel label={label} />
       </NoticeAction>
     </span>
   );
 }
 
-function NoticeAction({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+/** A quiet icon-and-text action at the row's right, like the App page's "Open log folder". */
+function NoticeAction({
+  icon,
+  onClick,
+  children,
+}: {
+  icon: ReactNode;
+  onClick: () => void;
+  children: ReactNode;
+}) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="shrink-0 rounded-lg border border-control px-3 py-1 text-sm font-medium text-accent-strong transition-transform duration-150 ease-out-strong hover:bg-bg focus-visible:outline-2 focus-visible:outline-focus active:scale-[0.97] motion-reduce:active:scale-100"
-    >
+    <Button variant="quiet" onClick={onClick} className="inline-flex items-center gap-1.5">
+      {icon}
       {children}
-    </button>
+    </Button>
   );
 }
 

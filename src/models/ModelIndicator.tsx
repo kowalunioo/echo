@@ -66,16 +66,22 @@ export function ModelIndicator() {
     tone = "idle";
   }
 
-  // Ready is a hollow ring: solid lavender belongs to Listening, and the label says "Ready".
+  // Ready is a grey check: solid lavender belongs to Listening, and the label says "Ready".
   const dot = {
-    ready: "border-[1.5px] border-muted",
+    ready: "",
     busy: "bg-accent animate-pulse",
     idle: "bg-muted/50",
     error: "bg-danger",
   }[tone];
   const row = (
     <>
-      <span className={`size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+      {tone === "ready" ? (
+        <span className="-mx-0.5 flex shrink-0 text-muted" aria-hidden="true">
+          <CheckIcon />
+        </span>
+      ) : (
+        <span className={`size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+      )}
       <span title={name} className="min-w-0 flex-1 truncate">
         {name}
       </span>
@@ -327,14 +333,22 @@ export function NoModelPanel({ onModelsPage }: { onModelsPage: boolean }) {
 
   if (!models || models.active !== null || models.activating !== null) return null;
   return (
-    <section className="flex items-center justify-between gap-6 rounded-card border border-accent/40 bg-accent-soft px-6 py-5">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-heading text-accent-soft-fg">{t("models.start.title")}</h2>
-        <p className="text-sm text-accent-soft-fg">{t("models.start.body")}</p>
+    <section
+      aria-labelledby="no-model-heading"
+      className="flex items-center justify-between gap-8 border-b border-line pb-6"
+    >
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <h2 id="no-model-heading" className="truncate font-semibold">
+          {t("models.start.title")}
+        </h2>
+        <p title={t("models.start.body")} className="truncate text-note text-muted">
+          {t("models.start.body")}
+        </p>
       </div>
       {!onModelsPage && (
         <Button
           size="default"
+          variant="contrast"
           onClick={() => {
             setPage("model");
           }}

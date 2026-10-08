@@ -32,6 +32,12 @@ export const pl: Translation = {
     model: {
       title: "Model i język",
       description: "Model mowy, który zamienia Twój głos na tekst, oraz język, w którym mówisz.",
+      sections: {
+        active: "Aktywny model",
+        language: "Język",
+        memory: "Pamięć",
+        other: "Inne modele",
+      },
     },
     vocabulary: {
       title: "Słownik",
@@ -44,6 +50,12 @@ export const pl: Translation = {
     app: {
       title: "Aplikacja",
       description: "Język interfejsu, uruchamianie, aktualizacje i informacje o Echo.",
+      sections: {
+        general: "Ogólne",
+        overlay: "Nakładka",
+        updates: "Aktualizacje",
+        about: "Informacje",
+      },
     },
   },
   settings: {
@@ -75,6 +87,8 @@ export const pl: Translation = {
       bottom: "Na dole",
       top: "Na górze",
     },
+    privacy:
+      "Twój głos i transkrypcje zostają na tym komputerze. Echo łączy się z internetem tylko po to, by pobrać modele i sprawdzić aktualizacje.",
     logFolder: {
       label: "Dziennik diagnostyczny",
       description:
@@ -89,6 +103,8 @@ export const pl: Translation = {
       managed: "Aktualizacjami zarządza Twój system.",
       check: "Sprawdź aktualizacje",
       install: "Zainstaluj i uruchom ponownie",
+      lastChecked: "Ostatnie sprawdzenie: {{when}}",
+      today: "dziś o {{time}}",
       status: {
         checking: "Sprawdzanie…",
         upToDate: "Echo jest aktualne",
@@ -130,8 +146,7 @@ export const pl: Translation = {
       title: "Witamy w Echo",
       lead: "Mów, a Echo wpisze Twoje słowa w aplikacji, której używasz.",
       local: "Wszystko działa na tym komputerze. Twój głos i tekst nigdy go nie opuszczają.",
-      model:
-        "Echo potrzebuje modelu mowy: jednorazowe pobranie od 257 do 845 MB, zależnie od wybranego modelu.",
+      model: "Echo potrzebuje modelu mowy, pobieranego jeden raz. Wybierzesz go w następnym kroku.",
       shortcutHold: "Potem przytrzymaj skrót, mów i puść. Tekst pojawi się tam, gdzie piszesz.",
       shortcutPress:
         "Potem naciśnij skrót, mów i naciśnij go ponownie. Tekst pojawi się tam, gdzie piszesz.",
@@ -159,14 +174,15 @@ export const pl: Translation = {
     },
     tryIt: {
       title: "Wypróbuj",
-      lead: "Echo jest gotowe. Kliknij pole poniżej i podyktuj zdanie.",
-      holdShortcut: "Przytrzymaj <kbd>{{shortcut}}</kbd> i mów, potem puść.",
-      pressShortcut: "Naciśnij <kbd>{{shortcut}}</kbd> i mów, potem naciśnij ponownie.",
+      lead: "Echo jest gotowe. Powiedz poniższe zdanie.",
+      holdShortcut: "Przytrzymaj <kbd>{{shortcut}}</kbd> i powiedz:",
+      pressShortcut: "Naciśnij <kbd>{{shortcut}}</kbd>, powiedz to, a potem naciśnij ponownie:",
+      sample: "Cześć Echo, słyszysz mnie?",
       fieldLabel: "Pole testowe",
-      fieldPlaceholder: "Tu pojawią się Twoje słowa…",
       later: "Skrót możesz później zmienić w sekcji Dyktowanie.",
       finish: "Zakończ",
-      worked: "Działa.",
+      worked: "Echo cię słyszy.",
+      opening: "Otwieram Echo…",
       trouble: {
         summary: "Nic się nie pojawiło?",
         microphone: "Echo może słuchać innego mikrofonu albo Windows może go blokować.",

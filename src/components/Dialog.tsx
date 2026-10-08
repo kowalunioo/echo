@@ -74,7 +74,7 @@ export function Modal({
   }, [initialFocus]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-fg/25 p-6 transition-opacity duration-200 ease-out-strong starting:opacity-0">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-6 transition-opacity duration-200 ease-out-strong starting:opacity-0">
       <div
         aria-hidden="true"
         data-testid="dialog-backdrop"
@@ -90,7 +90,7 @@ export function Modal({
         aria-labelledby={labelledBy}
         aria-describedby={describedBy}
         tabIndex={-1}
-        className={`relative flex w-full max-w-sm flex-col gap-4 rounded-card border border-line bg-surface p-6 shadow-lg outline-none transition-[opacity,transform] duration-200 ease-out-strong origin-center starting:scale-[0.96] starting:opacity-0 motion-reduce:starting:scale-100 ${className}`}
+        className={`relative flex w-full max-w-sm flex-col gap-4 rounded-card bg-surface p-6 shadow-xl dark:bg-raised outline-none transition-[opacity,transform] duration-200 ease-out-strong origin-center starting:scale-[0.96] starting:opacity-0 motion-reduce:starting:scale-100 ${className}`}
       >
         {children}
       </div>
@@ -136,7 +136,7 @@ export function ConfirmDialog({
         {body}
       </p>
       <div className="flex justify-end gap-2">
-        <Button ref={cancelRef} variant="secondary" onClick={onCancel}>
+        <Button ref={cancelRef} variant="quiet" onClick={onCancel}>
           {cancel}
         </Button>
         <Button variant="danger" onClick={onConfirm}>

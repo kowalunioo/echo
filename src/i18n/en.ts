@@ -34,6 +34,12 @@ export const en = {
     model: {
       title: "Model & language",
       description: "The speech Model that turns your voice into text, and the language you speak.",
+      sections: {
+        active: "Active Model",
+        language: "Language",
+        memory: "Memory",
+        other: "Other Models",
+      },
     },
     vocabulary: {
       title: "Vocabulary",
@@ -46,6 +52,12 @@ export const en = {
     app: {
       title: "App",
       description: "UI Language, start-up, updates and information about Echo.",
+      sections: {
+        general: "General",
+        overlay: "Overlay",
+        updates: "Updates",
+        about: "About",
+      },
     },
   },
   settings: {
@@ -78,6 +90,8 @@ export const en = {
       bottom: "Bottom",
       top: "Top",
     },
+    privacy:
+      "Your voice and Transcripts stay on this computer. Echo goes online only to download Models and check for updates.",
     logFolder: {
       label: "Diagnostic log",
       description:
@@ -92,6 +106,8 @@ export const en = {
       managed: "Updates are managed by your system.",
       check: "Check for updates",
       install: "Install and restart",
+      lastChecked: "Last checked: {{when}}",
+      today: "today at {{time}}",
       status: {
         checking: "Checking…",
         upToDate: "Echo is up to date",
@@ -133,8 +149,7 @@ export const en = {
       title: "Welcome to Echo",
       lead: "Speak, and Echo types what you say into the app you are using.",
       local: "Everything runs on this computer. Your voice and your text never leave it.",
-      model:
-        "Echo needs a speech Model: a one-time download of 257 to 845 MB, depending on the Model you choose.",
+      model: "Echo needs a speech Model, downloaded once. You choose it in the next step.",
       shortcutHold:
         "Then hold a shortcut, speak, and let go. The text appears where you are typing.",
       shortcutPress:
@@ -163,14 +178,15 @@ export const en = {
     },
     tryIt: {
       title: "Try it",
-      lead: "Echo is ready. Click the field below and dictate a sentence.",
-      holdShortcut: "Hold <kbd>{{shortcut}}</kbd> and speak, then let go.",
-      pressShortcut: "Press <kbd>{{shortcut}}</kbd> and speak, then press it again.",
+      lead: "Echo is ready. Say the sentence below.",
+      holdShortcut: "Hold <kbd>{{shortcut}}</kbd> and say:",
+      pressShortcut: "Press <kbd>{{shortcut}}</kbd>, say this, then press it again:",
+      sample: "Hello Echo, can you hear me?",
       fieldLabel: "Test field",
-      fieldPlaceholder: "Your words appear here…",
       later: "You can change the shortcut later under Dictation.",
       finish: "Finish",
-      worked: "That worked.",
+      worked: "Echo heard you.",
+      opening: "Opening Echo…",
       trouble: {
         summary: "Nothing appeared?",
         microphone:

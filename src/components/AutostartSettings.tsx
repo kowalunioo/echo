@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import { commands } from "../bindings";
 import { useSetting } from "../store/settings";
-import { Row } from "./AppSettings";
+import { Button } from "./Button";
+import { ExternalIcon } from "./icons";
+import { SettingRow } from "./SettingRow";
 import { Switch } from "./Switch";
 
 /** Whether Windows "Startup apps" has turned Echo off; `false` when it cannot be told. */
@@ -52,34 +54,38 @@ export function AutostartSettings() {
   };
 
   return (
-    <Row label={t("settings.autostart.label")} description={t("settings.autostart.description")}>
-      <div className="flex flex-col items-end gap-1">
-        <Switch
-          checked={effective}
-          label={t("settings.autostart.label")}
-          disabled={disabledInWindows}
-          onChange={() => void setEnabled(!enabled)}
-        />
-        {disabledInWindows && (
-          <>
-            <span className="text-note text-muted">
-              {t("settings.autostart.disabledInWindows")}
-            </span>
-            <button
-              type="button"
-              onClick={() => void openStartupApps()}
-              className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
-            >
-              {t("settings.autostart.openStartupApps")}
-            </button>
-          </>
-        )}
-        {openFailed && (
+    // While Windows has Echo turned off, its hint replaces the description.
+    <SettingRow
+      label={t("settings.autostart.label")}
+      description={t(
+        disabledInWindows
+          ? "settings.autostart.disabledInWindows"
+          : "settings.autostart.description",
+      )}
+      below={
+        openFailed && (
           <span role="alert" className="text-note text-danger">
             {t("settings.autostart.openFailed")}
           </span>
-        )}
-      </div>
-    </Row>
+        )
+      }
+    >
+      {disabledInWindows && (
+        <Button
+          variant="quiet"
+          onClick={() => void openStartupApps()}
+          className="inline-flex items-center gap-1.5"
+        >
+          <ExternalIcon />
+          {t("settings.autostart.openStartupApps")}
+        </Button>
+      )}
+      <Switch
+        checked={effective}
+        label={t("settings.autostart.label")}
+        disabled={disabledInWindows}
+        onChange={() => void setEnabled(!enabled)}
+      />
+    </SettingRow>
   );
 }

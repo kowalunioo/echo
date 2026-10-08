@@ -9,15 +9,13 @@ export function UiLanguagePicker() {
   const [uiLanguage, setUiLanguage] = useSetting("uiLanguage");
 
   return (
-    <fieldset className="flex rounded-lg bg-raised p-0.5">
+    <fieldset className="flex rounded-lg border border-line p-0.5">
       <legend className="sr-only">{t("settings.uiLanguage.label")}</legend>
       {UI_LANGUAGES.map((language) => (
         <label
           key={language}
           className={`cursor-pointer rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-            uiLanguage === language
-              ? "bg-surface font-medium shadow-sm"
-              : "text-muted hover:text-fg"
+            uiLanguage === language ? "bg-raised font-medium text-fg" : "text-muted hover:text-fg"
           }`}
         >
           <input

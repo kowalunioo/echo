@@ -176,10 +176,7 @@ where
                 lock(&on_data).audio(samples, Instant::now());
             }
         },
-        move |error| {
-            log::warn!("microphone stream error: {error}");
-            lock(&on_error).fail(AudioSourceError::Disconnected);
-        },
+        move |error| lock(&on_error).stream_error(&error),
         None,
     )
 }
@@ -250,6 +247,18 @@ impl Delivery {
         }
     }
 
+    /// Handles an error the cpal stream reports (rule 10). A buffer glitch only costs a few
+    /// samples, so the Recording continues; a device that really went away is still caught by
+    /// its error or by [`check_stall`](Self::check_stall).
+    fn stream_error(&mut self, error: &cpal::Error) {
+        if error.kind() == cpal::ErrorKind::Xrun {
+            log::debug!("microphone buffer glitch: {error}");
+            return;
+        }
+        log::warn!("microphone stream error: {error}");
+        self.fail(AudioSourceError::Disconnected);
+    }
+
     /// Reports a device that stopped delivering audio without an error (rule 10).
     fn check_stall(&mut self, now: Instant) {
         let (since, limit) = match self.last_audio {
@@ -313,6 +322,28 @@ mod tests {
         assert_eq!(
             events[1],
             AudioEvent::Failed(AudioSourceError::Disconnected)
+        );
+    }
+
+    // Rule 10: a buffer glitch is not a lost device. Some USB interfaces (Universal Audio Volt)
+    // report one right after the stream starts.
+    #[test]
+    fn a_buffer_glitch_does_not_end_the_recording() {
+        let (mut delivery, events, now) = recording();
+        delivery.stream_error(&cpal::Error::new(cpal::ErrorKind::Xrun));
+        delivery.audio(vec![0.1; 4], now);
+        let events = events.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], AudioEvent::Frames(_)));
+    }
+
+    #[test]
+    fn any_other_stream_error_ends_the_recording() {
+        let (mut delivery, events, _) = recording();
+        delivery.stream_error(&cpal::Error::new(cpal::ErrorKind::DeviceNotAvailable));
+        assert_eq!(
+            *events.lock().unwrap(),
+            [AudioEvent::Failed(AudioSourceError::Disconnected)]
         );
     }
 

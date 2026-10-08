@@ -130,6 +130,7 @@ export class FakeBackend {
     managed: false,
     status: { state: "idle" },
     updatedTo: null,
+    lastChecked: null,
   };
   /** Whether Windows "Startup apps" has Echo's sign-in entry turned off. */
   autostartDisabledInWindows = false;

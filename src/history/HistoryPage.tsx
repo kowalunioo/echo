@@ -10,8 +10,10 @@ import {
   ReinsertIcon,
   TrashIcon,
 } from "../components/icons";
+import { IconButton } from "../components/IconButton";
 import { Keycap } from "../components/Keycap";
-import { PageHeader } from "../components/PageHeader";
+import { SectionHeading } from "../components/SectionHeading";
+import { SettingRow } from "../components/SettingRow";
 import { ConfirmDialog } from "../components/Dialog";
 import { formatDate } from "../i18n";
 import { useRecordShortcut } from "../onboarding/sources";
@@ -38,7 +40,10 @@ type Notice =
   | { kind: "copyFailed" }
   | { kind: "reinsertFailed" };
 
-/** The History page (history.md "UI"): the list, its actions, the limit and Clear all. */
+/**
+ * The History page's content under its header (history.md "UI"): the limit, the list with its
+ * actions, and Clear all.
+ */
 export function HistoryPage() {
   const { t } = useTranslation();
   const status = useHistory((s) => s.status);
@@ -54,6 +59,7 @@ export function HistoryPage() {
   const undoButton = useRef<HTMLButtonElement>(null);
   /** After a delete: the deleted entry and its position, until the list no longer shows it. */
   const focusAfterDelete = useRef<{ id: number; index: number } | null>(null);
+  const headingId = useId();
 
   // Focus follows a delete to the next entry (or the new last one), or to Undo when the list is
   // gone, so keyboard users keep their place. Checked after every render, because the list
@@ -124,14 +130,14 @@ export function HistoryPage() {
   };
 
   return (
-    <article className="mx-auto flex max-w-2xl flex-col gap-6 px-10 py-12">
-      <PageHeader page="history">
+    <>
+      <section>
         <LimitControl
           onChange={(next) => {
             void changeLimit(next);
           }}
         />
-      </PageHeader>
+      </section>
 
       {status === "error" && (
         <p role="alert" className="text-danger">
@@ -142,15 +148,15 @@ export function HistoryPage() {
       {status === "ready" && entries.length === 0 && <EmptyState off={limit === 0} />}
 
       {entries.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-muted">{t("history.list")}</h2>
+        <section aria-labelledby={headingId}>
+          <div className="flex items-center justify-between gap-4">
+            <SectionHeading id={headingId}>{t("history.list")}</SectionHeading>
             <button
               type="button"
               onClick={() => {
                 setConfirmingClear(true);
               }}
-              className="rounded-md px-2 py-1 text-sm font-medium text-muted transition-[background-color,color,transform] duration-150 ease-out-strong hover:bg-raised hover:text-fg active:scale-[0.97] motion-reduce:active:scale-100"
+              className="-mr-2 shrink-0 rounded-md px-2 py-1 text-note font-medium text-muted transition-colors duration-150 hover:bg-raised hover:text-fg"
             >
               {t("history.clearAll.button")}
             </button>
@@ -159,7 +165,7 @@ export function HistoryPage() {
             ref={list}
             tabIndex={-1}
             aria-label={t("history.list")}
-            className="flex flex-col gap-3 outline-none"
+            className="flex flex-col outline-none"
           >
             {entries.map((entry) => (
               <EntryItem
@@ -192,7 +198,7 @@ export function HistoryPage() {
       )}
 
       <NoticeBar notice={notice} undoRef={undoButton} onUndo={(current) => void undo(current)} />
-    </article>
+    </>
   );
 }
 
@@ -220,12 +226,12 @@ function useNotice(): [Notice | null, (notice: Notice | null, ms?: number) => vo
   return [notice, show];
 }
 
-/** The History limit field with steppers, in the page header (rules 6–9). */
+/** The History limit field with steppers, the first row of the page (rules 6–9). */
 function LimitControl({ onChange }: { onChange: (limit: number) => void }) {
   const { t } = useTranslation();
   const [limit] = useSetting("historyLimit");
   const [draft, setDraft] = useState<string | null>(null);
-  const id = useId();
+  const labelId = useId();
 
   const commit = () => {
     if (draft === null) return;
@@ -246,11 +252,12 @@ function LimitControl({ onChange }: { onChange: (limit: number) => void }) {
   };
 
   return (
-    <div className="flex shrink-0 flex-col items-end gap-1.5">
-      <label htmlFor={id} className="text-note font-medium text-muted">
-        {t("history.limit.label")}
-      </label>
-      <div className="flex items-center rounded-lg border border-control bg-surface has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus">
+    <SettingRow
+      label={t("history.limit.label")}
+      description={t("history.limit.keeps", { count: limit })}
+      labelId={labelId}
+    >
+      <div className="flex items-center rounded-lg border border-line has-[input:focus-visible]:outline-2 has-[input:focus-visible]:outline-offset-2 has-[input:focus-visible]:outline-focus">
         <StepButton
           label={t("history.limit.decrease")}
           disabled={limit <= HISTORY_LIMIT_MIN}
@@ -261,7 +268,7 @@ function LimitControl({ onChange }: { onChange: (limit: number) => void }) {
           <MinusIcon />
         </StepButton>
         <input
-          id={id}
+          aria-labelledby={labelId}
           type="number"
           inputMode="numeric"
           min={HISTORY_LIMIT_MIN}
@@ -288,8 +295,7 @@ function LimitControl({ onChange }: { onChange: (limit: number) => void }) {
           <PlusIcon />
         </StepButton>
       </div>
-      <p className="text-note text-muted">{t("history.limit.keeps", { count: limit })}</p>
-    </div>
+    </SettingRow>
   );
 }
 
@@ -311,7 +317,7 @@ function StepButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex size-8 items-center justify-center rounded-lg text-muted transition-colors duration-150 hover:bg-raised hover:text-fg disabled:pointer-events-none disabled:opacity-40"
+      className="flex size-8 items-center justify-center rounded-[7px] text-muted transition-colors duration-150 hover:bg-raised/50 hover:text-fg disabled:pointer-events-none disabled:opacity-40"
     >
       {children}
     </button>
@@ -322,7 +328,7 @@ function EmptyState({ off }: { off: boolean }) {
   const shortcut = useRecordShortcut();
   const { t } = useTranslation();
   return (
-    <section className="flex flex-col items-center gap-3 rounded-card border border-dashed border-line px-6 py-12 text-center text-muted">
+    <section className="flex flex-col items-center gap-3 py-12 text-center text-muted">
       <EchoMark className="size-9 text-muted/40" />
       {off ? (
         <p>{t("history.off")}</p>
@@ -365,27 +371,8 @@ function EntryItem({
   return (
     <li
       data-entry-id={entry.id}
-      className="group flex flex-col gap-2 rounded-card border border-line bg-surface px-5 py-4"
+      className="flex flex-col gap-1.5 border-b border-line py-3.5 last:border-b-0"
     >
-      <div className="flex items-center justify-between gap-4">
-        <time
-          dateTime={new Date(entry.createdAt).toISOString()}
-          className="text-note text-muted tabular-nums"
-        >
-          {formatEntryTime(entry.createdAt)}
-        </time>
-        <div className="flex items-center gap-0.5">
-          <ActionButton label={t("history.copy")} onClick={onCopy}>
-            <CopyIcon />
-          </ActionButton>
-          <ActionButton label={t("history.reinsert")} onClick={onReinsert}>
-            <ReinsertIcon />
-          </ActionButton>
-          <ActionButton label={t("history.delete")} onClick={onDelete} isDelete>
-            <TrashIcon />
-          </ActionButton>
-        </div>
-      </div>
       <p
         id={textId}
         data-entry-text
@@ -403,11 +390,30 @@ function EntryItem({
           onClick={() => {
             setExpanded(!expanded);
           }}
-          className="hit-target self-start rounded-md text-sm font-medium text-accent-strong underline-offset-4 transition-transform duration-150 ease-out-strong hover:underline active:scale-[0.97] motion-reduce:active:scale-100"
+          className="hit-target self-start rounded-md text-note font-medium text-muted underline-offset-4 transition-colors duration-150 hover:text-fg hover:underline"
         >
           {t(expanded ? "history.showLess" : "history.showMore")}
         </button>
       )}
+      <div className="flex items-center justify-between gap-4">
+        <time
+          dateTime={new Date(entry.createdAt).toISOString()}
+          className="truncate text-note text-muted tabular-nums"
+        >
+          {formatEntryTime(entry.createdAt)}
+        </time>
+        <div className="-mr-1.5 flex shrink-0 items-center gap-0.5">
+          <ActionButton label={t("history.copy")} onClick={onCopy}>
+            <CopyIcon />
+          </ActionButton>
+          <ActionButton label={t("history.reinsert")} onClick={onReinsert}>
+            <ReinsertIcon />
+          </ActionButton>
+          <ActionButton label={t("history.delete")} onClick={onDelete} isDelete>
+            <TrashIcon />
+          </ActionButton>
+        </div>
+      </div>
     </li>
   );
 }
@@ -425,16 +431,9 @@ function ActionButton({
   children: ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      data-delete={isDelete || undefined}
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="flex size-8 items-center justify-center rounded-lg text-muted transition-[background-color,color,transform] duration-150 ease-out-strong hover:bg-raised hover:text-fg active:scale-95 motion-reduce:active:scale-100"
-    >
+    <IconButton label={label} data-delete={isDelete || undefined} onClick={onClick}>
       {children}
-    </button>
+    </IconButton>
   );
 }
 

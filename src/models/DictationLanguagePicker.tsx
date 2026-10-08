@@ -2,7 +2,10 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { commands, type ModelLanguages } from "../bindings";
-import { ChevronIcon } from "../components/icons";
+import { IconButton } from "../components/IconButton";
+import { ChevronIcon, ResetIcon } from "../components/icons";
+import { SectionHeading } from "../components/SectionHeading";
+import { SettingRow } from "../components/SettingRow";
 import { useModels } from "../store/models";
 import { useSetting, useSettings } from "../store/settings";
 import {
@@ -41,11 +44,16 @@ export function DictationLanguagePicker() {
   if (!support || !modelName) return null;
 
   const title = t("dictationLanguage.title", { model: modelName });
+  const heading = (
+    <SectionHeading id="dictation-language-heading">
+      {t("pages.model.sections.language")}
+    </SectionHeading>
+  );
   if (!support.honoursLanguage) {
     return (
-      <section aria-label={title} className="rounded-card border border-line bg-surface px-6 py-4">
-        <h3 className="font-medium">{title}</h3>
-        <p className="mt-0.5 text-note text-muted">{t("dictationLanguage.detectsItself")}</p>
+      <section aria-label={title}>
+        {heading}
+        <SettingRow label={title} description={t("dictationLanguage.detectsItself")} />
       </section>
     );
   }
@@ -56,15 +64,23 @@ export function DictationLanguagePicker() {
   const unavailable = intent !== AUTOMATIC && findLanguage(intent, support.languages) === null;
 
   return (
-    <section
-      aria-label={title}
-      className="flex flex-col gap-3 rounded-card border border-line bg-surface px-6 py-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
-        <span className="flex min-w-0 grow basis-48 flex-col gap-0.5 break-words">
-          <h3 className="font-medium">{title}</h3>
-          <span className="text-note text-muted">{t("dictationLanguage.description")}</span>
-        </span>
+    // Named after the Model, so a screen reader hears which Model the language belongs to.
+    <section aria-label={title}>
+      {heading}
+      <SettingRow
+        label={title}
+        description={t("dictationLanguage.description")}
+        below={
+          unavailable && (
+            <p role="note" className="text-note text-muted">
+              {t("dictationLanguage.unavailable", {
+                language: label(intent),
+                fallback: label(effective),
+              })}
+            </p>
+          )
+        }
+      >
         <LanguageCombobox
           title={title}
           options={languageOptions(support, uiLanguage)}
@@ -72,24 +88,17 @@ export function DictationLanguagePicker() {
           label={label}
           onPick={(value) => void setIntent(value)}
         />
-      </div>
-      {unavailable && (
-        <p role="note" className="text-note text-muted">
-          {t("dictationLanguage.unavailable", {
-            language: label(intent),
-            fallback: label(effective),
-          })}
-        </p>
-      )}
-      {intent !== AUTOMATIC && (
-        <button
-          type="button"
-          onClick={() => void useSettings.getState().reset("dictationLanguage")}
-          className="hit-target self-start rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
-        >
-          {t("dictationLanguage.reset")}
-        </button>
-      )}
+        {/* Only shown once the language differs from Automatic, at the row's right edge. */}
+        {intent !== AUTOMATIC && (
+          <IconButton
+            label={t("dictationLanguage.reset")}
+            onClick={() => void useSettings.getState().reset("dictationLanguage")}
+            className="-mr-1.5"
+          >
+            <ResetIcon />
+          </IconButton>
+        )}
+      </SettingRow>
     </section>
   );
 }
@@ -174,7 +183,7 @@ function LanguageCombobox({ title, options, value, label, onPick }: ComboboxProp
             show();
           }
         }}
-        className="flex max-w-64 min-w-48 items-center justify-between gap-3 rounded-lg border border-control bg-bg px-3 py-1.5 text-sm"
+        className="flex max-w-56 min-w-44 items-center justify-between gap-3 rounded-lg border border-line bg-bg px-3 py-1.5 text-sm transition-colors duration-150 hover:bg-raised/50"
       >
         <span className="truncate" title={label(value)}>
           {label(value)}
@@ -219,7 +228,7 @@ function LanguageCombobox({ title, options, value, label, onPick }: ComboboxProp
                 setOpen(false);
               }
             }}
-            className="rounded-lg border border-control bg-bg px-3 py-1.5 text-sm placeholder:text-muted"
+            className="rounded-lg border border-line bg-bg px-3 py-1.5 text-sm placeholder:text-muted"
           />
           <ul id={listId} role="listbox" aria-label={title} className="max-h-64 overflow-y-auto">
             {matches.map((option, index) => (
@@ -236,8 +245,8 @@ function LanguageCombobox({ title, options, value, label, onPick }: ComboboxProp
                 }}
                 className={`cursor-pointer rounded-md px-2 py-1 text-sm ${
                   index === activeIndex ? "bg-raised" : ""
-                } ${option === value ? "font-medium text-accent-soft-fg" : ""} ${
-                  option === value && index !== activeIndex ? "bg-accent-soft" : ""
+                } ${option === value ? "font-medium" : ""} ${
+                  option === value && index !== activeIndex ? "bg-raised/50" : ""
                 }`}
               >
                 {label(option)}

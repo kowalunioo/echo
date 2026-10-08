@@ -1,24 +1,27 @@
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { ModelId, ModelsState } from "../bindings";
-import { FailureMessage } from "../components/FailureMessage";
-import { useModels } from "../store/models";
+import type { ModelEntry, ModelId, ModelsState } from "../bindings";
 import { Button } from "../components/Button";
+import { FailureMessage } from "../components/FailureMessage";
+import { IconButton } from "../components/IconButton";
+import { CheckIcon, CloseIcon, DownloadIcon, RefreshIcon } from "../components/icons";
+import { SettingRow } from "../components/SettingRow";
+import { useModels } from "../store/models";
 import { StateLine } from "./ModelCard";
-import { cardState, megabytes } from "./view";
+import { type CardState, cardState, megabytes } from "./view";
 
 /**
- * The onboarding's "Choose a Model" step (settings-and-first-run.md rule 2.3): the three Models,
- * the `recommended` one pre-selected and badged (models.md rule 30), and Download with progress,
- * speed and Cancel — or "Use this Model" for one already on this computer. The step completes
- * once a Model is active.
+ * The onboarding's "Choose a Model" step (settings-and-first-run.md rule 2.3): the three Models
+ * as flat rows, each with its own Download, so the user can fetch more than one to try them (one
+ * runs at a time, the rest queue: models.md rule 7). The `recommended` one is marked Recommended
+ * (rule 30); progress, speed and Cancel show in the row that is
+ * downloading, and a Model already on this computer offers "Use this Model".
  */
 export function ModelChooser({ recommended }: { recommended: ModelId }) {
   const { t } = useTranslation();
   const models = useModels((s) => s.state);
   const load = useModels((s) => s.load);
-  const [selected, setSelected] = useState<ModelId>(recommended);
 
   useEffect(() => {
     void load();
@@ -26,128 +29,126 @@ export function ModelChooser({ recommended }: { recommended: ModelId }) {
 
   if (!models) return null;
   return (
-    <div className="flex flex-col gap-5">
-      <fieldset className="flex flex-col gap-2">
-        <legend className="sr-only">{t("onboarding.model.choose")}</legend>
-        {models.models.map((entry) => {
-          const state = cardState(entry, models);
-          const checked = entry.id === selected;
-          const status =
-            state.kind === "downloaded" || state.kind === "active"
-              ? t("models.state.downloaded")
-              : null;
-          return (
-            <label
-              key={entry.id}
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-                checked ? "border-accent bg-accent-soft/50" : "border-line hover:bg-raised/40"
-              }`}
-            >
-              <input
-                type="radio"
-                name="onboarding-model"
-                value={entry.id}
-                checked={checked}
-                onChange={() => {
-                  setSelected(entry.id);
-                }}
-                className="mt-1 accent-accent-strong"
-              />
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{entry.name}</span>
-                  {entry.id === recommended && (
-                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-soft-fg">
-                      {t("models.recommended")}
-                    </span>
-                  )}
-                </span>
-                <span className="text-sm text-muted">{t(`models.descriptions.${entry.id}`)}</span>
-                <span className="text-note text-muted">
-                  {t("models.size", { size: megabytes(entry.sizeBytes) })} ·{" "}
-                  {t(`models.languagesOf.${entry.id}`)}
-                  {status && ` · ${status}`}
-                </span>
-              </span>
-            </label>
-          );
-        })}
-      </fieldset>
-      <SelectedAction id={selected} models={models} />
-    </div>
+    <ul aria-label={t("onboarding.model.choose")}>
+      {models.models.map((entry) => (
+        <ChooserRow
+          key={entry.id}
+          entry={entry}
+          models={models}
+          recommended={entry.id === recommended}
+        />
+      ))}
+    </ul>
   );
 }
 
-function SelectedAction({ id, models }: { id: ModelId; models: ModelsState }) {
+function ChooserRow({
+  entry,
+  models,
+  recommended,
+}: {
+  entry: ModelEntry;
+  models: ModelsState;
+  recommended: boolean;
+}) {
+  const { t } = useTranslation();
+  const state = cardState(entry, models);
+  const loadFailure = models.loadFailure?.model === entry.id ? models.loadFailure : null;
+  return (
+    <SettingRow
+      as="li"
+      ariaLabel={entry.name}
+      label={entry.name}
+      // The size is on the Download button, so the line under the name says what the Model is.
+      description={`${t(`models.languagesOf.${entry.id}`)} · ${t(`models.descriptions.${entry.id}`)}`}
+      tag={
+        <>
+          {recommended && (
+            <span className="shrink-0 text-xs font-medium text-accent">
+              {t("models.recommended")}
+            </span>
+          )}
+          {state.kind === "active" && (
+            <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-soft-fg">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+              {t("models.active")}
+            </span>
+          )}
+        </>
+      }
+      below={
+        <>
+          <StateLine entry={entry} state={state} />
+          {loadFailure && (
+            <FailureMessage
+              message={t("models.loadFailed", { model: entry.name })}
+              detail={t("models.failureDetail", { detail: loadFailure.reason })}
+              className="text-note text-danger"
+            />
+          )}
+        </>
+      }
+    >
+      <ChooserAction entry={entry} state={state} loadingOther={models.activating !== null} />
+    </SettingRow>
+  );
+}
+
+/**
+ * The one action a row's state allows, drawn like the App page's "Open log folder": borderless,
+ * an icon in front, its text lined up with the row's edge. Every row's looks the same.
+ */
+function ChooserAction({
+  entry,
+  state,
+  loadingOther,
+}: {
+  entry: ModelEntry;
+  state: CardState;
+  loadingOther: boolean;
+}) {
   const { t } = useTranslation();
   const { download, cancel, activate } = useModels();
-  const entry = models.models.find((m) => m.id === id);
-  if (!entry) return null;
-  const state = cardState(entry, models);
-  const loadFailure = models.loadFailure?.model === id ? models.loadFailure : null;
+  const action = (icon: ReactNode, label: string, onClick: () => void, disabled = false) => (
+    <Button
+      variant="quiet"
+      disabled={disabled}
+      onClick={onClick}
+      className="-mr-3.5 inline-flex items-center gap-1.5 tabular-nums"
+    >
+      {icon}
+      {label}
+    </Button>
+  );
 
-  let action = null;
   switch (state.kind) {
     case "notDownloaded":
-      action = (
-        <Button size="default" variant="primary" onClick={() => void download(id)}>
-          {t("models.actions.download", { size: megabytes(entry.sizeBytes) })}
-        </Button>
+      return action(
+        <DownloadIcon />,
+        t("models.actions.download", { size: megabytes(entry.sizeBytes) }),
+        () => void download(entry.id),
       );
-      break;
     case "queued":
     case "downloading":
-      action = (
-        <Button size="default" variant="secondary" onClick={() => void cancel(id)}>
-          {t("models.actions.cancel")}
-        </Button>
+      return (
+        <IconButton label={t("models.actions.cancel")} onClick={() => void cancel(entry.id)}>
+          <CloseIcon />
+        </IconButton>
       );
-      break;
     case "paused":
-      action = (
-        <Button size="default" variant="primary" onClick={() => void download(id)}>
-          {t("models.actions.resume")}
-        </Button>
-      );
-      break;
+      return action(<DownloadIcon />, t("models.actions.resume"), () => void download(entry.id));
     case "failed":
-      action = (
-        <Button size="default" variant="primary" onClick={() => void download(id)}>
-          {t("models.actions.retry")}
-        </Button>
-      );
-      break;
+      return action(<RefreshIcon />, t("models.actions.retry"), () => void download(entry.id));
     case "downloaded":
-    case "active":
-      action = (
-        <Button
-          size="default"
-          variant="primary"
-          disabled={models.activating !== null}
-          onClick={() => void activate(id)}
-        >
-          {t("models.actions.use")}
-        </Button>
+      return action(
+        <CheckIcon />,
+        t("models.actions.use"),
+        () => void activate(entry.id),
+        loadingOther,
       );
-      break;
     case "verifying":
     case "loading":
-      break;
+    case "active":
+      return null;
   }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="min-h-6">
-        <StateLine entry={entry} state={state} />
-        {loadFailure && (
-          <FailureMessage
-            message={t("models.loadFailed", { model: entry.name })}
-            detail={t("models.failureDetail", { detail: loadFailure.reason })}
-            className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
-          />
-        )}
-      </div>
-      {action && <div className="flex justify-end">{action}</div>}
-    </div>
-  );
 }

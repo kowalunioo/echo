@@ -92,6 +92,7 @@ impl super::Host for Host {
         self.prepared.borrow_mut().push(version.to_string());
     }
     fn install_failed(&self) {}
+    fn feed_answered(&self) {}
     fn publish(&self, _status: &UpdateStatus) {}
 }
 

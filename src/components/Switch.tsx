@@ -1,6 +1,5 @@
 /**
- * An on/off switch. On is the filled accent track; off is an outlined track (the edge uses
- * --echo-control, so the off switch stays visible against every surface).
+ * An on/off switch. On is the filled accent track; off is a grey track with a hairline edge.
  */
 export function Switch({
   checked,
@@ -25,7 +24,7 @@ export function Switch({
         onChange(!checked);
       }}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-[background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? "bg-accent-strong" : "border border-control bg-raised"
+        checked ? "bg-accent-strong" : "border border-line bg-raised"
       }`}
     >
       <span

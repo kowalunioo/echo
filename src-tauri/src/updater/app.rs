@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use semver::Version;
 use serde::{Deserialize, Serialize};
@@ -36,6 +36,11 @@ pub struct UpdaterView {
     pub status: UpdateStatus,
     /// "Echo was updated to <version>" after an update's restart (rule 6), until dismissed.
     pub updated_to: Option<String>,
+    /// When a check last reached the release feed, in milliseconds since the Unix epoch (UTC);
+    /// `None` until the first one since Echo started.
+    // A plain `number` in TypeScript: specta refuses i64 as a BigInt (see HistoryEntry).
+    #[specta(type = Option<u32>)]
+    pub last_checked: Option<i64>,
 }
 
 /// The updater's view changed.
@@ -140,6 +145,7 @@ pub fn install(app: &AppHandle, marker_file: PathBuf, disabled: bool, updated_to
             managed: disabled,
             status: UpdateStatus::Idle,
             updated_to,
+            last_checked: None,
         }),
         commands,
     });
@@ -239,6 +245,15 @@ impl Host for AppHost {
             .unwrap_or_else(PoisonError::into_inner)
             .take();
         marker::remove(&self.marker_file);
+    }
+
+    fn feed_answered(&self) {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| i64::try_from(d.as_millis()).unwrap_or(i64::MAX))
+            .unwrap_or(0);
+        let updater = self.app.state::<Updater>();
+        updater.change(&self.app, |view| view.last_checked = Some(now));
     }
 
     fn publish(&self, status: &UpdateStatus) {
