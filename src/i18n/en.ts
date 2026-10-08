@@ -6,7 +6,11 @@
 export const en = {
   app: {
     name: "Echo",
-    tagline: "Private dictation",
+  },
+  window: {
+    minimize: "Minimize",
+    maximize: "Maximize",
+    close: "Close window",
   },
   nav: {
     label: "Sections",
@@ -280,6 +284,7 @@ export const en = {
       error: "Couldn't load",
       downloading: "Downloading {{percent}}%",
       open: "Open Model settings",
+      more: "Download another Model…",
     },
     start: {
       title: "Download a Model to start",

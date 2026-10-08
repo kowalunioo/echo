@@ -51,28 +51,31 @@ export function DictationStatusCard() {
     void load();
   }, [load]);
 
+  // One line, always: the hint says how to start, so it shows only while Idle; a Recording
+  // shows its timer in that place, and the other states have the line to themselves.
+  const label = t(`status.dictation.${phase}`);
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-line bg-surface px-3 py-2.5">
-      <div className="flex items-center gap-2.5">
-        <span className={`size-2 shrink-0 rounded-full ${DOT[phase]}`} aria-hidden="true" />
-        <span
-          role="status"
-          className={`min-w-0 flex-1 text-note font-medium ${phase === "failed" ? "text-danger" : ""}`}
-        >
-          {t(`status.dictation.${phase}`)}
+    <div className="flex items-center gap-2.5 px-2.5 py-1.5 text-note">
+      <span className={`size-2 shrink-0 rounded-full ${DOT[phase]}`} aria-hidden="true" />
+      <span
+        role="status"
+        title={label}
+        className={`min-w-0 flex-1 truncate font-medium ${phase === "failed" ? "text-danger" : ""}`}
+      >
+        {label}
+      </span>
+      {phase === "listening" && (
+        <span data-testid="status-timer" className="text-xs text-muted tabular-nums">
+          {formatElapsed(elapsedMs)}
         </span>
-        {phase === "listening" && (
-          <span data-testid="status-timer" className="text-note text-muted tabular-nums">
-            {formatElapsed(elapsedMs)}
-          </span>
-        )}
-      </div>
-      <ShortcutHint />
+      )}
+      {phase === "idle" && <ShortcutHint />}
     </div>
   );
 }
 
-/** "Hold Ctrl + Space": how to start a Dictation, in the current Shortcut mode. */
+/** The Record Shortcut as key caps, named "hold Ctrl + Space" in the current Shortcut mode. */
 function ShortcutHint() {
   const { t } = useTranslation();
   const label = useKeyLabel();
@@ -85,16 +88,15 @@ function ShortcutHint() {
       data-testid="status-shortcut"
       aria-label={t(`status.shortcut.label_${mode}`, { shortcut: label(combination) })}
       title={t(`recordShortcut.mode.${mode}`)}
-      className="flex flex-wrap items-center gap-1 text-note text-muted"
+      className="flex shrink-0 items-center gap-1 text-xs text-muted"
     >
-      <span aria-hidden="true" className="mr-0.5">
-        {t(`status.shortcut.${mode}`)}
-      </span>
-      {keysOf(combination).map((key, i) => (
-        <span key={key} aria-hidden="true" className="flex items-center gap-1">
-          {i > 0 && <span>+</span>}
-          <Keycap size="small">{label(key)}</Keycap>
-        </span>
+      {/* The verb is read out and sits in the title; with it visible the Polish hint would
+          not share the line with the state. */}
+      <span className="sr-only">{t(`status.shortcut.${mode}`)}</span>
+      {keysOf(combination).map((key) => (
+        <Keycap key={key} size="small">
+          {label(key)}
+        </Keycap>
       ))}
     </div>
   );

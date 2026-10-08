@@ -4,7 +4,11 @@ import type { Translation } from "./en";
 export const pl: Translation = {
   app: {
     name: "Echo",
-    tagline: "Prywatne dyktowanie",
+  },
+  window: {
+    minimize: "Minimalizuj",
+    maximize: "Maksymalizuj",
+    close: "Zamknij okno",
   },
   nav: {
     label: "Sekcje",
@@ -282,6 +286,7 @@ export const pl: Translation = {
       error: "Nie udało się wczytać",
       downloading: "Pobieranie {{percent}}%",
       open: "Otwórz ustawienia modelu",
+      more: "Pobierz inny model…",
     },
     start: {
       title: "Pobierz model, aby zacząć",

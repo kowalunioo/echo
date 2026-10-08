@@ -242,7 +242,11 @@ describe("Models page", () => {
 
 describe("Model indicator", () => {
   function indicator() {
-    return within(screen.getByRole("region", { name: "Status" })).getByRole("button");
+    // The status area also holds the updates line, so pick the Model's button by its name:
+    // "Open Model settings" without a Model on this computer, the "Model" drop-down with one.
+    return within(screen.getByRole("region", { name: "Status" })).getByRole("button", {
+      name: /^(Open Model settings|Model):/,
+    });
   }
 
   it("asks for a Model when none is active and opens the Models page", async () => {
@@ -280,6 +284,62 @@ describe("Model indicator", () => {
       backend.changeModels({ activating: "whisperLargeV3Turbo" });
     });
     expect(indicator()).toHaveTextContent("Whisper large-v3-turboLoading…");
+  });
+
+  // models.md "UI": the sidebar switches between the Models on this computer.
+  it("is a drop-down of the downloaded Models, with a way to the Model page", async () => {
+    downloaded("whisperSmall", "whisperLargeV3Turbo");
+    backend.models.active = "whisperSmall";
+    backend.models.activeState = "ready";
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Sections" });
+
+    expect(indicator()).toHaveAttribute("aria-haspopup", "listbox");
+    await userEvent.click(indicator());
+    const list = screen.getByRole("listbox", { name: "Model" });
+    const options = within(list).getAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Whisper large-v3-turbo",
+      "Whisper small",
+      "Download another Model…",
+    ]);
+    expect(options[1]).toHaveAttribute("aria-selected", "true");
+
+    await userEvent.click(options[0] as HTMLElement);
+    expect(backend.commandsCalled("activate_model").map((c) => c.args)).toEqual([
+      { model: "whisperLargeV3Turbo" },
+    ]);
+    expect(screen.queryByRole("listbox")).toBeNull();
+
+    await userEvent.click(indicator());
+    await userEvent.click(screen.getByRole("option", { name: "Download another Model…" }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Model & language" }),
+    ).toBeVisible();
+  });
+
+  it("is chosen from the keyboard too", async () => {
+    downloaded("whisperSmall", "whisperLargeV3Turbo");
+    backend.models.active = "whisperSmall";
+    backend.models.activeState = "ready";
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Sections" });
+
+    indicator().focus();
+    await userEvent.keyboard("{ArrowUp}");
+    const list = screen.getByRole("listbox", { name: "Model" });
+    expect(list).toHaveFocus();
+    // Opens on the active Model; Up moves to the other one.
+    await userEvent.keyboard("{ArrowUp}{Enter}");
+    expect(backend.commandsCalled("activate_model").map((c) => c.args)).toEqual([
+      { model: "whisperLargeV3Turbo" },
+    ]);
+    expect(indicator()).toHaveFocus();
+
+    await userEvent.keyboard("{ArrowDown}");
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(backend.commandsCalled("activate_model")).toHaveLength(1);
   });
 
   it("shows the download progress while no Model is active yet", async () => {

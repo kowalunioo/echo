@@ -13,6 +13,7 @@
     "windows": [
       {
         "label": "main",
+        "decorations": false,
         "title": "Echo",
         "width": 980,
         "height": 680,

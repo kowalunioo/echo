@@ -5,7 +5,8 @@ import { ModelIndicator } from "../models/ModelIndicator";
 import { useRecordShortcut } from "../store/recordShortcut";
 import { PAGES, useShell } from "../store/shell";
 import { DictationStatusCard } from "./DictationStatusCard";
-import { EchoMark, PageIcon } from "./icons";
+import { PageIcon } from "./icons";
+import { UpdateIndicator } from "./UpdateIndicator";
 
 /** Ctrl+1 … Ctrl+5 open the sections in PAGES order. */
 function sectionKeys(index: number) {
@@ -43,22 +44,13 @@ export function Sidebar() {
   useSectionShortcuts(setPage);
 
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-sidebar px-3 py-5">
-      <div className="flex items-center gap-3 px-3 pb-6">
-        <EchoMark className="size-8" />
-        <div className="min-w-0">
-          <p className="font-display text-base leading-tight font-semibold">{t("app.name")}</p>
-          <p className="truncate text-note text-muted">{t("app.tagline")}</p>
-        </div>
-      </div>
-
+    <aside className="flex w-68 shrink-0 flex-col border-r border-line bg-sidebar px-2.5 pt-2 pb-4">
       <nav aria-label={t("nav.label")}>
         <ul className="flex flex-col gap-0.5">
           {PAGES.map((id, index) => {
             const current = id === page;
             return (
-              <li key={id} className="relative">
-                {current && <ActiveMarker />}
+              <li key={id}>
                 <button
                   type="button"
                   onClick={() => {
@@ -67,10 +59,10 @@ export function Sidebar() {
                   aria-current={current ? "page" : undefined}
                   aria-keyshortcuts={sectionKeys(index)}
                   title={t("nav.shortcut", { keys: `Ctrl+${String(index + 1)}` })}
-                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors duration-150 ${
+                  className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-[13.5px] transition-colors duration-150 ${
                     current
                       ? "bg-raised font-medium text-fg"
-                      : "text-muted hover:bg-raised/60 hover:text-fg"
+                      : "text-muted hover:bg-surface hover:text-fg"
                   }`}
                 >
                   <span className={current ? "text-accent" : ""}>
@@ -90,32 +82,16 @@ export function Sidebar() {
 }
 
 /**
- * The current page's marker: the logo's three bars in miniature, sitting in the sidebar's gutter.
- * Decorative; aria-current and the heavier label already say which page is open.
- */
-function ActiveMarker() {
-  return (
-    <span
-      aria-hidden="true"
-      className="absolute top-1/2 -left-2.5 flex -translate-y-1/2 flex-col gap-[3px]"
-    >
-      <span className="h-0.5 w-2 rounded-full bg-fg" />
-      <span className="h-0.5 w-1.5 rounded-full bg-accent" />
-      <span className="h-0.5 w-2 rounded-full bg-fg" />
-    </span>
-  );
-}
-
-/**
- * The Dictation state with the Record Shortcut, and the active Model state
- * (settings-and-first-run.md "UI").
+ * The Dictation state with the Record Shortcut, the active Model state
+ * (settings-and-first-run.md "UI") and the updates row (updater.md "UI").
  */
 function StatusArea() {
   const { t } = useTranslation();
   return (
-    <section aria-label={t("status.label")} className="mt-auto flex flex-col gap-2 px-1">
+    <section aria-label={t("status.label")} className="mt-auto flex flex-col gap-0.5">
       <DictationStatusCard />
       <ModelIndicator />
+      <UpdateIndicator />
     </section>
   );
 }

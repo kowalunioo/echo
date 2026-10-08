@@ -7,6 +7,7 @@ import { UpdatedNotice } from "./components/UpdatedNotice";
 import { PageView } from "./components/PageView";
 import { TestAudioMarker } from "./components/TestAudioMarker";
 import { Sidebar } from "./components/Sidebar";
+import { TitleBar } from "./components/TitleBar";
 import { TrayHint } from "./components/TrayHint";
 import { changeUiLanguage } from "./i18n";
 import { Onboarding } from "./onboarding/Onboarding";
@@ -33,9 +34,17 @@ export function App() {
   }, [uiLanguage]);
 
   // Closing the window must work whatever it shows, even while loading (tray.md rule 13).
-  if (status === "loading") return <TrayHint />;
+  if (status === "loading") {
+    return (
+      <div className="flex h-full flex-col">
+        <TitleBar />
+        <TrayHint />
+      </div>
+    );
+  }
   return (
     <div className="flex h-full flex-col">
+      <TitleBar withSidebar={status === "ready" && onboardingCompleted === true} />
       <TestAudioMarker />
       <div className="min-h-0 flex-1">
         {status === "error" ? (

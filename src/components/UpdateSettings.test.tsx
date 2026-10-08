@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +19,11 @@ async function status() {
   return screen.findByTestId("update-status");
 }
 
+/** The App page's own controls: the sidebar's footer has the same buttons by name. */
+function page() {
+  return within(screen.getByRole("main"));
+}
+
 describe("updates on the App page (updater.md UI)", () => {
   it("turns automatic checks off and on through the setting (rule 10)", async () => {
     render(<App />);
@@ -33,19 +38,20 @@ describe("updates on the App page (updater.md UI)", () => {
     });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     // Manual checks remain available.
-    expect(screen.getByRole("button", { name: "Check for updates" })).toBeEnabled();
+    expect(page().getByRole("button", { name: "Check for updates" })).toBeEnabled();
   });
 
   it("runs a manual check and shows its progress and result (rule 7)", async () => {
     render(<App />);
-    await userEvent.click(await screen.findByRole("button", { name: "Check for updates" }));
+    await screen.findByRole("main");
+    await userEvent.click(await page().findByRole("button", { name: "Check for updates" }));
     expect(backend.commandsCalled("check_for_updates")).toHaveLength(1);
 
     act(() => {
       backend.changeUpdater({ status: { state: "checking" } });
     });
     expect(await status()).toHaveTextContent("Checking…");
-    expect(screen.getByRole("button", { name: "Check for updates" })).toBeDisabled();
+    expect(page().getByRole("button", { name: "Check for updates" })).toBeDisabled();
 
     act(() => {
       backend.changeUpdater({ status: { state: "upToDate" } });
@@ -66,7 +72,7 @@ describe("updates on the App page (updater.md UI)", () => {
     expect(await status()).toHaveTextContent("Version 0.2.0 is available");
     expect(backend.commandsCalled("install_update")).toHaveLength(0);
 
-    await userEvent.click(screen.getByRole("button", { name: "Install and restart" }));
+    await userEvent.click(page().getByRole("button", { name: "Install and restart" }));
     expect(backend.commandsCalled("install_update")).toHaveLength(1);
 
     act(() => {
@@ -107,7 +113,7 @@ describe("updates on the App page (updater.md UI)", () => {
     render(<App />);
     await screen.findByRole("switch", { name: "Automatycznie sprawdzaj aktualizacje" });
     expect(await status()).toHaveTextContent("Dostępna jest wersja 0.2.0");
-    expect(screen.getByRole("button", { name: "Zainstaluj i uruchom ponownie" })).toBeVisible();
+    expect(page().getByRole("button", { name: "Zainstaluj i uruchom ponownie" })).toBeVisible();
   });
 });
 

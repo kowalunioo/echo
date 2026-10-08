@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "preview:ui": "vite --config vite.preview.config.ts",
     "build": "vite build",
     "tauri": "tauri",
     "icons": "bun scripts/icons.ts",

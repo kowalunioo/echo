@@ -15,11 +15,15 @@ beforeEach(async () => {
 });
 
 describe("app shell", () => {
-  it("shows nothing until the settings have loaded", () => {
+  it("shows only the title bar until the settings have loaded", () => {
     backend.hanging.add("get_settings");
-    const { container } = render(<App />);
+    render(<App />);
 
-    expect(container).toBeEmptyDOMElement();
+    // The window has no native frame, so its own bar must be there to move or close it.
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
   });
 
   it("shows the five sections in the navigation", async () => {
