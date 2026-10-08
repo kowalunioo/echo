@@ -86,7 +86,7 @@ export function Onboarding() {
 
   return (
     // Flat like the settings pages: no card around the step, the progress stepper on top.
-    <div className="flex h-full flex-col items-center overflow-y-auto px-10 py-10">
+    <div className="flex h-full flex-col items-center overflow-y-auto px-10 py-10 [scrollbar-gutter:stable]">
       <div className="flex w-full max-w-xl flex-col gap-8">
         <Progress current={step} steps={steps} />
 
@@ -308,11 +308,15 @@ function DeferAction({
   onClick: () => void;
 }) {
   return (
-    <div className="flex min-w-0 flex-col items-end">
+    // The note hangs under the button, so the button lines up with "Back" on the left.
+    <div className="relative min-w-0">
       <QuietButton onClick={onClick} edge="right">
         <span className="text-fg">{label}</span>
       </QuietButton>
-      <span title={note} className="max-w-full truncate text-note text-muted">
+      <span
+        title={note}
+        className="absolute top-full right-0 w-max max-w-[22rem] truncate text-note text-muted"
+      >
         {note}
       </span>
     </div>

@@ -242,8 +242,7 @@ export const en = {
     active: "Active",
     descriptions: {
       whisperLargeV3Turbo: "Best accuracy; slower without a graphics card.",
-      parakeetTdt06bV3:
-        "Fast and accurate in 25 European languages; always detects the language itself.",
+      parakeetTdt06bV3: "Fast and accurate; always detects the language itself.",
       whisperSmall: "Small and fast; lower accuracy.",
     },
     languagesOf: {

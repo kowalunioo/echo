@@ -166,7 +166,7 @@ export const pl: Translation = {
       title: "Wybierz model",
       lead: "Model zamienia Twoją mowę na tekst. Pobierasz go raz i zostaje na tym komputerze.",
       choose: "Modele",
-      foundGpu: "Znaleziono kartę graficzną — zalecany: {{model}}",
+      foundGpu: "Znaleziono kartę graficzną — polecany: {{model}}",
       noGpu: "Nie znaleziono karty graficznej — {{model}} działa szybciej na tym komputerze",
       continue: "Dalej",
       later: "Dokończ później",
@@ -245,8 +245,7 @@ export const pl: Translation = {
     active: "Aktywny",
     descriptions: {
       whisperLargeV3Turbo: "Najlepsza dokładność; wolniejszy bez karty graficznej.",
-      parakeetTdt06bV3:
-        "Szybki i dokładny w 25 językach europejskich; zawsze sam rozpoznaje język.",
+      parakeetTdt06bV3: "Szybki i dokładny; zawsze sam rozpoznaje język.",
       whisperSmall: "Mały i szybki; mniejsza dokładność.",
     },
     languagesOf: {
@@ -260,7 +259,7 @@ export const pl: Translation = {
       cancel: "Anuluj",
       resume: "Wznów",
       retry: "Spróbuj ponownie",
-      use: "Używaj tego modelu",
+      use: "Użyj tego modelu",
       delete: "Usuń",
     },
     state: {

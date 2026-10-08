@@ -64,7 +64,7 @@ function ChooserRow({
       tag={
         <>
           {recommended && (
-            <span className="shrink-0 text-xs font-medium text-accent">
+            <span className="shrink-0 text-xs font-medium text-accent-strong">
               {t("models.recommended")}
             </span>
           )}
