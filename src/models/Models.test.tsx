@@ -52,7 +52,7 @@ describe("Models page", () => {
     ).toBeVisible();
   });
 
-  it("starts a download and shows its progress, speed and Cancel", async () => {
+  it("starts a download and shows its progress, speed and a Cancel named for its Model", async () => {
     await openModelsPage();
 
     await userEvent.click(within(card("Whisper small")).getByRole("button", { name: /Download/ }));
@@ -75,9 +75,20 @@ describe("Models page", () => {
     expect(small).toHaveTextContent("30% · 5.2 MB/s");
     expect(card("Parakeet TDT 0.6B v3")).toHaveTextContent("Waiting for the current download");
 
-    await userEvent.click(within(small).getByRole("button", { name: "Cancel" }));
+    // Each ✕ names its Model and what it stops, so a screen reader can tell them apart.
+    await userEvent.click(
+      within(small).getByRole("button", { name: "Cancel the download of Whisper small" }),
+    );
     expect(backend.commandsCalled("cancel_model_download")[0]?.args).toEqual({
       model: "whisperSmall",
+    });
+    await userEvent.click(
+      within(card("Parakeet TDT 0.6B v3")).getByRole("button", {
+        name: "Remove Parakeet TDT 0.6B v3 from the queue",
+      }),
+    );
+    expect(backend.commandsCalled("cancel_model_download")[1]?.args).toEqual({
+      model: "parakeetTdt06bV3",
     });
   });
 
@@ -99,7 +110,7 @@ describe("Models page", () => {
     expect(small).toHaveTextContent("Paused — 50% downloaded");
     await userEvent.click(within(small).getByRole("button", { name: "Resume" }));
     expect(backend.commandsCalled("download_model")).toHaveLength(1);
-    expect(within(small).getByRole("button", { name: "Delete" })).toBeVisible();
+    expect(within(small).getByRole("button", { name: "Delete Whisper small" })).toBeVisible();
   });
 
   it("explains failures in plain language with Retry", async () => {
@@ -180,7 +191,9 @@ describe("Models page", () => {
       within(card("Whisper small")).getByRole("button", { name: "Use this Model" }),
     ).toBeDisabled();
     expect(
-      within(card("Whisper large-v3-turbo")).getByRole("button", { name: "Delete" }),
+      within(card("Whisper large-v3-turbo")).getByRole("button", {
+        name: "Delete Whisper large-v3-turbo",
+      }),
     ).toBeDisabled();
     expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
       "once the Dictation has ended",
@@ -192,13 +205,17 @@ describe("Models page", () => {
     downloaded("whisperSmall");
     await openModelsPage();
 
-    await userEvent.click(within(card("Whisper small")).getByRole("button", { name: "Delete" }));
+    await userEvent.click(
+      within(card("Whisper small")).getByRole("button", { name: "Delete Whisper small" }),
+    );
     const dialog = screen.getByRole("alertdialog", { name: "Delete Whisper small?" });
     expect(dialog).toHaveTextContent("This frees 257 MB");
     await userEvent.click(within(dialog).getByRole("button", { name: "Keep" }));
     expect(backend.commandsCalled("delete_model")).toHaveLength(0);
 
-    await userEvent.click(within(card("Whisper small")).getByRole("button", { name: "Delete" }));
+    await userEvent.click(
+      within(card("Whisper small")).getByRole("button", { name: "Delete Whisper small" }),
+    );
     await userEvent.click(
       within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }),
     );

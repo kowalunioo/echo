@@ -130,8 +130,17 @@ function ChooserAction({
       );
     case "queued":
     case "downloading":
+      // Named for the Model and what it stops: several rows can show this ✕ at once.
       return (
-        <IconButton label={t("models.actions.cancel")} onClick={() => void cancel(entry.id)}>
+        <IconButton
+          label={t(
+            state.kind === "queued"
+              ? "models.actions.removeFromQueue"
+              : "models.actions.cancelDownload",
+            { model: entry.name },
+          )}
+          onClick={() => void cancel(entry.id)}
+        >
           <CloseIcon />
         </IconButton>
       );

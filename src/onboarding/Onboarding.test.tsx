@@ -162,7 +162,9 @@ describe("onboarding", () => {
     });
     expect(await screen.findByText("50% · 12.0 MB/s")).toBeVisible();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
-    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Cancel the download of Whisper large-v3-turbo" }),
+    );
     expect(backend.commandsCalled("cancel_model_download")).toHaveLength(1);
 
     act(() => {

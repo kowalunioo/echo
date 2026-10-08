@@ -256,11 +256,12 @@ export const pl: Translation = {
     size: "{{size}} MB",
     actions: {
       download: "Pobierz ({{size}} MB)",
-      cancel: "Anuluj",
+      cancelDownload: "Anuluj pobieranie modelu {{model}}",
+      removeFromQueue: "Usuń model {{model}} z kolejki",
       resume: "Wznów",
       retry: "Spróbuj ponownie",
       use: "Użyj tego modelu",
-      delete: "Usuń",
+      delete: "Usuń model {{model}}",
     },
     state: {
       queued: "Czeka na zakończenie bieżącego pobierania…",

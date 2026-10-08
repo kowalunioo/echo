@@ -103,7 +103,11 @@ function Actions({
   const { t } = useTranslation();
   const { download, cancel, activate } = useModels();
   const deleteButton = (
-    <IconButton label={t("models.actions.delete")} disabled={locked} onClick={onDelete}>
+    <IconButton
+      label={t("models.actions.delete", { model: entry.name })}
+      disabled={locked}
+      onClick={onDelete}
+    >
       <TrashIcon />
     </IconButton>
   );
@@ -117,8 +121,17 @@ function Actions({
       );
     case "queued":
     case "downloading":
+      // Named for the Model and what it stops: several rows can show this ✕ at once.
       return (
-        <IconButton label={t("models.actions.cancel")} onClick={() => void cancel(entry.id)}>
+        <IconButton
+          label={t(
+            state.kind === "queued"
+              ? "models.actions.removeFromQueue"
+              : "models.actions.cancelDownload",
+            { model: entry.name },
+          )}
+          onClick={() => void cancel(entry.id)}
+        >
           <CloseIcon />
         </IconButton>
       );

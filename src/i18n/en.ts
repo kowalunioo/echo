@@ -253,11 +253,12 @@ export const en = {
     size: "{{size}} MB",
     actions: {
       download: "Download ({{size}} MB)",
-      cancel: "Cancel",
+      cancelDownload: "Cancel the download of {{model}}",
+      removeFromQueue: "Remove {{model}} from the queue",
       resume: "Resume",
       retry: "Retry",
       use: "Use this Model",
-      delete: "Delete",
+      delete: "Delete {{model}}",
     },
     state: {
       queued: "Waiting for the current download…",

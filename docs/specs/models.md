@@ -88,12 +88,14 @@ Selecting, downloading, verifying, switching and deleting the speech-recognition
 
 - A Models page listing the three Models as cards: name, one-line description, size, number of languages, a "Recommended" badge on Whisper large-v3-turbo, and a state with its action:
   - Not downloaded → "Download (845 MB)";
+  - Queued → "Waiting for the current download…", "Cancel";
   - Downloading → progress bar, "X% · Y MB/s", "Cancel";
   - Verifying → "Verifying…";
   - Paused → "Resume", "Delete";
   - Downloaded, not active → "Use this Model", "Delete";
   - Active → "Active" badge, "Delete";
   - Loading → "Loading…".
+- Icon-only row actions carry the Model's name in their accessible name and tooltip, because several rows can show the same icon at once: "Cancel the download of {Model}" (downloading), "Remove {Model} from the queue" (queued), "Delete {Model}".
 - A compact Model indicator in the main window shows the active Model and its state (ready / loading / error / none — "Download a Model to start").
 - The tray menu offers switching between downloaded Models (see `tray.md`).
 - On the Models page, a drop-down for the "Unload Model after inactivity" setting, labelled "Free the Model's memory when idle" (Never / After 2 / 5 / 10 / 15 / 60 minutes), with the description "Echo removes the Model from memory after this long without a Dictation. The next Dictation then takes a few seconds longer to start."
