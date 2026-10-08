@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { commands } from "../bindings";
 import { useSetting } from "../store/settings";
 import { Row } from "./AppSettings";
+import { Switch } from "./Switch";
 
 /** Whether Windows "Startup apps" has turned Echo off; `false` when it cannot be told. */
 async function loadDisabledInWindows(): Promise<boolean> {
@@ -53,38 +54,28 @@ export function AutostartSettings() {
   return (
     <Row label={t("settings.autostart.label")} description={t("settings.autostart.description")}>
       <div className="flex flex-col items-end gap-1">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={effective}
-          aria-label={t("settings.autostart.label")}
+        <Switch
+          checked={effective}
+          label={t("settings.autostart.label")}
           disabled={disabledInWindows}
-          onClick={() => void setEnabled(!enabled)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            effective ? "bg-accent-strong" : "border border-line bg-raised"
-          }`}
-        >
-          <span
-            aria-hidden
-            className={`inline-block size-4 rounded-full shadow transition-transform ${
-              effective ? "translate-x-6 bg-accent-fg" : "translate-x-1 bg-muted"
-            }`}
-          />
-        </button>
+          onChange={() => void setEnabled(!enabled)}
+        />
         {disabledInWindows && (
           <>
-            <span className="text-xs text-muted">{t("settings.autostart.disabledInWindows")}</span>
+            <span className="text-note text-muted">
+              {t("settings.autostart.disabledInWindows")}
+            </span>
             <button
               type="button"
               onClick={() => void openStartupApps()}
-              className="rounded-md text-xs font-medium text-accent-strong underline-offset-4 hover:underline"
+              className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
             >
               {t("settings.autostart.openStartupApps")}
             </button>
           </>
         )}
         {openFailed && (
-          <span role="alert" className="text-xs text-muted">
+          <span role="alert" className="text-note text-danger">
             {t("settings.autostart.openFailed")}
           </span>
         )}

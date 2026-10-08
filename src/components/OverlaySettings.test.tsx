@@ -16,9 +16,9 @@ beforeEach(async () => {
 
 describe("Overlay settings", () => {
   // overlay.md "Settings" and rule 17.
-  it("shows the recording indicator by default and turns it off", async () => {
+  it("shows the Overlay by default and turns it off", async () => {
     render(<App />);
-    const toggle = await screen.findByRole("switch", { name: "Show recording indicator" });
+    const toggle = await screen.findByRole("switch", { name: "Show the Overlay" });
     expect(toggle).toBeChecked();
 
     await userEvent.click(toggle);
@@ -42,12 +42,27 @@ describe("Overlay settings", () => {
     expect(screen.getByRole("radio", { name: "Top" })).toBeChecked();
   });
 
+  // The position means nothing while the Overlay is off: it stays visible but cannot be changed.
+  it("disables the position while the Overlay is off", async () => {
+    backend.settings.showOverlay = false;
+    render(<App />);
+    const position = await screen.findByRole("group", { name: "Position" });
+
+    expect(position).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("radio", { name: "Bottom" })).toBeDisabled();
+    expect(screen.getByRole("radio", { name: "Top" })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("switch", { name: "Show the Overlay" }));
+    await waitFor(() => {
+      expect(screen.getByRole("radio", { name: "Top" })).toBeEnabled();
+    });
+    expect(position).toHaveAttribute("aria-disabled", "false");
+  });
+
   it("is labelled in Polish too", async () => {
     backend.settings.uiLanguage = "pl";
     render(<App />);
-    expect(
-      await screen.findByRole("switch", { name: "Pokazuj wskaźnik nagrywania" }),
-    ).toBeVisible();
+    expect(await screen.findByRole("switch", { name: "Pokazuj nakładkę" })).toBeVisible();
     expect(screen.getByRole("radio", { name: "Na dole" })).toBeChecked();
   });
 });
@@ -56,7 +71,7 @@ describe("Opening a page from the Overlay", () => {
   // overlay.md rule 5: the "No Model" message opens the Models page.
   it("switches the main window to the requested page", async () => {
     render(<App />);
-    await screen.findByRole("switch", { name: "Show recording indicator" });
+    await screen.findByRole("switch", { name: "Show the Overlay" });
     act(() => {
       backend.emit("main-page-requested", "model");
     });

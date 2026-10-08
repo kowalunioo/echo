@@ -31,3 +31,36 @@ export function currentStep(facts: OnboardingFacts): OnboardingStep {
 export function visibleSteps(microphoneNeeded: boolean): OnboardingStep[] {
   return ONBOARDING_STEPS.filter((step) => step !== "microphone" || microphoneNeeded);
 }
+
+/** The step before `step` among the shown `steps`, or `null` on the first (rule 2a). */
+export function previousStep(step: OnboardingStep, steps: OnboardingStep[]): OnboardingStep | null {
+  const index = steps.indexOf(step);
+  return index > 0 ? (steps[index - 1] ?? null) : null;
+}
+
+/**
+ * The step on screen: a step the user went Back to (`revisited`) while it still lies before the
+ * first incomplete step, otherwise the first incomplete step itself (rule 2a).
+ */
+export function shownStep(
+  current: OnboardingStep,
+  revisited: OnboardingStep | null,
+  steps: OnboardingStep[],
+): OnboardingStep {
+  if (revisited === null) return current;
+  const index = steps.indexOf(revisited);
+  return index !== -1 && index < steps.indexOf(current) ? revisited : current;
+}
+
+/**
+ * The step to revisit after moving forward from `shown`, or `null` when that reaches the first
+ * incomplete step, so onboarding follows it again (rule 2a).
+ */
+export function nextStep(
+  shown: OnboardingStep,
+  current: OnboardingStep,
+  steps: OnboardingStep[],
+): OnboardingStep | null {
+  const next = steps[steps.indexOf(shown) + 1];
+  return next !== undefined && steps.indexOf(next) < steps.indexOf(current) ? next : null;
+}

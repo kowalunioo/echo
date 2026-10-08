@@ -248,6 +248,7 @@ fn perform(app: &AppHandle, action: MessageAction) {
                 log::warn!("could not open the microphone privacy settings: {error}");
             }
         }
+        MessageAction::ShowNotices => show_main(app),
     }
 }
 

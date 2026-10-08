@@ -129,6 +129,8 @@ struct Setup {
     source: Box<dyn AudioSource>,
     max_recording: Duration,
     context: Box<dyn Fn() -> DictationContext + Send>,
+    /// Whether History keeps entries (`false`: a History limit of 0).
+    history_on: bool,
 }
 
 impl Setup {
@@ -138,6 +140,7 @@ impl Setup {
             source: Box::new(source),
             max_recording: MAX_RECORDING,
             context: Box::new(DictationContext::default),
+            history_on: true,
         }
     }
 
@@ -166,14 +169,17 @@ impl Setup {
         let resets = Arc::new(AtomicUsize::new(0));
         let states = Arc::new(Mutex::new(Vec::new()));
         let (h, r, s) = (history.clone(), resets.clone(), states.clone());
+        let history_on = self.history_on;
         let dictation = Dictation::spawn(DictationDeps {
             models: Box::new(models),
             source: self.source,
             detector: Box::new(|| Box::new(EnergyDetector)),
             context: self.context,
             history: Box::new(move |entry| {
-                h.lock().unwrap().push(entry);
-                Ok(())
+                if history_on {
+                    h.lock().unwrap().push(entry);
+                }
+                Ok(history_on)
             }),
             inserter: shared,
             shortcut_reset: Box::new(move || {
@@ -715,6 +721,76 @@ fn an_insertion_failure_is_indicated_and_the_transcript_stays_in_history() {
         rig.dictation.status().error.unwrap().kind,
         ProblemKind::InsertionFailed
     );
+}
+
+#[test]
+fn a_failed_insertion_keeps_the_transcript_for_copying() {
+    let rig = Setup::new(
+        FakeEngine::returning("tekst"),
+        wav_source(wav(1200, 0), true),
+    )
+    .spawn();
+    rig.inserter
+        .fail_with(Some(InsertionError::Blocked("admin window".into())));
+    rig.dictation.intent(Start);
+    rig.wait_idle_after(DictationState::Inserting);
+    let status = rig.dictation.status();
+    let error = status.error.unwrap();
+    assert_eq!(status.kept_transcript, Some(error.id));
+    assert_eq!(rig.dictation.kept_transcript().as_deref(), Some("tekst"));
+}
+
+#[test]
+fn with_history_off_a_failed_insertion_says_so_and_still_keeps_the_transcript() {
+    let mut setup = Setup::new(
+        FakeEngine::returning("tekst"),
+        wav_source(wav(1200, 0), true),
+    );
+    setup.history_on = false;
+    let rig = setup.spawn();
+    rig.inserter
+        .fail_with(Some(InsertionError::Blocked("admin window".into())));
+    rig.dictation.intent(Start);
+    rig.wait_idle_after(DictationState::Inserting);
+    assert!(rig.history_texts().is_empty());
+    let status = rig.dictation.status();
+    let error = status.error.unwrap();
+    assert_eq!(error.kind, ProblemKind::InsertionFailedNotInHistory);
+    assert_eq!(status.kept_transcript, Some(error.id));
+    assert_eq!(rig.dictation.kept_transcript().as_deref(), Some("tekst"));
+}
+
+#[test]
+fn the_kept_transcript_is_forgotten_when_the_next_recording_starts() {
+    let source = ScriptedSource::default();
+    let rig = Setup::new(FakeEngine::returning("tekst"), source.clone()).spawn();
+    rig.inserter
+        .fail_with(Some(InsertionError::Blocked("admin window".into())));
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    source.tone(1200);
+    rig.dictation.intent(Stop);
+    rig.wait_idle_after(DictationState::Inserting);
+    assert_eq!(rig.dictation.kept_transcript().as_deref(), Some("tekst"));
+
+    rig.inserter.fail_with(None);
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    assert_eq!(rig.dictation.kept_transcript(), None);
+    assert_eq!(rig.dictation.status().kept_transcript, None);
+}
+
+#[test]
+fn a_successful_insertion_keeps_nothing() {
+    let rig = Setup::new(
+        FakeEngine::returning("tekst"),
+        wav_source(wav(1200, 0), true),
+    )
+    .spawn();
+    rig.dictation.intent(Start);
+    rig.wait_idle_after(DictationState::Inserting);
+    assert_eq!(rig.dictation.kept_transcript(), None);
+    assert_eq!(rig.dictation.status().kept_transcript, None);
 }
 
 #[test]

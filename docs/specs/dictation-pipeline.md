@@ -79,12 +79,17 @@ The core cycle of Echo: the user starts a Dictation, speaks, stops it, and the T
     6. If the clipboard was empty before, it is emptied again on restore.
     7. The restored content is not added to clipboard history as a new entry.
 35. **Typing fallback:** if the clipboard cannot be opened or written, or the paste keystroke cannot be sent, Echo instead types the Transcript into the focused application as simulated Unicode keystrokes. Typing is not used when the paste succeeded.
-36. If Insertion fails entirely (both methods), the Transcript is still in History, and the user is told "Couldn't insert the text — it is in History". This includes the case where Windows blocks simulated input into a window running as administrator; Echo detects that failure where Windows reports it and never runs elevated itself.
+36. If Insertion fails entirely (both methods), the text is never lost silently. This includes the case where Windows blocks simulated input into a window running as administrator; Echo detects that failure where Windows reports it and never runs elevated itself.
+    1. Echo keeps that Transcript in memory, whatever the History limit, until the next Recording starts (then it is dropped; it is never written to disk except as the History entry of rule 38).
+    2. The main-window notice offers **Copy text**, which puts the kept Transcript on the clipboard as plain text (an ordinary copy, like History's Copy). Once the next Recording has started, the notice no longer offers it.
+    3. If History stored the Transcript (History limit above 0), the notice reads "Couldn't insert the text — it is in History." and also offers **Open History**.
+    4. If History keeps nothing (History limit 0, `history.md` rule 9), the wording must not claim History holds it: "Couldn't insert the text. Copy it before your next Dictation." The Overlay message is "Couldn't insert the text — open Echo to copy it".
+    5. Clicking the Overlay message for either case shows the main window, where the notice and its actions are.
 37. After Insertion (successful or not), the Overlay hides and the tray icon returns to idle.
 
 ### History
 
-38. A Transcript is added to History exactly when it is non-empty and the Dictation was not cancelled. It is added before Insertion starts, so a failed Insertion still leaves it in History. Details in `history.md`.
+38. A Transcript is added to History exactly when it is non-empty, the Dictation was not cancelled, and the History limit is above 0. It is added before Insertion starts, so a failed Insertion still leaves it in History when History is on (with History off, rule 36.1 keeps it for copying). Details in `history.md`.
 
 ### Cancellation
 
@@ -96,6 +101,12 @@ The core cycle of Echo: the user starts a Dictation, speaks, stops it, and the T
 39b. On an error, three things happen: a short message in the Overlay for 2.5 s (`overlay.md`); an error notice in the main window (shown immediately if it is open, otherwise the next time it is opened); and the tray icon switches to its red error variant with a tooltip naming the error (`tray.md`).
 39c. The red tray icon stays until the user opens the main window (where the notice is shown) or the next Dictation completes successfully (inserted without error), whichever comes first. During a later Recording or Transcribing, the tray shows the normal recording/transcribing icon; if that Dictation fails, the error state returns with the new error.
 39d. If several errors happen before the user looks, the tooltip and notice show the most recent one; the main window lists all errors since it was last opened.
+39e. Each main-window notice is one plain line in the UI Language, with the technical detail (English, from the failing part) below it in smaller, selectable text; the message line alone is announced to screen readers, not the buttons beside it. Every notice offers the next step where one exists:
+    - no Model, Model download failed, Model load failed: **Open Model settings** (the Model page);
+    - Microphone access blocked: **Open privacy settings** (the Windows microphone privacy page);
+    - no Microphone found, Microphone failed, Microphone disconnected: **Open Microphone settings** (the Dictation page, with focus on its Microphone section);
+    - Transcription failed: **Open log folder**;
+    - Insertion failed: **Copy text** and, when History stored it, **Open History** (rule 36).
 
 ## Fake-microphone test mode
 
@@ -170,6 +181,7 @@ Fakes: WAV Audio Source (WAV), fake ShortcutListener (FSL), fake Inserter (FI). 
 18. *Normaliser unit tests* for every rule in 49. (pure unit test.)
 19. *Audio never persisted.* After test 1, no audio file was created in Echo's data directories or temp directory. (WAV.)
 20. *Error indication.* Given a fake Engine that fails; then an Overlay message is emitted, the tray state becomes "error" with a tooltip containing "Transcription failed", and a notice is queued for the main window. When the main window is then opened, the tray returns to idle. (fake Engine, fake tray.)
+20a. *Insertion failure keeps the text.* Given FI fails; then the error is "Insertion failed", the status names that error as the one whose Transcript is kept, and the kept text equals the Transcript; with History off the error is the "not in History" variant and History stays empty; when the next Recording starts the kept text is gone; a successful Insertion keeps nothing. (fakes.)
 21. *Error cleared by success.* After test 20 without opening the window, a successful Dictation returns the tray to idle; a cancelled or empty Dictation does not. (fakes, fake tray.)
 22. *Recording during error state.* With the tray in error state, starting a Recording shows the recording icon; when that Dictation succeeds the tray ends idle, when it fails the tray ends in error with the new message. (fakes, fake tray.)
 23. *Auto-stop.* With a controllable clock, a Toggle Mode Recording reaches 10 minutes and moves to Transcribing by itself; the Transcript is inserted. (WAV, FSL, fake Engine, FI.)
@@ -185,3 +197,4 @@ Fakes: WAV Audio Source (WAV), fake ShortcutListener (FSL), fake Inserter (FI). 
 - **Where errors appear:** Overlay message, red tray icon with the error in its tooltip until the window is opened or the next Dictation succeeds, and a notice in the main window; no Windows toast notifications — the main window is usually hidden, so errors must be visible from the tray.
 - **Tolerance scope:** thresholds are mandatory only for the default Model with a fixed Dictation Language; other Models and automatic detection are report-only — tighten after first real measurements.
 - **Elevated target windows:** detect the failure where possible and use the rule 36 message; Echo never runs elevated — Windows blocks simulated input into administrator windows.
+- **Failed Insertion with History off:** keep the Transcript in memory until the next Recording starts and offer "Copy text"; never claim History holds it — with a History limit of 0 the old "it is in History" message was false and the text was lost.

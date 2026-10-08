@@ -40,7 +40,10 @@ describe("Record Shortcut settings", () => {
     const shortcutField = await renderPage();
 
     expect(shortcutField).toHaveTextContent("Ctrl+Space");
-    expect(screen.getByRole("radio", { name: /Hold to record/ })).toBeChecked();
+    // record-shortcut.md "UI": each option is named by its mode, with the plain sentence as hint.
+    const pushToTalk = screen.getByRole("radio", { name: "Push-to-Talk Mode" });
+    expect(pushToTalk).toBeChecked();
+    expect(pushToTalk).toHaveAccessibleDescription("Hold to record, let go to stop.");
     for (const reset of screen.getAllByRole("button", { name: "Reset to default" })) {
       expect(reset).toBeDisabled();
     }
@@ -54,7 +57,9 @@ describe("Record Shortcut settings", () => {
     expect(
       await screen.findByRole("button", { name: /currently Ctrl \+ Win/ }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Press to start/ })).toBeChecked();
+    const toggle = screen.getByRole("radio", { name: "Toggle Mode" });
+    expect(toggle).toBeChecked();
+    expect(toggle).toHaveAccessibleDescription("Press to start, press again to stop.");
   });
 
   // record-shortcut.md acceptance test 14: Ctrl down, Space down, Space up → "Ctrl+Space".
@@ -168,7 +173,10 @@ describe("Record Shortcut settings", () => {
     key("F9", false);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Echo could not activate F9: the keyboard hook is not running",
+      "Echo could not activate F9. Your previous shortcut stays active.",
+    );
+    expect(screen.getByText("Details: the keyboard hook is not running")).toHaveClass(
+      "select-text",
     );
   });
 
@@ -200,9 +208,9 @@ describe("Record Shortcut settings", () => {
   it("switches the mode and saves it", async () => {
     await renderPage();
 
-    await userEvent.click(screen.getByRole("radio", { name: /Press to start, press again/ }));
+    await userEvent.click(screen.getByRole("radio", { name: "Toggle Mode" }));
 
-    expect(screen.getByRole("radio", { name: /Press to start, press again/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Toggle Mode" })).toBeChecked();
     await waitFor(() => {
       expect(backend.settings.shortcutMode).toBe("toggle");
     });

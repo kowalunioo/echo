@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type OverlayView, commands } from "../bindings";
-import { changeUiLanguage } from "../i18n";
+import { changeUiLanguage, i18n } from "../i18n";
 import { backend } from "../test/backend";
 import { OverlayApp } from "./OverlayApp";
 
@@ -11,6 +11,12 @@ afterEach(async () => {
   vi.restoreAllMocks();
   await changeUiLanguage("en");
 });
+
+/**
+ * Measured in Segoe UI Variable Text 13 px medium (WebView2), the longest message (60 characters)
+ * is 382 px; a clickable message has 436 px for its text in the 520 px window.
+ */
+const MAX_MESSAGE_LENGTH = 60;
 
 function pill() {
   return screen.getByTestId("overlay-pill");
@@ -31,13 +37,17 @@ describe("Overlay", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  // Rule 2.
-  it("shows getting ready with a muted meter until audio flows", async () => {
+  // Rule 2: the label is on screen, so nobody starts talking before the Microphone is live.
+  it("says it is getting ready, with no meter or timer, until audio flows", async () => {
     backend.overlay = { kind: "gettingReady" };
     render(<OverlayApp />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Getting ready…");
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Getting ready…");
+    expect(status).not.toHaveClass("sr-only");
     expect(pill()).toHaveAttribute("data-visible", "true");
-    expect(screen.getByTestId("overlay-meter").children).toHaveLength(9);
+    expect(screen.queryByTestId("overlay-meter")).not.toBeInTheDocument();
+    expect(screen.queryByText("0:00")).not.toBeInTheDocument();
+    expect(screen.getByTestId("overlay-mark")).toHaveAttribute("data-live", "false");
     expect(screen.getByRole("button", { name: "Cancel Dictation" })).toBeVisible();
   });
 
@@ -45,18 +55,51 @@ describe("Overlay", () => {
   it("shows listening with a live meter, a timer and cancel", async () => {
     render(<OverlayApp />);
     act(() => {
+      backend.changeOverlay({ kind: "gettingReady" });
+    });
+    await screen.findByRole("status");
+    act(() => {
       backend.changeOverlay({ kind: "listening" });
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("Listening");
+    // The same live region now says "Listening"; the meter replaces the visible label.
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Listening");
+    expect(status).toHaveClass("sr-only");
+    expect(screen.getByTestId("overlay-mark")).toHaveAttribute("data-live", "true");
+    expect(screen.getByTestId("overlay-meter").children).toHaveLength(9);
     expect(screen.getByText("0:00")).toBeVisible();
     const bar = () => screen.getByTestId("overlay-meter").children[4] as HTMLElement;
-    const silent = bar().style.height;
+    const silent = bar().style.transform;
     frame(1, 3_400);
     expect(screen.getByText("0:03")).toBeVisible();
-    expect(bar().style.height).not.toBe(silent);
+    expect(bar().style.transform).not.toBe(silent);
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel Dictation" }));
     expect(backend.calls.map((c) => c.command)).toContain("overlay_cancel");
+  });
+
+  // UI: the recording states carry the logo's three bars; muted until the Microphone is live.
+  it("shows the logo mark while recording", async () => {
+    backend.overlay = { kind: "listening" };
+    render(<OverlayApp />);
+    const mark = await screen.findByTestId("overlay-mark");
+    expect(mark.querySelectorAll("rect")).toHaveLength(3);
+  });
+
+  // UI: the pill's edge is a control-strength ring, so it stays visible over a white editor.
+  it("outlines the pill with a control-strength ring", () => {
+    render(<OverlayApp />);
+    expect(pill()).toHaveClass("border-control");
+  });
+
+  // Rule 5: every message fits on one line in the Overlay window.
+  it.each(["en", "pl"] as const)("keeps every %s message short enough for one line", (lng) => {
+    const messages = i18n.getResourceBundle(lng, "translation") as {
+      overlay: { messages: Record<string, string> };
+    };
+    for (const text of Object.values(messages.overlay.messages)) {
+      expect(text.length, text).toBeLessThanOrEqual(MAX_MESSAGE_LENGTH);
+    }
   });
 
   // Rule 4: cancel while Transcribing, not once Inserting starts.
@@ -93,10 +136,30 @@ describe("Overlay", () => {
         actionable: true,
       });
     });
-    const message = await screen.findByRole("alert");
-    expect(message).toHaveTextContent("No Model — open Echo to download one");
-    await userEvent.click(message);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "No Model — open Echo to download one",
+    );
+    // The clickable message keeps its button semantics; the alert is the text inside it.
+    const button = screen.getByRole("button", { name: "No Model — open Echo to download one" });
+    await userEvent.click(button);
     expect(backend.calls.map((c) => c.command)).toContain("overlay_message_clicked");
+  });
+
+  // dictation-pipeline.md rule 36 with a History limit of 0.
+  it("points to Echo to copy text that could not be inserted", async () => {
+    render(<OverlayApp />);
+    act(() => {
+      backend.changeOverlay({
+        kind: "message",
+        message: { kind: "problem", problem: "insertionFailedNotInHistory" },
+        actionable: true,
+      });
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: "Couldn't insert the text — open Echo to copy it",
+      }),
+    ).toBeVisible();
   });
 
   it("shows the microphone fallback notice", async () => {

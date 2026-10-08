@@ -66,7 +66,7 @@ The global key combination that starts and stops a Recording from any applicatio
 - The proposal is validated; if valid it is saved and shown; if invalid, the previous shortcut is kept and the reason is shown next to the field.
 - Clicking anywhere outside the field, or the window losing focus, ends capture without changes. Escape pressed alone during capture also ends capture without changes.
 - A reset button next to the field restores the default.
-- A two-option control picks Push-to-Talk Mode ("Hold to record") or Toggle Mode ("Press to start, press again to stop"), each with a one-line explanation.
+- A two-option control picks Push-to-Talk Mode or Toggle Mode, each named by its mode with a one-line explanation ("Hold to record, let go to stop." / "Press to start, press again to stop.").
 
 ## Acceptance tests
 

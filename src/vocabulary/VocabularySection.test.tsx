@@ -1,6 +1,6 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../App";
 import type { ModelId } from "../bindings";
@@ -41,7 +41,9 @@ describe("Vocabulary page", () => {
     await field();
     expect(screen.getByText(/Your Vocabulary is empty/)).toBeVisible();
     expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
-    expect(screen.getByText("Vocabulary uses 0% of the hint budget")).toBeVisible();
+    expect(
+      screen.getByText("Vocabulary fills 0 of the 672 characters Whisper Models read"),
+    ).toBeVisible();
   });
 
   // Acceptance test 1 and rule 7: Enter adds the normalised entry, saved at once.
@@ -107,6 +109,62 @@ describe("Vocabulary page", () => {
     expect(chips()).toEqual(["Echo", "Tauri"]);
   });
 
+  it("offers Undo after a removal, restoring the entry in its place", async () => {
+    backend.settings.vocabulary = ["Echo", "GitHub", "Tauri"];
+    await field();
+    await userEvent.click(screen.getByRole("button", { name: "Remove GitHub" }));
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
+      "“GitHub” removed",
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      expect(backend.settings.vocabulary).toEqual(["Echo", "GitHub", "Tauri"]);
+    });
+    expect(chips()).toEqual(["Echo", "GitHub", "Tauri"]);
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+  });
+
+  it("offers Undo for 5 seconds only", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      backend.settings.vocabulary = ["Echo"];
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      await field();
+      await user.click(screen.getByRole("button", { name: "Remove Echo" }));
+      act(() => {
+        vi.advanceTimersByTime(4_900);
+      });
+      expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps keyboard focus in the list after a removal", async () => {
+    backend.settings.vocabulary = ["Echo", "GitHub", "Tauri"];
+    await field();
+    screen.getByRole("button", { name: "Remove GitHub" }).focus();
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Remove Tauri" })).toHaveFocus();
+    });
+
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Remove Echo" })).toHaveFocus();
+    });
+
+    await userEvent.keyboard("{Enter}");
+    await waitFor(() => {
+      expect(screen.getByRole("textbox", { name: "Add a word or phrase" })).toHaveFocus();
+    });
+  });
+
   // Acceptance test 11 in the UI.
   it("warns from 80% of the hint budget", async () => {
     // 12 entries of 43 characters joined with ", " make 538 characters.
@@ -115,9 +173,11 @@ describe("Vocabulary page", () => {
       (_, i) => `${String(i).padStart(2, "0")}${"x".repeat(41)}`,
     );
     await field();
-    expect(screen.getByText("Vocabulary uses 80% of the hint budget")).toBeVisible();
+    expect(
+      screen.getByText("Vocabulary fills 538 of the 672 characters Whisper Models read"),
+    ).toBeVisible();
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Vocabulary is nearly full — words beyond the limit are ignored by Whisper models.",
+      "Vocabulary is nearly full — Whisper Models ignore entries past the limit.",
     );
   });
 
@@ -128,16 +188,21 @@ describe("Vocabulary page", () => {
       (_, i) => `${String(i)}${"x".repeat(47)}`,
     );
     await field();
-    expect(screen.getByText("Vocabulary uses 44% of the hint budget")).toBeVisible();
+    expect(
+      screen.getByText("Vocabulary fills 298 of the 672 characters Whisper Models read"),
+    ).toBeVisible();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("explains spelling corrections when the active Model takes no prompt", async () => {
     activate("parakeetTdt06bV3");
     await field();
-    expect(await screen.findByRole("note")).toHaveTextContent(
-      /Parakeet TDT 0\.6B v3 takes no hint, so entries are applied as spelling corrections/,
+    const note = await screen.findByRole("note");
+    expect(note).toHaveTextContent(
+      /Parakeet TDT 0\.6B v3 can't use your Vocabulary while it listens, so Echo fixes the spelling/,
     );
+    // vocabulary.md rule 10.1: entries outside plain Latin letters and digits are not corrected.
+    expect(note).toHaveTextContent(/entries with letters such as ą, ł or é are not/);
   });
 
   it("has no correction note for a Whisper Model", async () => {
@@ -152,7 +217,9 @@ describe("Vocabulary page", () => {
     render(<App />);
     const input = await screen.findByRole("textbox", { name: "Dodaj słowo lub frazę" });
     expect(screen.getByRole("button", { name: "Usuń GitHub" })).toBeVisible();
-    expect(screen.getByText("Słownik zajmuje 0% budżetu podpowiedzi")).toBeVisible();
+    expect(
+      screen.getByText("Słownik zajmuje 6 z 672 znaków, które odczytują modele Whisper"),
+    ).toBeVisible();
     await userEvent.type(input, "GITHUB{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent("„GitHub” jest już w Słowniku.");
   });

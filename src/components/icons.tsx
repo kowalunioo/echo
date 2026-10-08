@@ -101,6 +101,15 @@ export function TrashIcon() {
   );
 }
 
+/** The drop-down marker of a picker button. */
+export function ChevronIcon() {
+  return (
+    <Icon width="16" height="16" strokeWidth="1.8" className="shrink-0 text-muted">
+      <path d="m6 9 6 6 6-6" />
+    </Icon>
+  );
+}
+
 export function MinusIcon() {
   return (
     <Icon width="14" height="14">
@@ -113,6 +122,15 @@ export function PlusIcon() {
   return (
     <Icon width="14" height="14">
       <path d="M6 12h12M12 6v12" />
+    </Icon>
+  );
+}
+
+/** A completed step. */
+export function CheckIcon({ className }: { className?: string }) {
+  return (
+    <Icon width="12" height="12" strokeWidth="2.4" className={className}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
     </Icon>
   );
 }

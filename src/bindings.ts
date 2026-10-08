@@ -9,6 +9,8 @@ import * as __TAURI_EVENT from "@tauri-apps/api/event";
 export const commands = {
 	/**  Returns facts about the running app. */
 	appInfo: () => __TAURI_INVOKE<AppInfo>("app_info"),
+	/**  Whether this computer has a graphics card the Engine can use. */
+	computeHardware: () => __TAURI_INVOKE<ComputeHardware>("compute_hardware"),
 	/**  Returns the current settings. */
 	getSettings: () => __TAURI_INVOKE<Settings>("get_settings"),
 	/**
@@ -120,6 +122,11 @@ export const commands = {
 	dictationWindowSeen: () => __TAURI_INVOKE<void>("dictation_window_seen"),
 	/**  The user dismissed the error notices in the main window. */
 	dismissDictationNotices: () => __TAURI_INVOKE<void>("dismiss_dictation_notices"),
+	/**
+	 *  The Transcript of the last failed Insertion, for the notice's "Copy text" (rule 36); `null`
+	 *  once the next Recording has started.
+	 */
+	getKeptTranscript: () => __TAURI_INVOKE<string | null>("get_kept_transcript"),
 	/**  The user read the close-to-tray hint: it is not shown again, and the window hides. */
 	closeToTray: () => __TAURI_INVOKE<void>("close_to_tray"),
 	/**  What the Overlay shows now, for its window when it loads. */
@@ -203,6 +210,17 @@ export type CapturedKeyEvent = {
 	pressed: boolean,
 };
 
+/**
+ *  What the Engine will compute on, as far as Echo can tell before a Model is loaded
+ *  (`models.md` rule 29): the onboarding recommends a Model from it (`settings-and-first-run.md`
+ *  rule 2.3).
+ */
+export type ComputeHardware = 
+/**  A graphics card driver is installed, so the Engine tries the GPU through Vulkan. */
+"gpu" | 
+/**  No usable graphics card (no Vulkan driver, or ARM64 emulation): the Engine uses the CPU. */
+"cpu";
+
 /**  The input devices present right now. */
 export type DeviceList = {
 	/**  Names of every input device, in the order Windows lists them. */
@@ -251,6 +269,11 @@ export type DictationStatus = {
 	error: DictationProblem | null,
 	/**  Errors for the main window, oldest first, until the user dismisses them (rule 39d). */
 	notices: DictationProblem[],
+	/**
+	 *  The id of the Insertion error whose Transcript Echo still holds for "Copy text", until the
+	 *  next Recording starts (rule 36). `None` when nothing is kept.
+	 */
+	keptTranscript: number | null,
 };
 
 /**
@@ -489,8 +512,13 @@ export type ProblemKind =
 "modelDownloadFailed" | 
 /**  The Engine failed (rule 23). */
 "transcriptionFailed" | 
-/**  Insertion failed; the Transcript is in History (rule 36). */
-"insertionFailed";
+/**  Insertion failed; the Transcript is in History and kept for copying (rule 36). */
+"insertionFailed" | 
+/**
+ *  Insertion failed and History keeps nothing (History limit 0); the Transcript is kept only
+ *  for copying until the next Recording starts (rule 36).
+ */
+"insertionFailedNotInHistory";
 
 /**
  *  The Record Shortcut setting: an allowed combination (rules 19–20) in canonical text form,

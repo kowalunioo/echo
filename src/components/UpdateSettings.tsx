@@ -5,6 +5,8 @@ import type { UpdateStatus } from "../bindings";
 import { useSetting } from "../store/settings";
 import { useUpdater } from "../store/updater";
 import { Row } from "./AppSettings";
+import { Button } from "./Button";
+import { Switch } from "./Switch";
 
 /**
  * The updates area of the App page (updater.md "UI"): the automatic-updates toggle, the current
@@ -35,25 +37,13 @@ export function UpdateSettings({ version }: { version: string }) {
         description={t("settings.updates.automaticDescription")}
       >
         <div className="flex flex-col items-end gap-1">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={on}
-            aria-label={t("settings.updates.automatic")}
+          <Switch
+            checked={on}
+            label={t("settings.updates.automatic")}
             disabled={managed}
-            onClick={() => void setAutomatic(!automatic)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-              on ? "bg-accent-strong" : "border border-line bg-raised"
-            }`}
-          >
-            <span
-              aria-hidden
-              className={`inline-block size-4 rounded-full shadow transition-transform ${
-                on ? "translate-x-6 bg-accent-fg" : "translate-x-1 bg-muted"
-              }`}
-            />
-          </button>
-          {managed && <span className="text-xs text-muted">{t("settings.updates.managed")}</span>}
+            onChange={() => void setAutomatic(!automatic)}
+          />
+          {managed && <span className="text-note text-muted">{t("settings.updates.managed")}</span>}
         </div>
       </Row>
       <Row label={t("settings.version.label")}>
@@ -67,7 +57,7 @@ export function UpdateSettings({ version }: { version: string }) {
                 type="button"
                 disabled={busy}
                 onClick={() => void check()}
-                className="rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+                className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
               >
                 {t("settings.updates.check")}
               </button>
@@ -85,13 +75,7 @@ function StatusLine({ status }: { status: UpdateStatus }) {
   const install = useUpdater((s) => s.install);
 
   const installButton = (
-    <button
-      type="button"
-      onClick={() => void install()}
-      className="rounded-md bg-accent-strong px-3 py-1 text-xs font-medium text-accent-fg hover:opacity-90"
-    >
-      {t("settings.updates.install")}
-    </button>
+    <Button onClick={() => void install()}>{t("settings.updates.install")}</Button>
   );
 
   const text = (() => {
@@ -134,7 +118,7 @@ function StatusLine({ status }: { status: UpdateStatus }) {
       <span
         role="status"
         data-testid="update-status"
-        className={`text-xs ${failed ? "text-danger" : "text-muted"}`}
+        className={`text-note ${failed ? "text-danger" : "text-muted"}`}
       >
         {text}
       </span>

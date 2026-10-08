@@ -56,8 +56,11 @@ pub enum ProblemKind {
     ModelDownloadFailed,
     /// The Engine failed (rule 23).
     TranscriptionFailed,
-    /// Insertion failed; the Transcript is in History (rule 36).
+    /// Insertion failed; the Transcript is in History and kept for copying (rule 36).
     InsertionFailed,
+    /// Insertion failed and History keeps nothing (History limit 0); the Transcript is kept only
+    /// for copying until the next Recording starts (rule 36).
+    InsertionFailedNotInHistory,
 }
 
 /// One Dictation error.
@@ -86,4 +89,7 @@ pub struct DictationStatus {
     pub error: Option<DictationProblem>,
     /// Errors for the main window, oldest first, until the user dismisses them (rule 39d).
     pub notices: Vec<DictationProblem>,
+    /// The id of the Insertion error whose Transcript Echo still holds for "Copy text", until the
+    /// next Recording starts (rule 36). `None` when nothing is kept.
+    pub kept_transcript: Option<u32>,
 }

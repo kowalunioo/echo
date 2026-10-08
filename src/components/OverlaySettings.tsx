@@ -3,12 +3,14 @@ import { useTranslation } from "react-i18next";
 import type { OverlayPosition } from "../bindings";
 import { useSetting } from "../store/settings";
 import { Row } from "./AppSettings";
+import { Switch } from "./Switch";
 
 const POSITIONS: readonly OverlayPosition[] = ["bottom", "top"];
 
 /**
- * "Show recording indicator" and its position (overlay.md "Settings" and "UI"). Both apply at
- * once: the backend hides or moves a visible Overlay immediately (rule 16).
+ * "Show the Overlay" and its position (overlay.md "Settings" and "UI"). Both apply at
+ * once: the backend hides or moves a visible Overlay immediately (rule 16). While the Overlay is
+ * off the position stays visible but cannot be changed: it would have no effect.
  */
 export function OverlaySettings() {
   const { t } = useTranslation();
@@ -18,32 +20,28 @@ export function OverlaySettings() {
   return (
     <>
       <Row label={t("settings.overlay.label")} description={t("settings.overlay.description")}>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={show}
-          aria-label={t("settings.overlay.label")}
-          onClick={() => void setShow(!show)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-            show ? "bg-accent-strong" : "border border-line bg-raised"
-          }`}
-        >
-          <span
-            aria-hidden
-            className={`inline-block size-4 rounded-full shadow transition-transform ${
-              show ? "translate-x-6 bg-accent-fg" : "translate-x-1 bg-muted"
-            }`}
-          />
-        </button>
+        <Switch
+          checked={show}
+          label={t("settings.overlay.label")}
+          onChange={(next) => void setShow(next)}
+        />
       </Row>
       <Row label={t("settings.overlay.position")}>
-        <fieldset className="flex rounded-lg bg-raised p-0.5">
+        <fieldset
+          disabled={!show}
+          aria-disabled={!show}
+          className={`flex rounded-lg bg-raised p-0.5 ${show ? "" : "cursor-not-allowed opacity-50"}`}
+        >
           <legend className="sr-only">{t("settings.overlay.position")}</legend>
           {POSITIONS.map((value) => (
             <label
               key={value}
-              className={`cursor-pointer rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-                position === value ? "bg-surface font-medium shadow-sm" : "text-muted hover:text-fg"
+              className={`rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
+                show ? "cursor-pointer" : "pointer-events-none"
+              } ${
+                position === value
+                  ? "bg-surface font-medium shadow-sm"
+                  : `text-muted ${show ? "hover:text-fg" : ""}`
               }`}
             >
               <input

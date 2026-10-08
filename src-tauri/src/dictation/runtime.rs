@@ -114,8 +114,8 @@ pub struct DictationDeps {
     pub detector: Box<dyn Fn() -> Box<dyn VoiceDetector> + Send>,
     /// The Dictation Language and Vocabulary, read when a Recording starts.
     pub context: Box<dyn Fn() -> DictationContext + Send>,
-    /// Adds a Transcript to History.
-    pub history: Box<dyn FnMut(NewEntry) -> Result<(), String> + Send>,
+    /// Adds a Transcript to History; `Ok(false)` when History keeps nothing (a limit of 0).
+    pub history: Box<dyn FnMut(NewEntry) -> Result<bool, String> + Send>,
     pub inserter: SharedInserter,
     /// Tells the Record Shortcut a Recording ended without it
     /// (`RecordShortcutHandle::recording_ended`).
@@ -149,6 +149,7 @@ pub struct Dictation {
     tx: Sender<Msg>,
     status: Arc<Mutex<DictationStatus>>,
     level: InputLevel,
+    kept: KeptTranscript,
 }
 
 impl Dictation {
@@ -157,9 +158,12 @@ impl Dictation {
         let (tx, rx) = mpsc::channel();
         let status = Arc::new(Mutex::new(DictationStatus::default()));
         let level = InputLevel::default();
+        let kept = KeptTranscript::default();
         let worker = Worker {
             deps,
             level: level.clone(),
+            kept: kept.clone(),
+            inserting: None,
             tx: tx.clone(),
             rx,
             deferred: VecDeque::new(),
@@ -179,7 +183,12 @@ impl Dictation {
             .name("echo-dictation".into())
             .spawn(move || worker.run())
             .expect("spawn the dictation worker");
-        Self { tx, status, level }
+        Self {
+            tx,
+            status,
+            level,
+            kept,
+        }
     }
 
     /// A Record Shortcut intent (the Record Shortcut's `IntentSink`).
@@ -214,6 +223,12 @@ impl Dictation {
         self.level.take()
     }
 
+    /// The Transcript of the last failed Insertion, held for "Copy text" until the next Recording
+    /// starts (rule 36); `None` when nothing is kept.
+    pub fn kept_transcript(&self) -> Option<String> {
+        self.kept.text()
+    }
+
     /// The latest published status.
     pub fn status(&self) -> DictationStatus {
         self.status
@@ -233,6 +248,10 @@ struct Recording {
 struct Worker {
     deps: DictationDeps,
     level: InputLevel,
+    /// The Transcript of the last failed Insertion (rule 36), shared with the handle.
+    kept: KeptTranscript,
+    /// The Transcript being inserted and whether History stored it.
+    inserting: Option<(String, bool)>,
     tx: Sender<Msg>,
     rx: Receiver<Msg>,
     /// Messages set aside while draining a stopped Recording's audio.
@@ -300,8 +319,17 @@ impl Worker {
                 self.feed(Input::Transcribed(result));
             }
             Msg::Inserted(seq, result) if seq == self.seq => {
+                let inserting = self.inserting.take();
                 if let Err(detail) = result {
-                    self.report(ProblemKind::InsertionFailed, detail);
+                    let (text, stored) = inserting.unwrap_or_default();
+                    let kind = if stored {
+                        ProblemKind::InsertionFailed
+                    } else {
+                        ProblemKind::InsertionFailedNotInHistory
+                    };
+                    let problem = self.report(kind, detail);
+                    // Rule 36: whatever the History limit, the text can still be copied.
+                    self.kept.set(Some((problem.id, text)));
                 }
                 self.feed(Input::Inserted);
             }
@@ -372,6 +400,8 @@ impl Worker {
         });
         match self.deps.source.start(sink) {
             Ok(stream) => {
+                // Rule 36: a kept Transcript lasts until the next Recording starts.
+                self.kept.set(None);
                 self.model = Some(model);
                 self.recording = Some(Recording {
                     stream,
@@ -487,13 +517,18 @@ impl Worker {
             DictationLanguage::Specific(code) => EntryLanguage::Specific { code: code.clone() },
         };
         // Rule 38: History first, so a failed Insertion still leaves the Transcript there.
-        if let Err(error) = (self.deps.history)(NewEntry {
+        let stored = match (self.deps.history)(NewEntry {
             text: text.clone(),
             model,
             language,
         }) {
-            log::error!("could not add the Transcript to History: {error}");
-        }
+            Ok(stored) => stored,
+            Err(error) => {
+                log::error!("could not add the Transcript to History: {error}");
+                false
+            }
+        };
+        self.inserting = Some((text.clone(), stored));
         let inserter = self.deps.inserter.clone();
         let tx = self.tx.clone();
         let seq = self.seq;
@@ -529,12 +564,36 @@ impl Worker {
             listening: self.machine.listening(),
             error: self.indicator.error().cloned(),
             notices: self.indicator.notices().to_vec(),
+            kept_transcript: self.kept.id(),
         };
         if status != self.published {
             *self.status.lock().unwrap_or_else(PoisonError::into_inner) = status.clone();
             (self.deps.publish)(&status);
             self.published = status;
         }
+    }
+}
+
+/// The Transcript of a failed Insertion with the id of its error (rule 36), shared by the worker
+/// and the handle so a command can read it.
+#[derive(Clone, Default)]
+struct KeptTranscript(Arc<Mutex<Option<(u32, String)>>>);
+
+impl KeptTranscript {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Option<(u32, String)>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn set(&self, kept: Option<(u32, String)>) {
+        *self.lock() = kept;
+    }
+
+    fn id(&self) -> Option<u32> {
+        self.lock().as_ref().map(|(id, _)| *id)
+    }
+
+    fn text(&self) -> Option<String> {
+        self.lock().as_ref().map(|(_, text)| text.clone())
     }
 }
 

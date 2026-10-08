@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { type OnboardingFacts, currentStep, visibleSteps } from "./steps";
+import {
+  type OnboardingFacts,
+  currentStep,
+  nextStep,
+  previousStep,
+  shownStep,
+  visibleSteps,
+} from "./steps";
 
 const fresh: OnboardingFacts = {
   welcomeDone: false,
@@ -39,5 +46,29 @@ describe("visibleSteps", () => {
   it("includes Microphone access only when it is needed", () => {
     expect(visibleSteps(false)).toEqual(["welcome", "model", "tryIt"]);
     expect(visibleSteps(true)).toEqual(["welcome", "microphone", "model", "tryIt"]);
+  });
+});
+
+describe("Back and forward (rule 2a)", () => {
+  const steps = visibleSteps(true);
+
+  it("goes back to the previous shown step, and not before Welcome", () => {
+    expect(previousStep("tryIt", steps)).toBe("model");
+    expect(previousStep("model", steps)).toBe("microphone");
+    expect(previousStep("model", visibleSteps(false))).toBe("welcome");
+    expect(previousStep("welcome", steps)).toBeNull();
+  });
+
+  it("shows a revisited step only while it lies before the current step", () => {
+    expect(shownStep("tryIt", "model", steps)).toBe("model");
+    expect(shownStep("model", null, steps)).toBe("model");
+    expect(shownStep("model", "tryIt", steps)).toBe("model");
+    // Microphone access disappears once Windows allows it.
+    expect(shownStep("model", "microphone", visibleSteps(false))).toBe("model");
+  });
+
+  it("moves forward from a revisited step, and back to following the current step at the end", () => {
+    expect(nextStep("welcome", "tryIt", steps)).toBe("microphone");
+    expect(nextStep("model", "tryIt", steps)).toBeNull();
   });
 });

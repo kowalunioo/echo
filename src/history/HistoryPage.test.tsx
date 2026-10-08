@@ -98,7 +98,7 @@ describe("History page", () => {
     await user.click(entry("Zażółć gęślą jaźń\nline two").getByRole("button", { name: "Copy" }));
 
     expect(await navigator.clipboard.readText()).toBe("Zażółć gęślą jaźń\nline two");
-    expect(screen.getByRole("status")).toHaveTextContent("Copied");
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent("Copied");
   });
 
   // history.md acceptance test 9 (frontend part).
@@ -111,7 +111,9 @@ describe("History page", () => {
 
     expect(entryTexts()).toEqual(["newer"]);
     expect(backend.history.map((e) => e.text)).toEqual(["newer"]);
-    expect(screen.getByRole("status")).toHaveTextContent("Transcript deleted");
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
+      "Transcript deleted",
+    );
 
     await user.click(screen.getByRole("button", { name: "Undo" }));
 
@@ -180,6 +182,49 @@ describe("History page", () => {
     expect(await screen.findByText(/No Transcripts yet/)).toBeInTheDocument();
   });
 
+  it("returns focus to Clear all when the confirmation is cancelled", async () => {
+    backend.addHistoryEntry("one");
+    const user = await openHistory();
+    const clearAll = screen.getByRole("button", { name: "Clear all" });
+
+    await user.click(clearAll);
+    const dialog = screen.getByRole("alertdialog", { name: "Delete all Transcripts?" });
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(clearAll).toHaveFocus();
+    expect(backend.history).toHaveLength(1);
+  });
+
+  it("moves focus to the next entry after a delete", async () => {
+    backend.addHistoryEntry("oldest");
+    backend.addHistoryEntry("middle");
+    backend.addHistoryEntry("newest");
+    const user = await openHistory();
+
+    await user.click(entry("middle").getByRole("button", { name: "Delete" }));
+    await waitFor(() => {
+      expect(entry("oldest").getByRole("button", { name: "Delete" })).toHaveFocus();
+    });
+
+    await user.click(entry("oldest").getByRole("button", { name: "Delete" }));
+    await waitFor(() => {
+      expect(entry("newest").getByRole("button", { name: "Delete" })).toHaveFocus();
+    });
+  });
+
+  it("moves focus to Undo when the last entry is deleted", async () => {
+    backend.addHistoryEntry("only");
+    const user = await openHistory();
+
+    await user.click(entry("only").getByRole("button", { name: "Delete" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toHaveFocus();
+    });
+  });
+
   it("collapses very long texts", async () => {
     const long = "word ".repeat(200).trim();
     backend.addHistoryEntry(long);
@@ -231,6 +276,84 @@ describe("History limit control", () => {
     });
     expect(backend.settings.historyLimit).toBe(2);
     expect(screen.getByText("Keeps the last 2 Transcripts")).toBeInTheDocument();
+  });
+
+  // history.md rule 8: lowering the limit below the entry count offers Undo.
+  it("offers Undo when the − stepper removes Transcripts", async () => {
+    const oldest = backend.addHistoryEntry("1", new Date(2026, 0, 1).getTime());
+    for (const text of ["2", "3", "4", "5"]) backend.addHistoryEntry(text);
+    const user = await openHistory();
+
+    await user.click(screen.getByRole("button", { name: "Keep fewer Transcripts" }));
+
+    await waitFor(() => {
+      expect(entryTexts()).toEqual(["5", "4", "3", "2"]);
+    });
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
+      "1 Transcript removed",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    await waitFor(() => {
+      expect(entryTexts()).toEqual(["5", "4", "3", "2", "1"]);
+    });
+    expect(backend.settings.historyLimit).toBe(5);
+    expect(backend.history.find((e) => e.text === "1")).toEqual(oldest);
+  });
+
+  it("offers Undo when a typed 0 empties History on blur", async () => {
+    for (const text of ["1", "2", "3"]) backend.addHistoryEntry(text);
+    const user = await openHistory();
+
+    const field = screen.getByRole("spinbutton", { name: "History limit" });
+    await user.clear(field);
+    await user.type(field, "0");
+    await user.tab();
+
+    await waitFor(() => {
+      expect(backend.history).toEqual([]);
+    });
+    expect(backend.settings.historyLimit).toBe(0);
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
+      "3 Transcripts removed",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+
+    await waitFor(() => {
+      expect(entryTexts()).toEqual(["3", "2", "1"]);
+    });
+    expect(backend.settings.historyLimit).toBe(5);
+  });
+
+  it("removes the Transcripts for good once the Undo window has passed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    for (const text of ["1", "2", "3"]) backend.addHistoryEntry(text);
+    const user = await openHistory(userEvent.setup({ advanceTimers: vi.advanceTimersByTime }));
+
+    await user.click(screen.getByRole("button", { name: "Keep fewer Transcripts" }));
+    await user.click(screen.getByRole("button", { name: "Keep fewer Transcripts" }));
+    await user.click(screen.getByRole("button", { name: "Keep fewer Transcripts" }));
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
+      "1 Transcript removed",
+    );
+    act(() => {
+      vi.advanceTimersByTime(5_100);
+    });
+
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
+    expect(backend.history.map((e) => e.text)).toEqual(["3", "2"]);
+  });
+
+  it("does not offer Undo when lowering the limit removes nothing", async () => {
+    backend.addHistoryEntry("1");
+    const user = await openHistory();
+
+    await user.click(screen.getByRole("button", { name: "Keep fewer Transcripts" }));
+
+    expect(backend.settings.historyLimit).toBe(4);
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
   });
 
   // history.md acceptance test 7 (UI part).

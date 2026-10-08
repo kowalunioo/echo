@@ -90,6 +90,10 @@ impl OverlayMessage {
             Self::Problem {
                 problem: ProblemKind::MicrophoneAccessDenied,
             } => Some(MessageAction::OpenMicrophonePrivacy),
+            // The main window's notice offers "Copy text" (`dictation-pipeline.md` rule 36).
+            Self::Problem {
+                problem: ProblemKind::InsertionFailed | ProblemKind::InsertionFailedNotInHistory,
+            } => Some(MessageAction::ShowNotices),
             _ => None,
         }
     }
@@ -102,4 +106,6 @@ pub enum MessageAction {
     OpenModels,
     /// Open the Windows microphone privacy settings.
     OpenMicrophonePrivacy,
+    /// Show the main window, where the error notice and its actions are.
+    ShowNotices,
 }

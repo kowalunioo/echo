@@ -482,7 +482,7 @@ mod tests {
         r.c.status(&status, r.at(100));
         assert_eq!(r.view(), &message(ProblemKind::NoModel, true));
         r.error(200, ProblemKind::InsertionFailed);
-        assert_eq!(r.view(), &message(ProblemKind::InsertionFailed, false));
+        assert_eq!(r.view(), &message(ProblemKind::InsertionFailed, true));
     }
 
     // microphone.md rule 5: the notice arrives while its own Recording starts.
@@ -585,6 +585,11 @@ mod tests {
         );
         r.error(400, ProblemKind::TranscriptionFailed);
         assert_eq!(r.c.message_clicked(r.at(500)), None);
+        r.error(520, ProblemKind::InsertionFailedNotInHistory);
+        assert_eq!(
+            r.c.message_clicked(r.at(540)),
+            Some(MessageAction::ShowNotices)
+        );
         r.state(600, DictationState::Recording, true);
         assert_eq!(r.c.message_clicked(r.at(700)), None);
         assert_eq!(r.view(), &OverlayView::Listening);

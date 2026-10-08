@@ -13,6 +13,7 @@ export const pl: Translation = {
     vocabulary: "Słownik",
     history: "Historia",
     app: "Aplikacja",
+    shortcut: "Skrót: {{keys}}",
   },
   pages: {
     dictation: {
@@ -31,17 +32,11 @@ export const pl: Translation = {
     history: {
       title: "Historia",
       description: "Twoje ostatnie transkrypcje, przechowywane wyłącznie na tym komputerze.",
-      upcoming:
-        "Ostatnie transkrypcje z kopiowaniem, ponownym wstawieniem i usuwaniem oraz limit historii.",
     },
     app: {
       title: "Aplikacja",
       description: "Język interfejsu, uruchamianie, aktualizacje i informacje o Echo.",
     },
-  },
-  placeholder: {
-    badge: "Wkrótce",
-    lead: "Ta sekcja nie jest jeszcze gotowa. Znajdzie się tu:",
   },
   settings: {
     uiLanguage: {
@@ -65,9 +60,9 @@ export const pl: Translation = {
       openFailed: "Nie udało się otworzyć ustawień Windows.",
     },
     overlay: {
-      label: "Pokazuj wskaźnik nagrywania",
+      label: "Pokazuj nakładkę",
       description:
-        "Mała pigułka na ekranie podczas nagrywania i transkrypcji. Błędy pojawiają się także, gdy jest wyłączony.",
+        "Mała pigułka na ekranie podczas nagrywania i transkrypcji. Komunikaty o błędach pojawiają się także, gdy jest wyłączona.",
       position: "Położenie",
       bottom: "Na dole",
       top: "Na górze",
@@ -115,6 +110,8 @@ export const pl: Translation = {
   },
   onboarding: {
     progress: "Kroki konfiguracji",
+    stepDone: "ukończono",
+    back: "Wstecz",
     steps: {
       welcome: "Powitanie",
       microphone: "Mikrofon",
@@ -125,8 +122,11 @@ export const pl: Translation = {
       title: "Witamy w Echo",
       lead: "Mów, a Echo wpisze Twoje słowa w aplikacji, której używasz.",
       local: "Wszystko działa na tym komputerze. Twój głos i tekst nigdy go nie opuszczają.",
-      model: "Echo potrzebuje modelu mowy: jednorazowe pobranie kilkuset MB.",
-      shortcut: "Potem przytrzymaj skrót, mów i puść. Tekst pojawi się tam, gdzie piszesz.",
+      model:
+        "Echo potrzebuje modelu mowy: jednorazowe pobranie od 257 do 845 MB, zależnie od wybranego modelu.",
+      shortcutHold: "Potem przytrzymaj skrót, mów i puść. Tekst pojawi się tam, gdzie piszesz.",
+      shortcutPress:
+        "Potem naciśnij skrót, mów i naciśnij go ponownie. Tekst pojawi się tam, gdzie piszesz.",
       start: "Zaczynamy",
     },
     microphone: {
@@ -137,12 +137,17 @@ export const pl: Translation = {
       open: "Otwórz ustawienia prywatności Windows",
       checking: "Sprawdzam ponownie co kilka sekund…",
       skip: "Pomiń na razie",
-      skipNote: "Nagrania nie będą działać, dopóki dostęp nie zostanie przyznany.",
+      skipNote: "Dyktowanie nie będzie działać, dopóki dostęp nie zostanie przyznany.",
     },
     model: {
       title: "Wybierz model",
       lead: "Model zamienia Twoją mowę na tekst. Pobierasz go raz i zostaje na tym komputerze.",
       choose: "Modele",
+      foundGpu: "Znaleziono kartę graficzną — zalecany: {{model}}",
+      noGpu: "Nie znaleziono karty graficznej — {{model}} działa szybciej na tym komputerze",
+      continue: "Dalej",
+      later: "Dokończ później",
+      laterNote: "Dyktowanie zadziała po pobraniu modelu.",
     },
     tryIt: {
       title: "Wypróbuj",
@@ -153,6 +158,16 @@ export const pl: Translation = {
       fieldPlaceholder: "Tu pojawią się Twoje słowa…",
       later: "Skrót możesz później zmienić w sekcji Dyktowanie.",
       finish: "Zakończ",
+      worked: "Działa.",
+      trouble: {
+        summary: "Nic się nie pojawiło?",
+        microphone: "Echo może słuchać innego mikrofonu albo Windows może go blokować.",
+        microphoneSettings: "Ustawienia mikrofonu",
+        privacySettings: "Ustawienia prywatności Windows",
+        model: "Model mógł się nie załadować.",
+        modelSettings: "Ustawienia modelu",
+        other: "Coś innego poszło nie tak. Dziennik diagnostyczny pokazuje, co robiło Echo.",
+      },
     },
   },
   history: {
@@ -178,6 +193,10 @@ export const pl: Translation = {
     copied: "Skopiowano",
     copyFailed: "Nie udało się skopiować tekstu.",
     deleted: "Usunięto transkrypcję",
+    trimmed_one: "Usunięto {{count}} transkrypcję",
+    trimmed_few: "Usunięto {{count}} transkrypcje",
+    trimmed_many: "Usunięto {{count}} transkrypcji",
+    trimmed_other: "Usunięto {{count}} transkrypcji",
     undo: "Cofnij",
     reinsertFailed: "Nie udało się wstawić tekstu.",
     clearAll: {
@@ -200,7 +219,6 @@ export const pl: Translation = {
     listLabel: "Modele",
     recommended: "Polecany",
     active: "Aktywny",
-    languages: "{{count}} języków",
     descriptions: {
       whisperLargeV3Turbo: "Najlepsza dokładność; wolniejszy bez karty graficznej.",
       parakeetTdt06bV3:
@@ -239,7 +257,8 @@ export const pl: Translation = {
       storage: "Nie udało się zapisać pliku modelu na tym komputerze.",
       diskSpace: "Za mało miejsca na dysku: potrzeba {{needed}} MB wolnego miejsca.",
     },
-    loadFailed: "Nie udało się wczytać modelu {{model}}: {{reason}}",
+    loadFailed: "Nie udało się wczytać modelu {{model}}.",
+    failureDetail: "Szczegóły: {{detail}}",
     busy: "Model można zmienić lub usunąć po zakończeniu dyktowania.",
     confirmDelete: {
       title: "Usunąć model {{model}}?",
@@ -248,18 +267,18 @@ export const pl: Translation = {
       cancel: "Zostaw",
     },
     unload: {
-      label: "Zwalniaj model z pamięci po bezczynności",
+      label: "Zwalniaj pamięć modelu, gdy nie dyktujesz",
       description:
-        "Zwalnia pamięć, gdy przez jakiś czas nie dyktujesz. Następne dyktowanie rozpocznie się wtedy kilka sekund później.",
+        "Echo usuwa model z pamięci po takim czasie bez dyktowania. Następne dyktowanie rozpocznie się wtedy kilka sekund później.",
       never: "Nigdy",
-      minutes: "{{count}} min",
+      minutes: "Po {{count}} min",
     },
     indicator: {
       label: "Model",
       none: "Pobierz model, aby zacząć",
       ready: "Gotowy",
       loading: "Wczytywanie…",
-      unloaded: "Zwolniony (wczyta się przy następnym dyktowaniu)",
+      unloaded: "Zwolniony z pamięci (wczyta się przy następnym dyktowaniu)",
       error: "Nie udało się wczytać",
       downloading: "Pobieranie {{percent}}%",
       open: "Otwórz ustawienia modelu",
@@ -294,7 +313,8 @@ export const pl: Translation = {
       sameAsRecord: "{{shortcut}} jest już skrótem nagrywania.",
       invalid: "{{shortcut}} nie może być skrótem.",
     },
-    activationFailed: "Echo nie może włączyć skrótu {{shortcut}}: {{reason}}",
+    activationFailed: "Echo nie może włączyć skrótu {{shortcut}}.",
+    failureDetail: "Szczegóły: {{detail}}",
     captureUnavailable: "Zmiana skrótu jest teraz niedostępna.",
     mode: {
       label: "Tryb skrótu",
@@ -323,20 +343,28 @@ export const pl: Translation = {
   dictationNotices: {
     title: "Problemy z dyktowaniem",
     dismiss: "Zamknij",
-    openModels: "Otwórz Modele",
+    openModels: "Otwórz ustawienia modelu",
     openPrivacy: "Otwórz ustawienia prywatności",
+    openMicrophone: "Otwórz ustawienia mikrofonu",
+    openLogFolder: "Otwórz folder logów",
+    openHistory: "Otwórz historię",
+    copyText: "Kopiuj tekst",
+    copied: "Skopiowano",
+    copyFailed: "Nie udało się skopiować",
     detail: "Szczegóły: {{detail}}",
     kinds: {
-      noModel: "Brak Modelu — pobierz go, aby dyktować.",
+      noModel: "Brak modelu — pobierz go, aby dyktować.",
       microphoneNotFound: "Nie znaleziono mikrofonu.",
       microphoneAccessDenied:
         "Dostęp do mikrofonu jest zablokowany w ustawieniach prywatności Windows.",
       microphoneDisconnected: "Mikrofon odłączony — nagrywanie zatrzymane.",
       microphoneFailed: "Nie udało się użyć mikrofonu.",
-      modelLoadFailed: "Nie udało się wczytać Modelu.",
-      modelDownloadFailed: "Pobieranie Modelu nie powiodło się.",
+      modelLoadFailed: "Nie udało się wczytać modelu.",
+      modelDownloadFailed: "Pobieranie modelu nie powiodło się.",
       transcriptionFailed: "Transkrypcja nie powiodła się.",
-      insertionFailed: "Nie udało się wstawić tekstu — jest w Historii.",
+      insertionFailed: "Nie udało się wstawić tekstu — jest w historii.",
+      insertionFailedNotInHistory:
+        "Nie udało się wstawić tekstu. Skopiuj go przed następnym dyktowaniem.",
     },
   },
   overlay: {
@@ -346,16 +374,16 @@ export const pl: Translation = {
     cancel: "Anuluj dyktowanie",
     messages: {
       microphoneFallback: "Nie znaleziono wybranego mikrofonu — używam domyślnego",
-      noModel: "Brak Modelu — otwórz Echo, aby go pobrać",
+      noModel: "Brak modelu — otwórz Echo, aby go pobrać",
       microphoneNotFound: "Nie znaleziono mikrofonu",
-      microphoneAccessDenied:
-        "Dostęp do mikrofonu jest zablokowany — otwórz ustawienia prywatności",
+      microphoneAccessDenied: "Włącz dostęp do mikrofonu w ustawieniach prywatności",
       microphoneDisconnected: "Mikrofon odłączony",
       microphoneFailed: "Nie udało się użyć mikrofonu",
-      modelLoadFailed: "Nie udało się wczytać Modelu — otwórz Echo",
-      modelDownloadFailed: "Pobieranie Modelu nie powiodło się — otwórz Echo",
+      modelLoadFailed: "Nie udało się wczytać modelu — otwórz Echo",
+      modelDownloadFailed: "Pobieranie modelu nie powiodło się — otwórz Echo",
       transcriptionFailed: "Transkrypcja nie powiodła się",
-      insertionFailed: "Nie udało się wstawić tekstu — jest w Historii",
+      insertionFailed: "Nie udało się wstawić tekstu — jest w historii",
+      insertionFailedNotInHistory: "Nie wstawiono tekstu — otwórz Echo, aby go skopiować",
     },
   },
   testAudio: {
@@ -384,6 +412,20 @@ export const pl: Translation = {
   },
   status: {
     label: "Stan",
+    dictation: {
+      idle: "Czekam",
+      gettingReady: "Przygotowuję…",
+      listening: "Słucham",
+      transcribing: "Transkrybuję…",
+      inserting: "Wstawiam tekst…",
+      failed: "Ostatnie dyktowanie nie powiodło się",
+    },
+    shortcut: {
+      pushToTalk: "Przytrzymaj",
+      toggle: "Naciśnij",
+      label_pushToTalk: "Skrót nagrywania: przytrzymaj {{shortcut}}",
+      label_toggle: "Skrót nagrywania: naciśnij {{shortcut}}",
+    },
   },
   languages: {
     pl: "Polski",
@@ -406,12 +448,14 @@ export const pl: Translation = {
     add: "Dodaj",
     listLabel: "Wpisy w Słowniku",
     remove: "Usuń {{entry}}",
+    removed: "Usunięto „{{entry}}”",
+    undo: "Cofnij",
     empty: "Słownik jest pusty. Dodaj nazwy i terminy, których często używasz.",
     duplicate: "„{{entry}}” jest już w Słowniku.",
     tooLong: "Wpis może mieć najwyżej {{max}} znaków.",
-    budget: "Słownik zajmuje {{percent}}% budżetu podpowiedzi",
-    nearlyFull: "Słownik jest prawie pełny — słowa ponad limit są pomijane przez modele Whisper.",
+    budget: "Słownik zajmuje {{used}} z {{max}} znaków, które odczytują modele Whisper",
+    nearlyFull: "Słownik jest prawie pełny — modele Whisper pomijają wpisy ponad limit.",
     noPrompt:
-      "{{model}} nie przyjmuje podpowiedzi, więc wpisy są stosowane jako poprawki pisowni — tylko te zapisane literami łacińskimi bez znaków diakrytycznych i cyframi.",
+      "{{model}} nie korzysta ze Słownika podczas słuchania, więc Echo poprawia pisownię pasujących słów dopiero po transkrypcji. Poprawiane są tylko wpisy z samych liter łacińskich i cyfr, np. GitHub albo Tauri 2; wpisy z literami takimi jak ą, ł czy é nie są poprawiane.",
   },
 };

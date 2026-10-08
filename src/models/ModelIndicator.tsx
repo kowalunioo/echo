@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Button } from "../components/Button";
 import { useModels } from "../store/models";
 import { useShell } from "../store/shell";
 import { downloadingEntry, percentOf } from "./view";
@@ -59,8 +60,9 @@ export function ModelIndicator() {
     tone = "idle";
   }
 
+  // Ready is a hollow ring: solid lavender belongs to Listening, and the label says "Ready".
   const dot = {
-    ready: "bg-accent",
+    ready: "border-[1.5px] border-muted",
     busy: "bg-accent animate-pulse",
     idle: "bg-muted/50",
     error: "bg-danger",
@@ -77,9 +79,11 @@ export function ModelIndicator() {
     >
       <span className={`mt-1.5 size-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-xs font-medium">{name}</span>
+        <span title={name} className="truncate text-note font-medium">
+          {name}
+        </span>
         {detail && (
-          <span className={`text-xs ${tone === "error" ? "text-danger" : "text-muted"}`}>
+          <span className={`text-note ${tone === "error" ? "text-danger" : "text-muted"}`}>
             {detail}
           </span>
         )}
@@ -101,21 +105,18 @@ export function NoModelPanel({ onModelsPage }: { onModelsPage: boolean }) {
   return (
     <section className="flex items-center justify-between gap-6 rounded-card border border-accent/40 bg-accent-soft px-6 py-5">
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-base font-semibold text-accent-soft-fg">
-          {t("models.start.title")}
-        </h2>
+        <h2 className="text-heading text-accent-soft-fg">{t("models.start.title")}</h2>
         <p className="text-sm text-accent-soft-fg">{t("models.start.body")}</p>
       </div>
       {!onModelsPage && (
-        <button
-          type="button"
+        <Button
+          size="default"
           onClick={() => {
             setPage("model");
           }}
-          className="shrink-0 rounded-lg bg-accent-strong px-4 py-2 text-sm font-medium whitespace-nowrap text-accent-fg hover:opacity-90"
         >
           {t("models.start.action")}
-        </button>
+        </Button>
       )}
     </section>
   );

@@ -79,6 +79,49 @@ describe("Dictation Language picker", () => {
     expect(within(region).getByRole("button", { name: /German/ })).toBeVisible();
   });
 
+  it("moves through the list with the arrow keys, Home and End, and Enter picks", async () => {
+    activate("whisperLargeV3Turbo");
+    const region = await openPicker("Whisper large-v3-turbo");
+    await userEvent.click(within(region).getByRole("button", { name: /Automatic/ }));
+    const search = within(region).getByRole("searchbox");
+    const activeOption = () => {
+      const id = search.getAttribute("aria-activedescendant");
+      return id ? document.getElementById(id)?.textContent : null;
+    };
+
+    // Opens on the current language.
+    expect(activeOption()).toBe("Automatic");
+    await userEvent.keyboard("{ArrowUp}");
+    expect(activeOption()).toBe("Automatic");
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    expect(activeOption()).toBe("English");
+    await userEvent.keyboard("{End}");
+    expect(activeOption()).toBe("Ukrainian");
+    await userEvent.keyboard("{ArrowDown}");
+    expect(activeOption()).toBe("Ukrainian");
+    await userEvent.keyboard("{Home}{ArrowDown}");
+    expect(activeOption()).toBe("Polish");
+
+    await userEvent.keyboard("{Enter}");
+    expect(backend.settings.dictationLanguage).toBe("pl");
+    expect(within(region).queryByRole("listbox")).toBeNull();
+    expect(within(region).getByRole("button", { name: /Polish/ })).toHaveFocus();
+  });
+
+  it("opens on the stored language and ArrowDown on the button opens the list", async () => {
+    backend.settings.dictationLanguage = "ja";
+    activate("whisperLargeV3Turbo");
+    const region = await openPicker("Whisper large-v3-turbo");
+    within(region)
+      .getByRole("button", { name: /Japanese/ })
+      .focus();
+    await userEvent.keyboard("{ArrowDown}");
+
+    const search = within(region).getByRole("searchbox");
+    const id = search.getAttribute("aria-activedescendant");
+    expect(id && document.getElementById(id)).toHaveTextContent("Japanese");
+  });
+
   it("Escape closes the list without changing the language", async () => {
     activate("whisperLargeV3Turbo");
     const region = await openPicker("Whisper large-v3-turbo");

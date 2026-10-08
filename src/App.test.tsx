@@ -36,6 +36,33 @@ describe("app shell", () => {
     );
   });
 
+  it("switches pages with Ctrl+1 to Ctrl+5 and names the keys on each section", async () => {
+    render(<App />);
+    const nav = await screen.findByRole("navigation", { name: "Sections" });
+    expect(
+      within(nav)
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-keyshortcuts")),
+    ).toEqual(["Control+1", "Control+2", "Control+3", "Control+4", "Control+5"]);
+
+    await userEvent.keyboard("{Control>}4{/Control}");
+    expect(await screen.findByRole("heading", { level: 1, name: "History" })).toBeVisible();
+    await userEvent.keyboard("{Control>}5{/Control}");
+    expect(await screen.findByRole("heading", { level: 1, name: "App" })).toBeVisible();
+    await userEvent.keyboard("{Control>}1{/Control}");
+    expect(await screen.findByRole("heading", { level: 1, name: "Dictation" })).toBeVisible();
+  });
+
+  it("leaves Ctrl+digit alone while typing in a field", async () => {
+    render(<App />);
+    await screen.findByRole("navigation", { name: "Sections" });
+    await userEvent.keyboard("{Control>}3{/Control}");
+    const input = await screen.findByRole("textbox", { name: "Add a word or phrase" });
+    await userEvent.click(input);
+    await userEvent.keyboard("{Control>}1{/Control}");
+    expect(screen.getByRole("heading", { level: 1, name: "Vocabulary" })).toBeVisible();
+  });
+
   it("switches pages from the navigation", async () => {
     render(<App />);
 
@@ -62,6 +89,23 @@ describe("app shell", () => {
     await waitFor(() => {
       expect(screen.getByTestId("app-version")).toHaveTextContent("9.8.7");
     });
+  });
+
+  it("names the Windows display language in the UI Language, with the code as a tooltip", async () => {
+    backend.appInfo = { version: "9.8.7", systemLocale: "pl-PL" };
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
+
+    const language = await screen.findByText("Polish (Poland)");
+    expect(language).toHaveAttribute("title", "pl-PL");
+  });
+
+  it("shows the raw Windows locale when it has no language name", async () => {
+    backend.appInfo = { version: "9.8.7", systemLocale: "x-unknown" };
+    render(<App />);
+    await userEvent.click(await screen.findByRole("button", { name: "App" }));
+
+    expect(await screen.findByText("x-unknown")).toBeVisible();
   });
 
   // settings-and-first-run.md rules 8 and 11.

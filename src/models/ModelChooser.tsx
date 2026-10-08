@@ -2,20 +2,23 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ModelId, ModelsState } from "../bindings";
+import { FailureMessage } from "../components/FailureMessage";
 import { useModels } from "../store/models";
-import { Button, StateLine } from "./ModelCard";
+import { Button } from "../components/Button";
+import { StateLine } from "./ModelCard";
 import { cardState, megabytes } from "./view";
 
 /**
  * The onboarding's "Choose a Model" step (settings-and-first-run.md rule 2.3): the three Models,
- * Whisper large-v3-turbo pre-selected, and Download with progress, speed and Cancel — or "Use
- * this Model" for one already on this computer. The step completes once a Model is active.
+ * the `recommended` one pre-selected and badged (models.md rule 30), and Download with progress,
+ * speed and Cancel — or "Use this Model" for one already on this computer. The step completes
+ * once a Model is active.
  */
-export function ModelChooser() {
+export function ModelChooser({ recommended }: { recommended: ModelId }) {
   const { t } = useTranslation();
   const models = useModels((s) => s.state);
   const load = useModels((s) => s.load);
-  const [selected, setSelected] = useState<ModelId>("whisperLargeV3Turbo");
+  const [selected, setSelected] = useState<ModelId>(recommended);
 
   useEffect(() => {
     void load();
@@ -48,19 +51,19 @@ export function ModelChooser() {
                 onChange={() => {
                   setSelected(entry.id);
                 }}
-                className="mt-1 accent-(--color-accent-strong)"
+                className="mt-1 accent-accent-strong"
               />
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-medium">{entry.name}</span>
-                  {entry.recommended && (
+                  {entry.id === recommended && (
                     <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-soft-fg">
                       {t("models.recommended")}
                     </span>
                   )}
                 </span>
                 <span className="text-sm text-muted">{t(`models.descriptions.${entry.id}`)}</span>
-                <span className="text-xs text-muted">
+                <span className="text-note text-muted">
                   {t("models.size", { size: megabytes(entry.sizeBytes) })} ·{" "}
                   {t(`models.languagesOf.${entry.id}`)}
                   {status && ` · ${status}`}
@@ -87,7 +90,7 @@ function SelectedAction({ id, models }: { id: ModelId; models: ModelsState }) {
   switch (state.kind) {
     case "notDownloaded":
       action = (
-        <Button variant="primary" onClick={() => void download(id)}>
+        <Button size="default" variant="primary" onClick={() => void download(id)}>
           {t("models.actions.download", { size: megabytes(entry.sizeBytes) })}
         </Button>
       );
@@ -95,21 +98,21 @@ function SelectedAction({ id, models }: { id: ModelId; models: ModelsState }) {
     case "queued":
     case "downloading":
       action = (
-        <Button variant="secondary" onClick={() => void cancel(id)}>
+        <Button size="default" variant="secondary" onClick={() => void cancel(id)}>
           {t("models.actions.cancel")}
         </Button>
       );
       break;
     case "paused":
       action = (
-        <Button variant="primary" onClick={() => void download(id)}>
+        <Button size="default" variant="primary" onClick={() => void download(id)}>
           {t("models.actions.resume")}
         </Button>
       );
       break;
     case "failed":
       action = (
-        <Button variant="primary" onClick={() => void download(id)}>
+        <Button size="default" variant="primary" onClick={() => void download(id)}>
           {t("models.actions.retry")}
         </Button>
       );
@@ -118,6 +121,7 @@ function SelectedAction({ id, models }: { id: ModelId; models: ModelsState }) {
     case "active":
       action = (
         <Button
+          size="default"
           variant="primary"
           disabled={models.activating !== null}
           onClick={() => void activate(id)}
@@ -136,9 +140,11 @@ function SelectedAction({ id, models }: { id: ModelId; models: ModelsState }) {
       <div className="min-h-6">
         <StateLine entry={entry} state={state} />
         {loadFailure && (
-          <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-            {t("models.loadFailed", { model: entry.name, reason: loadFailure.reason })}
-          </p>
+          <FailureMessage
+            message={t("models.loadFailed", { model: entry.name })}
+            detail={t("models.failureDetail", { detail: loadFailure.reason })}
+            className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
+          />
         )}
       </div>
       {action && <div className="flex justify-end">{action}</div>}

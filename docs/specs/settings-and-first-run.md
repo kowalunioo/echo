@@ -8,11 +8,14 @@ The structure of Echo's main window (settings), the first-run onboarding, the UI
 
 1. First run is when no Model has ever been made active (fresh settings). Onboarding is shown in the main window, which opens regardless of how Echo was started.
 2. Onboarding steps:
-   1. **Welcome** — one screen: what Echo does, that everything runs locally, and that a speech Model (a few hundred MB) will be downloaded. UI Language switch (Polski / English) available here.
+   1. **Welcome** — one screen: what Echo does, that everything runs locally, that a speech Model (a few hundred MB) will be downloaded, and how a Dictation is started in the current Record Shortcut mode (Push-to-Talk Mode: "hold a shortcut, speak, and let go"; Toggle Mode: "press a shortcut, speak, and press it again"). UI Language switch (Polski / English) available here.
    2. **Microphone access** — shown only if Windows privacy settings block microphone access for desktop apps. Explains the problem, offers "Open Windows privacy settings", and re-checks automatically every 2 s and when the window regains focus; continues automatically once access is allowed. A "Skip" link continues anyway (Recordings will fail until fixed).
-   3. **Choose a Model** — the three Models from `models.md` with sizes and one-line descriptions; Whisper large-v3-turbo is pre-selected and marked Recommended. "Download" starts the download with progress, speed and Cancel. Models already present (downloaded earlier) appear as "Use this Model" without downloading.
-   4. **Try it** — appears when the Model is downloaded and active: shows the Record Shortcut and mode ("Hold Ctrl+Space and speak"), a text box to dictate into as a test, and "Finish".
+   3. **Choose a Model** — the three Models from `models.md` with sizes and one-line descriptions. Echo says in plain words what it found on this computer and pre-selects the Model recommended for it, marked Recommended (`models.md` rule 30): with a graphics card the Engine can use, "Graphics card found — recommended: Whisper large-v3-turbo"; without one, "No graphics card found — Parakeet TDT 0.6B v3 is faster on this PC". "Download" starts the download with progress, speed and Cancel. Models already present (downloaded earlier) appear as "Use this Model" without downloading. "Finish later" leaves onboarding without a Model (rule 3a).
+   4. **Try it** — appears when the Model is downloaded and active: shows the Record Shortcut and mode ("Hold Ctrl+Space and speak"), a text box to dictate into as a test, and "Finish". When text arrives in the text box, a quiet acknowledgement ("That worked.") appears. A "Nothing appeared?" disclosure lists the likely causes, each with its action: the Microphone ("Microphone settings" opens the Microphone section of the Dictation page; "Windows privacy settings"), the Model ("Model settings" opens the Model & language page), and anything else ("Open log folder"). Following an action that opens a page completes onboarding and shows that page.
+2a. Every step after the first offers "Back" to the previous shown step. Going back undoes nothing: Welcome stays done, a running download continues and an active Model stays active. On a step reached with Back, the forward action moves to the next step ("Continue" on Choose a Model once a Model is active).
+2b. When the step changes, keyboard focus moves to the new step's heading, so screen readers announce it. The progress indicator marks completed steps with a check mark and the current step with a filled marker, not by colour alone.
 3. Onboarding can be left at the "Try it" step via "Finish"; the Record Shortcut becomes active as soon as a Model is active (step 3 complete), even before "Finish".
+3a. Onboarding can also be left at the "Choose a Model" step via "Finish later": onboarding is complete and the main window opens on the Model & language page with the "Download a Model to start" panel (rule 5). A download started before "Finish later" continues. Until a Model is active, Dictation stays unavailable as in `dictation-pipeline.md` rule 5.
 4. If the user closes the window during onboarding, Echo stays in the tray; the next time the window opens, onboarding resumes at the first incomplete step. A running download continues in the background.
 5. After onboarding is complete it is never shown again, unless all Models are deleted — then the main window shows a prominent "Download a Model to start" panel (not the full onboarding).
 
@@ -67,7 +70,7 @@ The main window has a left navigation with these sections (names in English / Po
 
 Visual direction (from `docs/plan.md`): calm, warm, minimal — soft neutral palette, generous spacing, rounded surfaces, one restrained accent colour. Every control has a short plain-language description. Keyboard navigation and visible focus rings throughout; all controls have accessible names.
 
-A status area at the top or bottom of the window shows: active Model state (ready / loading / unloaded / downloading x% / none), an update notice when one is available, and error notices for errors that happened since the window was last opened (`dictation-pipeline.md` rules 39b–39d). Opening the window clears the tray's red error state; each notice can be dismissed.
+A status area at the top or bottom of the window shows: active Model state (ready / loading / unloaded / downloading x% / none), an update notice when one is available, and error notices for errors that happened since the window was last opened (`dictation-pipeline.md` rules 39b–39d). Opening the window clears the tray's red error state; each notice can be dismissed. Notices follow `dictation-pipeline.md` rule 39e: a plain message, the technical detail below it in smaller selectable text, and the action that leads to the fix.
 
 ## Acceptance tests
 
@@ -83,10 +86,18 @@ A status area at the top or bottom of the window shows: active Model state (read
 10. *Unreadable settings.* A garbage settings file is renamed `.broken` and defaults are used. (Unit.)
 11. *No transcript in logs.* After a Dictation in a release-configured build, the log contains no part of the Transcript text. (WAV, fake Engine returning a unique marker string; grep log.)
 12. *Window position.* A remembered position on a removed monitor opens centred on the primary monitor. (Unit of the placement check.)
+13. *Recommendation follows the hardware.* With the compute-hardware fake reporting a graphics card, Whisper large-v3-turbo is pre-selected and "Graphics card found" is shown; reporting none, Parakeet TDT 0.6B v3 is pre-selected and "No graphics card found" is shown. (Frontend with mocked commands; unit of the hardware mapping.)
+14. *Back.* From Choose a Model, "Back" shows Welcome; from Try it, "Back" shows Choose a Model with "Continue", which returns to Try it. (Frontend.)
+15. *Finish later.* "Finish later" on Choose a Model completes onboarding without a Model and shows the Model & language page with "Download a Model to start". (Frontend.)
+16. *Try it feedback.* Text arriving in the test field shows "That worked."; "Nothing appeared?" reveals the Microphone, Model and log-folder actions. (Frontend.)
+17. *Focus and progress.* After each step change the new step's heading has focus; completed steps carry a check mark. (Frontend.)
+18. *Welcome follows the mode.* With Toggle Mode, Welcome says "press a shortcut … press it again"; with Push-to-Talk Mode, "hold a shortcut … let go". (Frontend.)
 
 ## Decisions
 
 - **Onboarding:** the four steps Welcome, Microphone access, Choose a Model, Try it; the Record Shortcut becomes active as soon as a Model is active — legacy had only permission and Model steps.
+- **Onboarding navigation:** Back on every step after the first and "Finish later" on Choose a Model — a first-timer is never trapped behind a large download; Dictation stays honestly unavailable until a Model is active.
+- **Model recommendation:** Echo states what it found (graphics card or not) instead of asking the user to judge their own hardware.
 - **Theme:** follow Windows light/dark only; manual override goes to the backlog.
 - **Debug section:** none; only an "Open log folder" link in the App section.
 - **UI languages:** Polish and English only, as in `docs/plan.md`.

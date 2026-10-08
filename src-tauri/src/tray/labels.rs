@@ -37,7 +37,7 @@ impl Labels {
             ProblemKind::ModelLoadFailed => 5,
             ProblemKind::ModelDownloadFailed => 6,
             ProblemKind::TranscriptionFailed => 7,
-            ProblemKind::InsertionFailed => 8,
+            ProblemKind::InsertionFailed | ProblemKind::InsertionFailedNotInHistory => 8,
         };
         self.problems[index]
     }

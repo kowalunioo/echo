@@ -13,6 +13,8 @@ import {
   useRecordShortcut,
 } from "../store/recordShortcut";
 import { useSetting } from "../store/settings";
+import { FailureMessage } from "./FailureMessage";
+import { Keycap } from "./Keycap";
 
 const MODES: readonly ShortcutMode[] = ["pushToTalk", "toggle"];
 
@@ -65,12 +67,12 @@ function ShortcutRow({
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-2 px-6 py-4">
-      <div className="flex items-center justify-between gap-8">
-        <div className="flex flex-col gap-0.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
+        <div className="flex min-w-0 grow basis-48 flex-col gap-0.5 break-words">
           <span className="font-medium" id={`${target}-shortcut-label`}>
             {t(`${TEXTS[target]}.label`)}
           </span>
-          <span className="text-xs text-muted">{t(`${TEXTS[target]}.description`)}</span>
+          <span className="text-note text-muted">{t(`${TEXTS[target]}.description`)}</span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <ShortcutField target={target} />
@@ -124,7 +126,7 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
         className={`flex min-h-10 min-w-48 items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors duration-150 ${
           capturing
             ? "border-accent bg-accent-soft text-accent-soft-fg"
-            : "border-line bg-raised/40 hover:border-accent/60 hover:bg-raised"
+            : "border-control bg-bg hover:border-muted"
         }`}
       >
         {capturing ? (
@@ -135,7 +137,9 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
           <KeyCaps combination={current} />
         )}
       </button>
-      {capturing && <span className="text-xs text-muted">{t(`${TEXTS[target]}.captureHint`)}</span>}
+      {capturing && (
+        <span className="text-note text-muted">{t(`${TEXTS[target]}.captureHint`)}</span>
+      )}
     </div>
   );
 }
@@ -147,13 +151,11 @@ function KeyCaps({ combination }: { combination: string }) {
       {keysOf(combination).map((key, i) => (
         <span key={key} className="flex items-center gap-1">
           {i > 0 && (
-            <span className="text-xs text-muted" aria-hidden="true">
+            <span className="text-note text-muted" aria-hidden="true">
               +
             </span>
           )}
-          <kbd className="rounded-md border border-line bg-surface px-2 py-0.5 font-sans text-xs font-medium shadow-[0_1px_0_var(--color-line)]">
-            {label(key)}
-          </kbd>
+          <Keycap size="small">{label(key)}</Keycap>
         </span>
       ))}
     </span>
@@ -173,7 +175,7 @@ function ResetButton({ target }: { target: ShortcutTarget }) {
       aria-describedby={`${target}-shortcut-label`}
       onClick={() => void reset(target)}
       disabled={isDefault}
-      className="rounded-lg px-3 py-1.5 text-sm text-accent-strong transition-colors duration-150 hover:bg-accent-soft disabled:cursor-default disabled:text-muted disabled:opacity-60 disabled:hover:bg-transparent"
+      className="rounded-lg px-3 py-1.5 text-sm text-accent-strong transition-colors duration-150 hover:bg-accent-soft hover:text-accent-soft-fg disabled:cursor-default disabled:text-muted disabled:opacity-60 disabled:hover:bg-transparent"
     >
       {t("recordShortcut.reset")}
     </button>
@@ -184,20 +186,26 @@ function Feedback({ feedback }: { feedback: ShortcutFeedback }) {
   const { t } = useTranslation();
   const label = useKeyLabel();
   let message: string;
+  let detail: string | undefined;
   if (feedback.kind === "captureUnavailable") {
     message = t("recordShortcut.captureUnavailable");
   } else {
     const shortcut = label(feedback.proposal);
-    const reason =
-      feedback.error.kind === "notAllowed"
-        ? t(`recordShortcut.problems.${feedback.error.problem}`, { shortcut })
-        : t("recordShortcut.activationFailed", { shortcut, reason: feedback.error.reason });
+    let reason: string;
+    if (feedback.error.kind === "notAllowed") {
+      reason = t(`recordShortcut.problems.${feedback.error.problem}`, { shortcut });
+    } else {
+      reason = t("recordShortcut.activationFailed", { shortcut });
+      detail = t("recordShortcut.failureDetail", { detail: feedback.error.reason });
+    }
     message = `${reason} ${t("recordShortcut.keepsPrevious")}`;
   }
   return (
-    <p role="alert" className="text-right text-sm text-danger">
-      {message}
-    </p>
+    <FailureMessage
+      message={message}
+      detail={detail}
+      className="items-end text-right text-sm text-danger"
+    />
   );
 }
 
@@ -223,11 +231,17 @@ function ModePicker() {
                 value={option}
                 checked={checked}
                 onChange={() => void setMode(option)}
+                aria-labelledby={`shortcut-mode-${option}`}
+                aria-describedby={`shortcut-mode-${option}-hint`}
                 className="mt-1 accent-accent-strong"
               />
               <span className="flex flex-col gap-0.5">
-                <span className="font-medium">{t(`recordShortcut.mode.${option}`)}</span>
-                <span className="text-xs text-muted">{t(`recordShortcut.mode.${option}Hint`)}</span>
+                <span id={`shortcut-mode-${option}`} className="font-medium">
+                  {t(`recordShortcut.mode.${option}`)}
+                </span>
+                <span id={`shortcut-mode-${option}-hint`} className="text-note text-muted">
+                  {t(`recordShortcut.mode.${option}Hint`)}
+                </span>
               </span>
             </label>
           );

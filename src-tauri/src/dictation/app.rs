@@ -62,7 +62,7 @@ pub fn install(app: &AppHandle) {
             history_app
                 .state::<History>()
                 .add(entry)
-                .map(|_| ())
+                .map(|stored| stored.is_some())
                 .map_err(|e| e.to_string())
         }),
         inserter: app.state::<SharedInserter>().inner().clone(),
@@ -211,6 +211,14 @@ pub fn get_dictation_status(dictation: State<'_, Dictation>) -> DictationStatus 
 #[specta::specta]
 pub fn dictation_window_seen(dictation: State<'_, Dictation>) {
     dictation.window_seen();
+}
+
+/// The Transcript of the last failed Insertion, for the notice's "Copy text" (rule 36); `null`
+/// once the next Recording has started.
+#[tauri::command]
+#[specta::specta]
+pub fn get_kept_transcript(dictation: State<'_, Dictation>) -> Option<String> {
+    dictation.kept_transcript()
 }
 
 /// The user dismissed the error notices in the main window.

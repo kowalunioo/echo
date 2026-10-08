@@ -48,7 +48,7 @@ export function UpdatedNotice() {
       <button
         type="button"
         onClick={() => void dismiss()}
-        className="rounded-md text-sm font-medium underline-offset-4 hover:underline"
+        className="hit-target rounded-md text-sm font-medium underline-offset-4 hover:underline"
       >
         {t("updatedNotice.dismiss")}
       </button>

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { commands, events } from "../bindings";
+import { Button } from "./Button";
+import { Modal } from "./Dialog";
 
 /**
  * The one-time hint shown the first time the main window is closed (tray.md rule 13). The
@@ -33,10 +35,6 @@ export function TrayHint() {
     };
   }, []);
 
-  useEffect(() => {
-    if (open) button.current?.focus();
-  }, [open]);
-
   if (!open) return null;
 
   const confirm = () => {
@@ -47,34 +45,24 @@ export function TrayHint() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-6">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="tray-hint-title"
-        aria-describedby="tray-hint-message"
-        onKeyDown={(event) => {
-          if (event.key === "Escape") confirm();
-        }}
-        className="flex max-w-sm flex-col gap-3 rounded-card border border-line bg-surface px-6 py-5 shadow-lg"
-      >
-        <h2 id="tray-hint-title" className="font-medium">
-          {t("trayHint.title")}
-        </h2>
-        <p id="tray-hint-message" className="text-sm text-muted">
-          {t("trayHint.message")}
-        </p>
-        <div className="flex justify-end">
-          <button
-            ref={button}
-            type="button"
-            onClick={confirm}
-            className="rounded-lg bg-accent-strong px-4 py-1.5 font-medium text-accent-fg transition-opacity duration-150 hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            {t("trayHint.ok")}
-          </button>
-        </div>
+    <Modal
+      labelledBy="tray-hint-title"
+      describedBy="tray-hint-message"
+      onClose={confirm}
+      closeOnBackdrop={false}
+      initialFocus={button}
+    >
+      <h2 id="tray-hint-title" className="text-heading">
+        {t("trayHint.title")}
+      </h2>
+      <p id="tray-hint-message" className="text-muted">
+        {t("trayHint.message")}
+      </p>
+      <div className="flex justify-end">
+        <Button ref={button} onClick={confirm}>
+          {t("trayHint.ok")}
+        </Button>
       </div>
-    </div>
+    </Modal>
   );
 }

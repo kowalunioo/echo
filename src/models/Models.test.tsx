@@ -161,8 +161,11 @@ describe("Models page", () => {
     backend.models.loadFailure = { model: "whisperSmall", reason: "out of memory" };
     await openModelsPage();
 
-    expect(within(card("Whisper small")).getByRole("alert")).toHaveTextContent(
-      "Couldn't load Whisper small: out of memory",
+    const alert = within(card("Whisper small")).getByRole("alert");
+    expect(alert).toHaveTextContent("Couldn't load Whisper small.");
+    expect(alert).not.toHaveTextContent("out of memory");
+    expect(within(card("Whisper small")).getByText("Details: out of memory")).toHaveClass(
+      "select-text",
     );
   });
 
@@ -179,7 +182,9 @@ describe("Models page", () => {
     expect(
       within(card("Whisper large-v3-turbo")).getByRole("button", { name: "Delete" }),
     ).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("once the Dictation has ended");
+    expect(within(screen.getByRole("main")).getByRole("status")).toHaveTextContent(
+      "once the Dictation has ended",
+    );
   });
 
   // Rule 25.
@@ -204,13 +209,20 @@ describe("Models page", () => {
   it("offers the unload-after-inactivity choices, Never by default, and saves a change", async () => {
     await openModelsPage();
 
-    const select = screen.getByRole("combobox", { name: /Unload Model after inactivity/ });
+    const select = screen.getByRole("combobox", { name: /Free the Model's memory when idle/ });
     expect(select).toHaveValue("never");
     expect(
       within(select)
         .getAllByRole("option")
         .map((o) => o.textContent),
-    ).toEqual(["Never", "2 minutes", "5 minutes", "10 minutes", "15 minutes", "60 minutes"]);
+    ).toEqual([
+      "Never",
+      "After 2 minutes",
+      "After 5 minutes",
+      "After 10 minutes",
+      "After 15 minutes",
+      "After 60 minutes",
+    ]);
     await userEvent.selectOptions(select, "minutes5");
     expect(backend.settings.unloadModelAfter).toBe("minutes5");
   });
@@ -259,7 +271,7 @@ describe("Model indicator", () => {
     act(() => {
       backend.changeModels({ activeState: "unloaded" });
     });
-    expect(indicator()).toHaveTextContent("Unloaded (loads on next Dictation)");
+    expect(indicator()).toHaveTextContent("Freed from memory (loads on next Dictation)");
     act(() => {
       backend.changeModels({ activeState: "error" });
     });

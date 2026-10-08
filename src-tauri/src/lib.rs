@@ -49,6 +49,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
     Builder::<tauri::Wry>::new()
         .commands(collect_commands![
             commands::app_info,
+            commands::compute_hardware,
             settings::commands::get_settings,
             settings::commands::update_settings,
             settings::commands::reset_setting,
@@ -77,6 +78,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             dictation::language::get_model_languages,
             dictation::app::dictation_window_seen,
             dictation::app::dismiss_dictation_notices,
+            dictation::app::get_kept_transcript,
             tray::app::close_to_tray,
             overlay::app::get_overlay_view,
             overlay::app::overlay_cancel,

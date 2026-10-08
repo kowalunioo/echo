@@ -40,8 +40,8 @@ No hard cap on the number of entries; the budget indicator (UI) guides the user.
 ## UI
 
 - A Vocabulary section with a text field and an "Add" button; pressing Enter in the field adds the entry.
-- Entries are shown as removable chips in list order; each chip has a remove control with an accessible label "Remove <entry>".
-- Below the list, a budget indicator shows "Vocabulary uses N% of the hint budget" (capped at 100%). From 80% upward it turns into a warning: "Vocabulary is nearly full — words beyond the limit are ignored by Whisper models."
+- Entries are shown as removable chips in list order; each chip has a remove control with an accessible label "Remove <entry>". Removing is immediate; an "Undo" is offered for 5 s (as in History) and puts the entry back in its place. Keyboard focus moves to the next chip's remove control (or the previous one, or the text field when the list is empty).
+- Below the list, a budget indicator (a bar filled to N%, capped at 100%) with the text "Vocabulary fills C of the 672 characters Whisper Models read", where C is the length of the joined hint and 672 is the 224-token budget at 3 characters per token. From 80% upward it turns into a warning: "Vocabulary is nearly full — Whisper Models ignore entries past the limit."
 - When the active Model has no prompt (Parakeet), a short note explains that entries are applied as spelling corrections instead, and only for entries written in Latin letters and digits.
 - Error/hint texts: duplicate entry, entry too long.
 

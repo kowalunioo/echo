@@ -73,11 +73,15 @@ Selecting, downloading, verifying, switching and deleting the speech-recognition
 
 29. The Engine uses a GPU through Vulkan when one is available and falls back to the CPU otherwise; this is automatic, without a setting in 0.1.0. When the x64 build runs emulated on ARM64 Windows, the CPU is always used.
 
+### Recommendation
+
+30. Whisper large-v3-turbo is the recommended Model. On a computer where the Engine will use the CPU only (no Vulkan driver installed, or ARM64 emulation — rule 29), the onboarding instead recommends and pre-selects Parakeet TDT 0.6B v3, because Whisper large-v3-turbo is slow on the CPU. The Models page keeps the "Recommended" badge on Whisper large-v3-turbo.
+
 ## Settings
 
 | Setting | Values | Default |
 |---|---|---|
-| Active Model | one downloaded Model, or none | none until first download; recommended choice is Whisper large-v3-turbo |
+| Active Model | one downloaded Model, or none | none until first download; recommended choice is Whisper large-v3-turbo (Parakeet TDT 0.6B v3 in onboarding on a CPU-only computer, rule 30) |
 | Unload Model after inactivity | Never, 2 min, 5 min, 10 min, 15 min, 60 min | Never |
 
 ## UI
@@ -92,7 +96,7 @@ Selecting, downloading, verifying, switching and deleting the speech-recognition
   - Loading → "Loading…".
 - A compact Model indicator in the main window shows the active Model and its state (ready / loading / error / none — "Download a Model to start").
 - The tray menu offers switching between downloaded Models (see `tray.md`).
-- On the Models page, a drop-down "Unload Model after inactivity" (Never / 2 / 5 / 10 / 15 / 60 minutes) with the description "Frees memory when you haven't dictated for a while. The next Dictation then takes a few seconds longer to start."
+- On the Models page, a drop-down for the "Unload Model after inactivity" setting, labelled "Free the Model's memory when idle" (Never / After 2 / 5 / 10 / 15 / 60 minutes), with the description "Echo removes the Model from memory after this long without a Dictation. The next Dictation then takes a few seconds longer to start."
 
 ## Acceptance tests
 
@@ -131,5 +135,6 @@ Use a local HTTP test server serving a small generated file with known size and 
 - **Idle unload:** a setting "Unload Model after inactivity" (Never / 2 / 5 / 10 / 15 / 60 min), default Never; the tray "Unload Model" item stays dropped — fast first word by default, memory relief for those who want it.
 - **Deleting the active Model:** falls back to the next downloaded Model — legacy left none active.
 - **Acceleration:** automatic Vulkan GPU with CPU fallback, CPU forced under ARM64 emulation; manual selector to backlog.
+- **CPU-only recommendation:** Parakeet TDT 0.6B v3 rather than Whisper small — fast on the CPU without Whisper small's accuracy loss, and Polish and English are among its 25 languages. "Graphics card found" means a Vulkan driver is installed, which is what the Engine's GPU attempt depends on.
 - **Other Models:** exactly the three listed Models in 0.1.0.
 - **Source of the files:** download the GGUF files from the transcribe-cpp authors' Hugging Face repositories at pinned revisions — they are model weights, not code; confirm checksums before release.

@@ -21,6 +21,7 @@ export const IDLE_STATUS: DictationStatus = {
   listening: false,
   error: null,
   notices: [],
+  keptTranscript: null,
 };
 
 let listening = false;

@@ -225,7 +225,7 @@ fn rig(engine: FakeEngine, source: impl AudioSource + 'static) -> Rig {
         context: Box::new(DictationContext::default),
         history: Box::new(move |entry: NewEntry| {
             history.lock().unwrap().push(entry.text);
-            Ok(())
+            Ok(true)
         }),
         inserter: shared,
         shortcut_reset: Box::new(|| {}),

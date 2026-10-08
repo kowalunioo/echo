@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { type OverlayMessage, type OverlayView, commands, events } from "../bindings";
 import { TestAudioMarker } from "../components/TestAudioMarker";
+import { EchoMark } from "../components/icons";
 import { changeUiLanguage } from "../i18n";
 import { useSettings } from "../store/settings";
 import { SILENT_BARS, formatElapsed, nextBars } from "./meter";
@@ -51,7 +52,7 @@ export function OverlayApp() {
         data-visible={visible}
         data-position={position}
         style={style}
-        className="overlay-pill h-full overflow-hidden rounded-full border border-line bg-surface text-fg"
+        className="overlay-pill h-full overflow-hidden rounded-full border border-control bg-surface text-fg"
       >
         <div ref={content} className="inline-flex h-full w-max items-center">
           {/* dictation-pipeline.md rule 41: a fake-microphone session is marked here too. */}
@@ -74,17 +75,25 @@ function Content({ view, frame }: { view: OverlayView; frame: Frame }) {
       return null;
     case "gettingReady":
     case "listening": {
-      const ready = view.kind === "listening";
+      const live = view.kind === "listening";
       return (
         <div className="flex w-64 items-center gap-3 pr-1.5 pl-4">
-          <span role="status" className="sr-only">
-            {t(ready ? "overlay.listening" : "overlay.gettingReady")}
+          <Mark live={live} />
+          {/* One live region: on screen until audio flows (rule 2), then the meter takes its place. */}
+          <span
+            role="status"
+            className={live ? "sr-only" : "flex-1 truncate text-note font-medium text-muted"}
+          >
+            {t(live ? "overlay.listening" : "overlay.gettingReady")}
           </span>
-          <Dot tone={ready ? "accent" : "muted"} pulsing={!ready} />
-          <Bars bars={ready ? frame.bars : SILENT_BARS} muted={!ready} />
-          <span className="text-[13px] text-muted tabular-nums">
-            {formatElapsed(frame.elapsedMs)}
-          </span>
+          {live && (
+            <>
+              <Bars bars={frame.bars} />
+              <span className="text-note text-muted tabular-nums">
+                {formatElapsed(frame.elapsedMs)}
+              </span>
+            </>
+          )}
           <CancelButton />
         </div>
       );
@@ -93,7 +102,7 @@ function Content({ view, frame }: { view: OverlayView; frame: Frame }) {
       return (
         <div className={`flex items-center gap-2.5 pl-4 ${view.cancellable ? "pr-1.5" : "pr-5"}`}>
           <Spinner />
-          <span role="status" className="text-[13px] font-medium">
+          <span role="status" className="text-note font-medium">
             {t("overlay.transcribing")}
           </span>
           {view.cancellable && <CancelButton />}
@@ -113,20 +122,18 @@ function Message({ message, actionable }: { message: OverlayMessage; actionable:
   const body = (
     <>
       <Dot tone={message.kind === "problem" ? "danger" : "accent"} />
-      <span className="max-w-[440px] truncate text-[13px] font-medium">{text}</span>
+      {/* The text is the alert, so a clickable message stays a button for assistive tech. */}
+      <span role="alert" className="max-w-[440px] truncate text-note font-medium">
+        {text}
+      </span>
     </>
   );
   if (!actionable) {
-    return (
-      <div role="alert" className="flex items-center gap-2.5 px-5">
-        {body}
-      </div>
-    );
+    return <div className="flex items-center gap-2.5 px-5">{body}</div>;
   }
   return (
     <button
       type="button"
-      role="alert"
       onMouseDown={(e) => {
         e.preventDefault();
       }}
@@ -158,18 +165,35 @@ function Dot({ tone, pulsing }: { tone: "accent" | "muted" | "danger"; pulsing?:
   );
 }
 
-function Bars({ bars, muted }: { bars: readonly number[]; muted: boolean }) {
+/**
+ * Echo's three bars as the recording states' status mark: muted and pulsing while getting ready,
+ * in full colour once the Microphone is live.
+ */
+function Mark({ live }: { live: boolean }) {
+  return (
+    <span
+      aria-hidden
+      data-testid="overlay-mark"
+      data-live={live}
+      className={`flex shrink-0 transition-[opacity,filter] duration-200 ${live ? "" : "animate-pulse opacity-60 grayscale"}`}
+    >
+      <EchoMark className="h-4 w-3.5" />
+    </span>
+  );
+}
+
+function Bars({ bars }: { bars: readonly number[] }) {
   return (
     <span
       aria-hidden
       data-testid="overlay-meter"
-      className={`flex h-[22px] flex-1 items-center justify-center gap-1 ${muted ? "animate-pulse" : ""}`}
+      className="overlay-meter flex h-[22px] flex-1 items-center justify-center gap-1"
     >
       {bars.map((height, i) => (
         <span
           key={i}
-          className={`w-1 rounded-full ${muted ? "bg-muted/50" : "bg-accent"}`}
-          style={{ height: `${String(Math.round(height * 100))}%` }}
+          className="h-full w-1 rounded-full bg-accent"
+          style={{ transform: `scaleY(${height.toFixed(3)})`, transformOrigin: "center" }}
         />
       ))}
     </span>
@@ -211,7 +235,7 @@ function CancelButton() {
         e.preventDefault();
       }}
       onClick={() => void commands.overlayCancel()}
-      className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-muted hover:bg-raised hover:text-fg"
+      className="grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-muted transition-[background-color,color,transform] duration-150 ease-out-strong hover:bg-raised hover:text-fg active:scale-95"
     >
       <svg aria-hidden viewBox="0 0 16 16" className="size-3.5">
         <path
@@ -291,8 +315,9 @@ function usePillShape(
   useLayoutEffect(() => {
     const element = content.current;
     if (!element || typeof ResizeObserver === "undefined") return;
+    // Rounded up: offsetWidth rounds to the nearest pixel and could clip the last glyph.
     const observer = new ResizeObserver(() => {
-      setWidth(element.offsetWidth);
+      setWidth(Math.ceil(element.getBoundingClientRect().width));
     });
     observer.observe(element);
     return () => {

@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import type { ModelEntry, ModelsState } from "../bindings";
 import { useModels } from "../store/models";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { Button } from "../components/Button";
+import { ConfirmDialog } from "../components/Dialog";
+import { FailureMessage } from "../components/FailureMessage";
 import { type CardState, bytesOnDisk, cardState, megabytes, speed } from "./view";
 
 /** One Model on the Models page: facts, state and the actions that state allows. */
@@ -17,17 +19,19 @@ export function ModelCard({ entry, models }: { entry: ModelEntry; models: Models
   return (
     <li
       aria-label={entry.name}
-      className="flex flex-col gap-4 rounded-card border border-line bg-surface px-6 py-5"
+      className={`flex flex-col gap-4 rounded-card border px-6 py-5 ${
+        state.kind === "active" ? "border-accent bg-accent-soft/30" : "border-line bg-surface"
+      }`}
     >
       <div className="flex items-start justify-between gap-6">
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-display text-base font-semibold">{entry.name}</h3>
+            <h3 className="text-heading">{entry.name}</h3>
             {entry.recommended && <Badge tone="soft">{t("models.recommended")}</Badge>}
             {state.kind === "active" && <Badge tone="strong">{t("models.active")}</Badge>}
           </div>
           <p className="text-muted">{t(`models.descriptions.${entry.id}`)}</p>
-          <p className="text-xs text-muted">
+          <p className="text-note text-muted">
             {t("models.size", { size: megabytes(entry.sizeBytes) })} ·{" "}
             {t(`models.languagesOf.${entry.id}`)}
           </p>
@@ -48,9 +52,11 @@ export function ModelCard({ entry, models }: { entry: ModelEntry; models: Models
       <StateLine entry={entry} state={state} />
 
       {loadFailure && (
-        <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-          {t("models.loadFailed", { model: entry.name, reason: loadFailure.reason })}
-        </p>
+        <FailureMessage
+          message={t("models.loadFailed", { model: entry.name })}
+          detail={t("models.failureDetail", { detail: loadFailure.reason })}
+          className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger"
+        />
       )}
 
       {confirming && (
@@ -159,7 +165,7 @@ export function StateLine({ entry, state }: { entry: ModelEntry; state: CardStat
             label={t("models.progress", { model: entry.name })}
             paused={state.kind === "paused"}
           />
-          <p className="text-xs text-muted tabular-nums" aria-live="polite">
+          <p className="text-note text-muted tabular-nums" aria-live="polite">
             {state.kind === "downloading"
               ? t("models.state.downloading", {
                   percent: state.percent,
@@ -184,7 +190,9 @@ export function StateLine({ entry, state }: { entry: ModelEntry; state: CardStat
             })}
           </p>
           {state.entry.failure.kind !== "diskSpace" && state.entry.failure.kind !== "corrupted" && (
-            <p className="text-xs text-muted">{state.entry.failure.detail}</p>
+            <p className="cursor-text text-note text-muted select-text">
+              {state.entry.failure.detail}
+            </p>
           )}
         </div>
       );
@@ -195,7 +203,7 @@ export function StateLine({ entry, state }: { entry: ModelEntry; state: CardStat
 
 function StatusText({ children, pulse = false }: { children: ReactNode; pulse?: boolean }) {
   return (
-    <p aria-live="polite" className="flex items-center gap-2 text-sm text-muted">
+    <p aria-live="polite" className="flex items-center gap-2 text-note text-muted">
       <span
         aria-hidden="true"
         className={`size-2 rounded-full bg-accent ${pulse ? "animate-pulse" : ""}`}
@@ -242,33 +250,5 @@ function Badge({ tone, children }: { tone: "soft" | "strong"; children: ReactNod
     >
       {children}
     </span>
-  );
-}
-
-export function Button({
-  variant,
-  disabled = false,
-  onClick,
-  children,
-}: {
-  variant: "primary" | "secondary" | "quiet";
-  disabled?: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  const styles = {
-    primary: "bg-accent-strong text-accent-fg hover:opacity-90",
-    secondary: "border border-line bg-surface hover:bg-raised",
-    quiet: "text-muted hover:bg-raised hover:text-fg",
-  }[variant];
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className={`rounded-lg px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-[opacity,background-color,color] duration-150 disabled:cursor-not-allowed disabled:opacity-50 ${styles}`}
-    >
-      {children}
-    </button>
   );
 }

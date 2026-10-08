@@ -54,12 +54,23 @@ export function checkEntry(input: string, entries: readonly string[]): EntryChec
   return { kind: "ok", entry };
 }
 
+/** Characters per prompt token in the pessimistic estimate (rule 9). */
+const CHARS_PER_TOKEN = 3;
+
+/** The hint budget in characters of the joined hint, as the user sees it (672). */
+export const HINT_CHAR_BUDGET = HINT_TOKEN_BUDGET * CHARS_PER_TOKEN;
+
+/** The characters of the joined hint the entries make (rule 8). */
+export function hintChars(entries: readonly string[]): number {
+  return charCount(entries.join(HINT_SEPARATOR));
+}
+
 /**
  * The share of the hint budget the entries use, estimated pessimistically as one token per 3
  * characters of the joined hint, rounded up (rule 9); floored and capped at 100%.
  */
 export function budgetPercent(entries: readonly string[]): number {
-  const tokens = Math.ceil(charCount(entries.join(HINT_SEPARATOR)) / 3);
+  const tokens = Math.ceil(hintChars(entries) / CHARS_PER_TOKEN);
   return Math.min(100, Math.floor((tokens * 100) / HINT_TOKEN_BUDGET));
 }
 

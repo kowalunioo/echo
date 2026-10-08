@@ -1,4 +1,6 @@
-import { commands } from "../bindings";
+import { useEffect, useState } from "react";
+
+import { type ComputeHardware, type ModelId, commands } from "../bindings";
 import { useKeyLabel } from "../shortcut/keyLabel";
 import { useModels } from "../store/models";
 import { DEFAULT_RECORD_SHORTCUT } from "../store/recordShortcut";
@@ -34,4 +36,39 @@ export function useRecordShortcut(): { label: string; mode: "pushToTalk" | "togg
   const mode = useSettings((s) => s.settings?.shortcutMode ?? "pushToTalk");
   const label = useKeyLabel();
   return { label: label(combination), mode };
+}
+
+/** What Echo found about the graphics card, or `unknown` if it could not tell. */
+export type HardwareFinding = ComputeHardware | "unknown";
+
+/**
+ * Whether this computer has a graphics card the Engine can use (models.md rule 29); `null` until
+ * Echo has answered. A failed check is `unknown`: no claim is shown and the default stands.
+ */
+export function useComputeHardware(): HardwareFinding | null {
+  const [finding, setFinding] = useState<HardwareFinding | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    commands
+      .computeHardware()
+      .then((hardware) => {
+        if (!cancelled) setFinding(hardware);
+      })
+      .catch((error: unknown) => {
+        console.error("compute_hardware failed", error);
+        if (!cancelled) setFinding("unknown");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return finding;
+}
+
+/**
+ * The Model the onboarding recommends (models.md rule 30): Whisper large-v3-turbo, or Parakeet
+ * TDT 0.6B v3 when the Engine will run on the CPU only.
+ */
+export function recommendedModel(hardware: HardwareFinding): ModelId {
+  return hardware === "cpu" ? "parakeetTdt06bV3" : "whisperLargeV3Turbo";
 }

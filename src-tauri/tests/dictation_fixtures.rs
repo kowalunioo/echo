@@ -111,7 +111,7 @@ fn dictate_with(model: Arc<dyn DictationModel>, wav: &Path, context: DictationCo
         context: Box::new(move || context.clone()),
         history: Box::new(move |entry| {
             stored.lock().unwrap().push(entry.text);
-            Ok(())
+            Ok(true)
         }),
         inserter: shared,
         shortcut_reset: Box::new(|| {}),

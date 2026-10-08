@@ -1,5 +1,6 @@
 import type {
   AppInfo,
+  ComputeHardware,
   DeviceList,
   DictationStatus,
   HistoryEntry,
@@ -100,6 +101,8 @@ type EventCallback = (event: { event: string; id: number; payload: unknown }) =>
 export class FakeBackend {
   settings: Settings = { ...DEFAULT_SETTINGS };
   appInfo: AppInfo = { version: "0.1.0", systemLocale: "en-US" };
+  /** Whether this computer has a graphics card the Engine can use. */
+  computeHardware: ComputeHardware = "gpu";
   /** The input devices `list_microphones` reports. */
   microphones: DeviceList = {
     devices: ["Microphone (Realtek Audio)"],
@@ -108,7 +111,15 @@ export class FakeBackend {
   /** What the Windows microphone privacy check reports. */
   microphoneAccess: MicrophoneAccess = "allowed";
   models: ModelsState = freshModels();
-  dictation: DictationStatus = { state: "idle", listening: false, error: null, notices: [] };
+  dictation: DictationStatus = {
+    state: "idle",
+    listening: false,
+    error: null,
+    notices: [],
+    keptTranscript: null,
+  };
+  /** The Transcript of the last failed Insertion that `get_kept_transcript` returns. */
+  keptTranscript: string | null = null;
   /** What the Overlay shows; tests change it with `changeOverlay`. */
   overlay: OverlayView = { kind: "hidden" };
   /** The WAV file of fake-microphone mode, `null` in normal operation. */
@@ -137,6 +148,7 @@ export class FakeBackend {
 
   handlers: Record<string, Handler> = {
     app_info: () => this.appInfo,
+    compute_hardware: () => this.computeHardware,
     get_settings: () => this.settings,
     get_model_languages: () => fakeModelLanguages(),
     update_settings: (args) => {
@@ -177,6 +189,7 @@ export class FakeBackend {
       return null;
     },
     get_dictation_status: () => this.dictation,
+    get_kept_transcript: () => this.keptTranscript,
     get_test_audio: () => this.testAudio,
     get_updater_view: () => this.updater,
     check_for_updates: () => null,

@@ -1,7 +1,8 @@
 @import "tailwindcss";
 
 /*
- * Design tokens. Calm, minimal: soft neutrals with a faint violet tint, generous spacing,
+ * Design tokens. Calm, warm, minimal: soft neutrals with a faint plum tint (a few degrees warmer
+ * than the lavender accent, so the accent stays the only cool note), generous spacing,
  * rounded surfaces and one restrained lavender accent. Light and dark follow the Windows app mode
  * through prefers-color-scheme (settings-and-first-run.md rule 20).
  */
@@ -9,49 +10,65 @@
   color-scheme: light dark;
 
   /*
-   * Accent = brand lavender #7C6BE0, for graphics (logo, icons, focus rings): 3.6:1 or more on
-   * every surface, above the 3:1 WCAG asks of non-text. It is too light for normal-size text
-   * (white on it 4.2:1), so text in accent colour and filled buttons use accent-strong
-   * (white on it 5.2:1, on bg 4.8:1). Muted text on bg 5.2:1.
+   * Ratios below are WCAG 2 contrast, rounded down.
+   * Accent = brand lavender #7C6BE0, for graphics (logo, icons, focus rings): 3.2:1 or more on
+   * every surface (3.2 raised, 3.5 sidebar, 3.8 bg, 4.1 surface), above the 3:1 WCAG asks of
+   * non-text. It is too light for normal-size text (white on it 4.1:1), so text in accent colour
+   * and filled buttons use accent-strong: white on it 5.1:1, it on surface 5.1:1 and bg 4.7:1.
+   * Accent-strong text stays off sidebar (4.4:1), raised (4.0:1) and accent-soft (4.2:1); on
+   * accent-soft use accent-soft-fg (6.9:1). Muted text 5.1:1 or more on bg, sidebar and
+   * surface, 4.6:1 on raised. --echo-line is a hairline for cards and dividers only; the edge of
+   * a control that has no other fill difference (inputs, selects, off switches, outlined buttons)
+   * uses --echo-control, 3.1:1 or more on bg, sidebar and surface (WCAG 1.4.11).
    */
-  --echo-bg: #f6f5f9;
+  --echo-bg: #f7f5f9;
   --echo-surface: #ffffff;
-  --echo-sidebar: #eeedf3;
-  --echo-raised: #e5e3ed;
-  --echo-line: #e0dee8;
-  --echo-fg: #25232d;
-  --echo-muted: #686574;
+  --echo-sidebar: #f0ecf3;
+  --echo-raised: #e8e2ec;
+  --echo-line: #e3dde7;
+  --echo-control: #8a838e;
+  --echo-fg: #28222c;
+  --echo-muted: #6a6070;
   --echo-accent: #7c6be0;
   --echo-accent-strong: #6c5bd3;
   --echo-accent-fg: #ffffff;
   --echo-accent-soft: #ebe8f8;
   --echo-accent-soft-fg: #4c4294;
   --echo-focus: #7c6be0;
-  /* Errors: 6.5:1 on surface, 6.0:1 on bg. */
+  /* Errors: 6.5:1 on surface, 6.0:1 on bg, 5.7:1 on danger-soft; danger-fg on danger 6.5:1. */
   --echo-danger: #b42318;
   --echo-danger-soft: #fdecea;
+  --echo-danger-fg: #ffffff;
+  /* Warnings (a limit is close, nothing has failed yet): amber, so it never reads as an error.
+     5.7:1 on surface, 5.2:1 on bg, 4.9:1 on sidebar, 4.5:1 on raised (the budget bar's track). */
+  --echo-warning: #8f5b00;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    /* Brand lavender #A99BF7 is AA-safe here for text too: ink on it 7.1:1, it on surface 6.4:1,
-       muted on bg 6.7:1. */
-    --echo-bg: #1c1b21;
-    --echo-surface: #25242b;
-    --echo-sidebar: #16151a;
-    --echo-raised: #302e37;
-    --echo-line: #36343e;
-    --echo-fg: #eceaf2;
-    --echo-muted: #a3a0ae;
+    /* Brand lavender #A99BF7 is AA-safe here for text too: ink on it 7.1:1, it on surface 6.4:1
+       and raised 5.5:1. Muted 5.9:1 on surface, 6.6:1 on bg, 5.1:1 on raised. Control 3.0:1 or
+       more on every surface. */
+    --echo-bg: #1e1a21;
+    --echo-surface: #27232a;
+    --echo-sidebar: #18141a;
+    --echo-raised: #332d36;
+    --echo-line: #39333d;
+    --echo-control: #7e7782;
+    --echo-fg: #eee9f2;
+    --echo-muted: #a79ead;
     --echo-accent: #a99bf7;
     --echo-accent-strong: #a99bf7;
-    --echo-accent-fg: #1c1b21;
+    --echo-accent-fg: #1e1a21;
     --echo-accent-soft: #2f2a45;
     --echo-accent-soft-fg: #d2cbf7;
     --echo-focus: #a99bf7;
-    /* 6.1:1 on surface. */
+    /* Errors: 5.5:1 on surface, 6.1:1 on bg, 5.2:1 on danger-soft; danger-fg on danger 5.5:1. */
     --echo-danger: #f97066;
     --echo-danger-soft: #3a2326;
+    --echo-danger-fg: #27232a;
+    /* Warnings: 7.9:1 on surface, 8.7:1 on bg, 9.3:1 on sidebar, 6.8:1 on raised. */
+    --echo-warning: #e8b04a;
   }
 }
 
@@ -61,6 +78,7 @@
   --color-sidebar: var(--echo-sidebar);
   --color-raised: var(--echo-raised);
   --color-line: var(--echo-line);
+  --color-control: var(--echo-control);
   --color-fg: var(--echo-fg);
   --color-muted: var(--echo-muted);
   --color-accent: var(--echo-accent);
@@ -71,12 +89,39 @@
   --color-focus: var(--echo-focus);
   --color-danger: var(--echo-danger);
   --color-danger-soft: var(--echo-danger-soft);
+  --color-danger-fg: var(--echo-danger-fg);
+  --color-warning: var(--echo-warning);
 
   /* Local Windows fonts only: Echo never fetches anything for its UI. */
   --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
 
   --radius-card: 1rem;
+
+  /*
+   * Motion. The built-in CSS easings are too weak to read as intentional: entering and exiting
+   * elements use a strong ease-out, on-screen movement (the Overlay pill's width) a strong
+   * ease-in-out. Exposed as the `ease-out-strong` / `ease-in-out-strong` utilities.
+   */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /*
+   * Type roles. Body is 14px (Windows settings density; the 16px floor is for prose surfaces).
+   * title: page and step titles, the only role set in the Display optical size.
+   * heading: card, dialog and panel titles, set in the Text optical size.
+   * note: descriptions, hints and metadata. 13px, matching the Overlay, instead of 12px.
+   */
+  --text-title: 1.5rem;
+  --text-title--line-height: 1.2;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 650;
+  --text-heading: 1.0625rem;
+  --text-heading--line-height: 1.35;
+  --text-heading--letter-spacing: -0.005em;
+  --text-heading--font-weight: 600;
+  --text-note: 0.8125rem;
+  --text-note--line-height: 1.45;
 }
 
 @layer base {
@@ -93,14 +138,59 @@
     font-family: var(--font-sans);
     font-size: 14px;
     line-height: 1.5;
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
     user-select: none;
     cursor: default;
   }
 
+  /* Light text on a dark ground reads thinner and tighter: a touch more leading and tracking. */
+  @media (prefers-color-scheme: dark) {
+    body {
+      line-height: 1.55;
+      letter-spacing: 0.006em;
+    }
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  ::selection {
+    background-color: var(--color-accent-soft);
+    color: var(--color-accent-soft-fg);
+  }
+
+  input,
+  textarea {
+    caret-color: var(--color-accent-strong);
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
+  }
+}
+
+/*
+ * Text-link buttons keep their quiet look but get a hit area of at least 24 x 24 px (WCAG 2.5.8):
+ * an invisible ::after box centred on the label, 4px wider and never shorter than 24px.
+ */
+@layer components {
+  .hit-target {
+    position: relative;
+  }
+
+  .hit-target::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100% + 8px, 24px);
+    height: max(100%, 24px);
+    translate: -50% -50%;
   }
 }
 
@@ -116,9 +206,9 @@
 
 .overlay-pill {
   transition:
-    opacity 180ms ease-out,
-    translate 180ms ease-out,
-    width 200ms ease-in-out;
+    opacity 180ms var(--ease-out-strong),
+    translate 180ms var(--ease-out-strong),
+    width 200ms var(--ease-in-out-strong);
 }
 
 .overlay-pill[data-visible="false"] {
@@ -131,11 +221,52 @@
   translate: 0 -6px;
 }
 
+/* The level meter fades in where "Getting ready…" was, the moment audio flows (overlay.md rule 3). */
+.overlay-meter {
+  opacity: 1;
+  transition: opacity 200ms var(--ease-out-strong);
+
+  @starting-style {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .overlay-pill,
   .overlay-pill[data-visible="false"],
   .overlay-pill[data-visible="false"][data-position="top"] {
     translate: none;
     transition-property: opacity;
+  }
+}
+
+/*
+ * Windows "Show animations" off (prefers-reduced-motion): nothing pulses, spins or slides. Every
+ * pulsing dot and the Overlay spinner sits next to text that names the state, so the static
+ * shape still reads as "working". Colour and opacity fades stay; they do not move anything.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-spin {
+    animation: none;
+  }
+
+  .transition-transform,
+  .transition-\[width\] {
+    transition-property: none;
+  }
+
+  /* Colour fades stay; only the movement part of a combined transition goes. */
+  .transition-\[background-color\,color\,transform\] {
+    transition-property: background-color, color;
+  }
+
+  .transition-\[background-color\,border-color\,transform\] {
+    transition-property: background-color, border-color;
+  }
+
+  /* Scale-on-press is movement too: with animations off a press shows no jump. */
+  :active {
+    scale: none !important;
   }
 }

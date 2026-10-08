@@ -3,7 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import { type DeviceList, type MicrophoneChoice, commands } from "../bindings";
 import { useSetting, useSettings } from "../store/settings";
+import { useShell } from "../store/shell";
 import { Row } from "./AppSettings";
+import { ChevronIcon } from "./icons";
 
 type ListState =
   | { status: "loading"; list: DeviceList | null }
@@ -43,6 +45,16 @@ export function MicrophoneSettings() {
   const { t } = useTranslation();
   const [choice, setChoice] = useSetting("microphone");
   const [state, setState] = useState<ListState>({ status: "loading", list: null });
+  const section = useRef<HTMLElement>(null);
+  const focusRequested = useShell((s) => s.section === "microphone");
+  const sectionShown = useShell((s) => s.sectionShown);
+
+  // An error notice sent the user here (dictation-pipeline.md rule 39b).
+  useEffect(() => {
+    if (!focusRequested) return;
+    section.current?.focus();
+    sectionShown();
+  }, [focusRequested, sectionShown]);
 
   const applyAnswer = useCallback((answer: DeviceList | null) => {
     setState((s) =>
@@ -86,7 +98,12 @@ export function MicrophoneSettings() {
         : choice.name;
 
   return (
-    <section className="divide-y divide-line rounded-card border border-line bg-surface">
+    <section
+      ref={section}
+      tabIndex={-1}
+      aria-label={t("settings.microphone.label")}
+      className="divide-y divide-line rounded-card border border-line bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+    >
       <Row
         label={t("settings.microphone.label")}
         description={t("settings.microphone.description")}
@@ -107,7 +124,7 @@ export function MicrophoneSettings() {
             <button
               type="button"
               onClick={() => void useSettings.getState().reset("microphone")}
-              className="rounded-md text-xs font-medium text-accent-strong underline-offset-4 hover:underline"
+              className="hit-target rounded-md text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
             >
               {t("settings.microphone.reset")}
             </button>
@@ -243,10 +260,12 @@ function Picker({
           else show();
         }}
         onKeyDown={onButtonKey}
-        className="flex w-72 items-center justify-between gap-3 rounded-lg border border-line bg-bg px-3 py-1.5 text-left text-sm transition-colors duration-150 hover:border-muted/50 focus-visible:outline-2 focus-visible:outline-focus"
+        className="flex w-72 items-center justify-between gap-3 rounded-lg border border-control bg-bg px-3 py-1.5 text-left text-sm transition-[border-color,transform] duration-150 ease-out-strong hover:border-muted focus-visible:outline-2 active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-focus"
       >
-        <span className={`truncate ${missing ? "text-muted" : ""}`}>{selectedLabel}</span>
-        <Chevron />
+        <span title={selectedLabel} className={`truncate ${missing ? "text-muted" : ""}`}>
+          {selectedLabel}
+        </span>
+        <ChevronIcon />
       </button>
       {open && (
         <ul
@@ -258,7 +277,7 @@ function Picker({
           aria-busy={loading}
           aria-activedescendant={`${id}-option-${active}`}
           onKeyDown={onListKey}
-          className="absolute right-0 z-10 mt-1.5 flex max-h-72 w-80 flex-col overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg outline-none"
+          className="absolute right-0 z-10 mt-1.5 flex max-h-72 w-80 flex-col overflow-y-auto rounded-xl border border-line bg-surface p-1 shadow-lg transition-[opacity,transform] duration-150 ease-out-strong origin-top-right starting:scale-[0.97] starting:opacity-0 motion-reduce:starting:scale-100"
         >
           {options.map((option, index) => {
             const isSelected = sameChoice(option.choice, selected);
@@ -278,43 +297,26 @@ function Picker({
                   index === active ? "bg-raised" : ""
                 } ${isSelected ? "font-medium" : ""}`}
               >
-                <span className="truncate">{option.label}</span>
+                <span title={option.label} className="truncate">
+                  {option.label}
+                </span>
                 {isSelected && <Check />}
               </li>
             );
           })}
           {loading && (
-            <li role="presentation" className="px-3 py-2 text-xs text-muted" aria-live="polite">
+            <li role="presentation" className="px-3 py-2 text-note text-muted" aria-live="polite">
               {t("settings.microphone.loading")}
             </li>
           )}
           {failed && (
-            <li role="presentation" className="px-3 py-2 text-xs text-muted">
+            <li role="presentation" className="px-3 py-2 text-note text-muted">
               {t("settings.microphone.listFailed")}
             </li>
           )}
         </ul>
       )}
     </div>
-  );
-}
-
-function Chevron() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="16"
-      height="16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className="shrink-0 text-muted"
-    >
-      <path d="m6 9 6 6 6-6" />
-    </svg>
   );
 }
 

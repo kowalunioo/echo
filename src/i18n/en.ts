@@ -15,6 +15,7 @@ export const en = {
     vocabulary: "Vocabulary",
     history: "History",
     app: "App",
+    shortcut: "Shortcut: {{keys}}",
   },
   pages: {
     dictation: {
@@ -33,20 +34,15 @@ export const en = {
     history: {
       title: "History",
       description: "Your most recent Transcripts, stored only on this computer.",
-      upcoming: "Recent Transcripts with copy, insert again and delete, and the History limit.",
     },
     app: {
       title: "App",
-      description: "Language of the interface, start-up, updates and information about Echo.",
+      description: "UI Language, start-up, updates and information about Echo.",
     },
-  },
-  placeholder: {
-    badge: "Coming soon",
-    lead: "This section is not ready yet. It will contain:",
   },
   settings: {
     uiLanguage: {
-      label: "Interface language",
+      label: "UI Language",
       description:
         "The language of Echo's own windows and menus. It does not change the language you dictate in.",
     },
@@ -67,9 +63,9 @@ export const en = {
       openFailed: "The Windows settings could not be opened.",
     },
     overlay: {
-      label: "Show recording indicator",
+      label: "Show the Overlay",
       description:
-        "A small pill on screen while you record and while Echo transcribes. Errors still show when it is off.",
+        "A small pill on screen while you record and while Echo transcribes. Error messages still appear when it is off.",
       position: "Position",
       bottom: "Bottom",
       top: "Top",
@@ -117,6 +113,8 @@ export const en = {
   },
   onboarding: {
     progress: "Setup steps",
+    stepDone: "done",
+    back: "Back",
     steps: {
       welcome: "Welcome",
       microphone: "Microphone",
@@ -127,8 +125,12 @@ export const en = {
       title: "Welcome to Echo",
       lead: "Speak, and Echo types what you say into the app you are using.",
       local: "Everything runs on this computer. Your voice and your text never leave it.",
-      model: "Echo needs a speech Model: a one-time download of a few hundred MB.",
-      shortcut: "Then hold a shortcut, speak, and let go. The text appears where you are typing.",
+      model:
+        "Echo needs a speech Model: a one-time download of 257 to 845 MB, depending on the Model you choose.",
+      shortcutHold:
+        "Then hold a shortcut, speak, and let go. The text appears where you are typing.",
+      shortcutPress:
+        "Then press a shortcut, speak, and press it again. The text appears where you are typing.",
       start: "Get started",
     },
     microphone: {
@@ -139,12 +141,17 @@ export const en = {
       open: "Open Windows privacy settings",
       checking: "Checking again every few seconds…",
       skip: "Skip for now",
-      skipNote: "Recordings will fail until access is allowed.",
+      skipNote: "Dictations will fail until access is allowed.",
     },
     model: {
       title: "Choose a Model",
       lead: "The Model turns your speech into text. It is downloaded once and stays on this computer.",
       choose: "Models",
+      foundGpu: "Graphics card found — recommended: {{model}}",
+      noGpu: "No graphics card found — {{model}} is faster on this PC",
+      continue: "Continue",
+      later: "Finish later",
+      laterNote: "Dictation works once a Model is downloaded.",
     },
     tryIt: {
       title: "Try it",
@@ -155,6 +162,17 @@ export const en = {
       fieldPlaceholder: "Your words appear here…",
       later: "You can change the shortcut later under Dictation.",
       finish: "Finish",
+      worked: "That worked.",
+      trouble: {
+        summary: "Nothing appeared?",
+        microphone:
+          "Echo may be listening to a different Microphone, or Windows may be blocking it.",
+        microphoneSettings: "Microphone settings",
+        privacySettings: "Windows privacy settings",
+        model: "The Model may not have loaded.",
+        modelSettings: "Model settings",
+        other: "Something else went wrong. The diagnostic log shows what Echo did.",
+      },
     },
   },
   history: {
@@ -180,6 +198,10 @@ export const en = {
     copied: "Copied",
     copyFailed: "Couldn't copy the text.",
     deleted: "Transcript deleted",
+    trimmed_one: "{{count}} Transcript removed",
+    trimmed_few: "{{count}} Transcripts removed",
+    trimmed_many: "{{count}} Transcripts removed",
+    trimmed_other: "{{count}} Transcripts removed",
     undo: "Undo",
     reinsertFailed: "Couldn't insert the text.",
     clearAll: {
@@ -194,7 +216,6 @@ export const en = {
     listLabel: "Models",
     recommended: "Recommended",
     active: "Active",
-    languages: "{{count}} languages",
     descriptions: {
       whisperLargeV3Turbo: "Best accuracy; slower without a graphics card.",
       parakeetTdt06bV3:
@@ -234,7 +255,8 @@ export const en = {
       storage: "The Model file could not be saved on this computer.",
       diskSpace: "Not enough disk space: {{needed}} MB of free space is needed.",
     },
-    loadFailed: "Couldn't load {{model}}: {{reason}}",
+    loadFailed: "Couldn't load {{model}}.",
+    failureDetail: "Details: {{detail}}",
     busy: "You can switch or delete Models once the Dictation has ended.",
     confirmDelete: {
       title: "Delete {{model}}?",
@@ -243,18 +265,18 @@ export const en = {
       cancel: "Keep",
     },
     unload: {
-      label: "Unload Model after inactivity",
+      label: "Free the Model's memory when idle",
       description:
-        "Frees memory when you haven't dictated for a while. The next Dictation then takes a few seconds longer to start.",
+        "Echo removes the Model from memory after this long without a Dictation. The next Dictation then takes a few seconds longer to start.",
       never: "Never",
-      minutes: "{{count}} minutes",
+      minutes: "After {{count}} minutes",
     },
     indicator: {
       label: "Model",
       none: "Download a Model to start",
       ready: "Ready",
       loading: "Loading…",
-      unloaded: "Unloaded (loads on next Dictation)",
+      unloaded: "Freed from memory (loads on next Dictation)",
       error: "Couldn't load",
       downloading: "Downloading {{percent}}%",
       open: "Open Model settings",
@@ -297,14 +319,15 @@ export const en = {
       sameAsRecord: "{{shortcut}} is already the Record Shortcut.",
       invalid: "{{shortcut}} cannot be used as a shortcut.",
     },
-    activationFailed: "Echo could not activate {{shortcut}}: {{reason}}",
+    activationFailed: "Echo could not activate {{shortcut}}.",
+    failureDetail: "Details: {{detail}}",
     captureUnavailable: "Changing the shortcut is not available right now.",
     mode: {
       label: "Shortcut mode",
-      pushToTalk: "Hold to record",
-      pushToTalkHint: "The Recording lasts exactly as long as you hold the shortcut.",
-      toggle: "Press to start, press again to stop",
-      toggleHint: "One press starts the Recording, the next press stops it.",
+      pushToTalk: "Push-to-Talk Mode",
+      pushToTalkHint: "Hold to record, let go to stop.",
+      toggle: "Toggle Mode",
+      toggleHint: "Press to start, press again to stop.",
     },
   },
   trayHint: {
@@ -325,8 +348,14 @@ export const en = {
   dictationNotices: {
     title: "Dictation problems",
     dismiss: "Dismiss",
-    openModels: "Open Models",
+    openModels: "Open Model settings",
     openPrivacy: "Open privacy settings",
+    openMicrophone: "Open Microphone settings",
+    openLogFolder: "Open log folder",
+    openHistory: "Open History",
+    copyText: "Copy text",
+    copied: "Copied",
+    copyFailed: "Couldn't copy",
     detail: "Details: {{detail}}",
     kinds: {
       noModel: "No Model — download one to start dictating.",
@@ -338,6 +367,7 @@ export const en = {
       modelDownloadFailed: "The Model download failed.",
       transcriptionFailed: "Transcription failed.",
       insertionFailed: "Couldn't insert the text — it is in History.",
+      insertionFailedNotInHistory: "Couldn't insert the text. Copy it before your next Dictation.",
     },
   },
   overlay: {
@@ -349,13 +379,14 @@ export const en = {
       microphoneFallback: "Selected microphone not found — using the default microphone",
       noModel: "No Model — open Echo to download one",
       microphoneNotFound: "No microphone found",
-      microphoneAccessDenied: "Microphone access is blocked — open privacy settings",
+      microphoneAccessDenied: "Allow microphone access in privacy settings",
       microphoneDisconnected: "Microphone disconnected",
       microphoneFailed: "The microphone could not be used",
       modelLoadFailed: "The Model could not be loaded — open Echo",
       modelDownloadFailed: "The Model download failed — open Echo",
       transcriptionFailed: "Transcription failed",
       insertionFailed: "Couldn't insert the text — it is in History",
+      insertionFailedNotInHistory: "Couldn't insert the text — open Echo to copy it",
     },
   },
   /** Fake-microphone mode marker (dictation-pipeline.md rule 41). */
@@ -385,6 +416,20 @@ export const en = {
   },
   status: {
     label: "Status",
+    dictation: {
+      idle: "Idle",
+      gettingReady: "Getting ready…",
+      listening: "Listening",
+      transcribing: "Transcribing…",
+      inserting: "Inserting the text…",
+      failed: "Last Dictation failed",
+    },
+    shortcut: {
+      pushToTalk: "Hold",
+      toggle: "Press",
+      label_pushToTalk: "Record Shortcut: hold {{shortcut}}",
+      label_toggle: "Record Shortcut: press {{shortcut}}",
+    },
   },
   languages: {
     pl: "Polski",
@@ -406,13 +451,15 @@ export const en = {
     add: "Add",
     listLabel: "Vocabulary entries",
     remove: "Remove {{entry}}",
+    removed: "“{{entry}}” removed",
+    undo: "Undo",
     empty: "Your Vocabulary is empty. Add names and terms you use often.",
     duplicate: "“{{entry}}” is already in your Vocabulary.",
     tooLong: "An entry can have at most {{max}} characters.",
-    budget: "Vocabulary uses {{percent}}% of the hint budget",
-    nearlyFull: "Vocabulary is nearly full — words beyond the limit are ignored by Whisper models.",
+    budget: "Vocabulary fills {{used}} of the {{max}} characters Whisper Models read",
+    nearlyFull: "Vocabulary is nearly full — Whisper Models ignore entries past the limit.",
     noPrompt:
-      "{{model}} takes no hint, so entries are applied as spelling corrections instead — only for entries written in Latin letters without diacritics and digits.",
+      "{{model}} can't use your Vocabulary while it listens, so Echo fixes the spelling of matching words afterwards. Only entries in plain Latin letters and digits are fixed, like GitHub or Tauri 2; entries with letters such as ą, ł or é are not.",
   },
 };
 

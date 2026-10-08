@@ -30,7 +30,7 @@ describe("Dictation error notices", () => {
   it("shows nothing without errors", async () => {
     render(<App />);
     await screen.findByRole("heading", { level: 1 });
-    expect(screen.queryByRole("alert", { name: "Dictation problems" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Dictation problems" })).not.toBeInTheDocument();
   });
 
   it("lists the errors queued before the window opened, newest first", async () => {
@@ -41,7 +41,7 @@ describe("Dictation error notices", () => {
     };
     render(<App />);
 
-    const notices = await screen.findByRole("alert", { name: "Dictation problems" });
+    const notices = await screen.findByRole("region", { name: "Dictation problems" });
     const items = within(notices).getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("No Model — download one to start dictating.");
     expect(items[1]).toHaveTextContent("Transcription failed.");
@@ -94,7 +94,7 @@ describe("Dictation error notices", () => {
     backend.dictation = { ...backend.dictation, notices: [noModel] };
     render(<App />);
 
-    await userEvent.click(await screen.findByRole("button", { name: "Open Models" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Open Model settings" }));
 
     expect(useShell.getState().page).toBe("model");
   });
@@ -109,6 +109,122 @@ describe("Dictation error notices", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Open privacy settings" }));
 
     expect(backend.calls.some((c) => c.command === "open_microphone_privacy_settings")).toBe(true);
+  });
+
+  it("announces the message line, not the section with its buttons", async () => {
+    backend.dictation = { ...backend.dictation, notices: [transcription] };
+    render(<App />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Transcription failed.");
+    expect(within(alert).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("shows the technical detail below the message as selectable text", async () => {
+    backend.dictation = { ...backend.dictation, notices: [transcription] };
+    render(<App />);
+
+    const detail = await screen.findByText("Details: GPU lost");
+    expect(detail).toHaveClass("select-text");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("GPU lost");
+  });
+
+  it.each(["modelLoadFailed", "modelDownloadFailed"] as const)(
+    "opens the Models page from a %s notice",
+    async (kind) => {
+      backend.dictation = {
+        ...backend.dictation,
+        notices: [{ id: 4, kind, detail: "Whisper small: out of memory" }],
+      };
+      render(<App />);
+
+      await userEvent.click(await screen.findByRole("button", { name: "Open Model settings" }));
+
+      expect(useShell.getState().page).toBe("model");
+    },
+  );
+
+  it.each(["microphoneNotFound", "microphoneFailed", "microphoneDisconnected"] as const)(
+    "goes to the Microphone setting from a %s notice",
+    async (kind) => {
+      useShell.setState({ page: "history" });
+      backend.dictation = { ...backend.dictation, notices: [{ id: 5, kind, detail: "" }] };
+      render(<App />);
+
+      await userEvent.click(
+        await screen.findByRole("button", { name: "Open Microphone settings" }),
+      );
+
+      expect(useShell.getState().page).toBe("dictation");
+      await vi.waitFor(() => {
+        expect(screen.getByRole("region", { name: "Microphone" })).toHaveFocus();
+      });
+    },
+  );
+
+  it("opens the log folder from a transcription notice", async () => {
+    backend.dictation = { ...backend.dictation, notices: [transcription] };
+    render(<App />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Open log folder" }));
+
+    expect(backend.calls.some((c) => c.command === "open_log_folder")).toBe(true);
+  });
+
+  // dictation-pipeline.md rule 36, with History on.
+  it("offers Copy text and Open History when Insertion failed", async () => {
+    const failed: DictationProblem = { id: 6, kind: "insertionFailed", detail: "blocked" };
+    backend.keptTranscript = "Ala ma kota";
+    backend.dictation = { ...backend.dictation, notices: [failed], keptTranscript: 6 };
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByText("Couldn't insert the text — it is in History.")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Copy text" }));
+
+    expect(await navigator.clipboard.readText()).toBe("Ala ma kota");
+    expect(screen.getByRole("button", { name: "Copied" })).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Open History" }));
+    expect(useShell.getState().page).toBe("history");
+  });
+
+  // dictation-pipeline.md rule 36, with a History limit of 0 (history.md rule 9).
+  it("does not claim History holds the text when History is off", async () => {
+    const failed: DictationProblem = {
+      id: 7,
+      kind: "insertionFailedNotInHistory",
+      detail: "blocked",
+    };
+    backend.keptTranscript = "Ala ma kota";
+    backend.dictation = { ...backend.dictation, notices: [failed], keptTranscript: 7 };
+    const user = userEvent.setup();
+    render(<App />);
+
+    const message = await screen.findByText(
+      "Couldn't insert the text. Copy it before your next Dictation.",
+    );
+    expect(message).toBeVisible();
+    const notices = screen.getByRole("region", { name: "Dictation problems" });
+    expect(notices).not.toHaveTextContent("History");
+    expect(screen.queryByRole("button", { name: "Open History" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Copy text" }));
+    expect(await navigator.clipboard.readText()).toBe("Ala ma kota");
+  });
+
+  it("no longer offers Copy text once the next Recording has started", async () => {
+    const failed: DictationProblem = { id: 8, kind: "insertionFailed", detail: "" };
+    backend.dictation = { ...backend.dictation, notices: [failed], keptTranscript: 8 };
+    render(<App />);
+
+    expect(await screen.findByRole("button", { name: "Copy text" })).toBeVisible();
+    act(() => {
+      backend.changeDictation({ keptTranscript: null });
+    });
+
+    expect(screen.queryByRole("button", { name: "Copy text" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open History" })).toBeVisible();
   });
 
   it("is translated into Polish", async () => {
