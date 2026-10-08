@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { type DeviceList, type MicrophoneChoice, commands } from "../bindings";
 import { useSetting, useSettings } from "../store/settings";
 import { useShell } from "../store/shell";
-import { Row } from "./AppSettings";
 import { ChevronIcon } from "./icons";
+import { SectionHeading } from "./SectionHeading";
+import { SettingRow } from "./SettingRow";
 
 type ListState =
   | { status: "loading"; list: DeviceList | null }
@@ -101,10 +102,13 @@ export function MicrophoneSettings() {
     <section
       ref={section}
       tabIndex={-1}
-      aria-label={t("settings.microphone.label")}
-      className="divide-y divide-line rounded-card border border-line bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      aria-labelledby="microphone-heading"
+      className="rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-focus"
     >
-      <Row
+      <SectionHeading id="microphone-heading">
+        {t("pages.dictation.sections.microphone")}
+      </SectionHeading>
+      <SettingRow
         label={t("settings.microphone.label")}
         description={t("settings.microphone.description")}
       >
@@ -130,9 +134,9 @@ export function MicrophoneSettings() {
             </button>
           )}
         </div>
-      </Row>
+      </SettingRow>
       {state.status === "ready" && state.list.devices.length === 0 && (
-        <p role="status" className="px-6 py-3 text-sm text-muted">
+        <p role="status" className="text-note text-muted">
           {t("settings.microphone.none")}
         </p>
       )}
@@ -260,7 +264,7 @@ function Picker({
           else show();
         }}
         onKeyDown={onButtonKey}
-        className="flex w-72 items-center justify-between gap-3 rounded-lg border border-control bg-bg px-3 py-1.5 text-left text-sm transition-[border-color,transform] duration-150 ease-out-strong hover:border-muted focus-visible:outline-2 active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-focus"
+        className="flex w-72 items-center justify-between gap-3 rounded-lg border border-line bg-bg px-3 py-1.5 text-left text-sm transition-[border-color,transform] duration-150 ease-out-strong hover:border-muted focus-visible:outline-2 active:scale-[0.98] motion-reduce:active:scale-100 focus-visible:outline-focus"
       >
         <span title={selectedLabel} className={`truncate ${missing ? "text-muted" : ""}`}>
           {selectedLabel}

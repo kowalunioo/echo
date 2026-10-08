@@ -17,12 +17,14 @@ function field() {
   return screen.getByTestId("record-shortcut-field");
 }
 
-/** The reset button next to a shortcut's field (the Record Shortcut's comes first). */
-async function resetButton(target: "record" | "cancel") {
-  const resets = await screen.findAllByRole("button", { name: "Reset to default" });
-  const reset = resets[target === "record" ? 0 : 1];
-  if (!reset) throw new Error(`no reset button for the ${target} shortcut`);
-  return reset;
+const SHORTCUT_NAME = { record: "Record Shortcut", cancel: "Cancel Shortcut" } as const;
+
+/** The reset icon next to a shortcut, described by the shortcut's name. */
+function resetButton(target: "record" | "cancel") {
+  return screen.findByRole("button", {
+    name: "Reset to default",
+    description: SHORTCUT_NAME[target],
+  });
 }
 
 async function renderPage() {
@@ -36,6 +38,11 @@ beforeEach(async () => {
 });
 
 describe("Record Shortcut settings", () => {
+  it("groups the shortcuts under a Shortcuts heading", async () => {
+    await renderPage();
+    expect(screen.getByRole("region", { name: "Shortcuts" })).toBeInTheDocument();
+  });
+
   it("shows the current shortcut as key caps and the default mode", async () => {
     const shortcutField = await renderPage();
 
@@ -44,9 +51,22 @@ describe("Record Shortcut settings", () => {
     const pushToTalk = screen.getByRole("radio", { name: "Push-to-Talk Mode" });
     expect(pushToTalk).toBeChecked();
     expect(pushToTalk).toHaveAccessibleDescription("Hold to record, let go to stop.");
-    for (const reset of screen.getAllByRole("button", { name: "Reset to default" })) {
-      expect(reset).toBeDisabled();
-    }
+    // The reset icon only appears once a shortcut differs from its default.
+    expect(screen.queryByRole("button", { name: "Reset to default" })).not.toBeInTheDocument();
+  });
+
+  it("offers Cancel while capturing, which ends capture without changes", async () => {
+    await userEvent.click(await renderPage());
+    expect(screen.getByText("Esc or a click elsewhere cancels.")).toBeInTheDocument();
+
+    // Esc ends capture here, so it is shown on the Cancel button as a key cap.
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveTextContent("Esc");
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(1);
+    expect(screen.queryByText("Press the new shortcut…")).not.toBeInTheDocument();
+    expect(field()).toHaveTextContent("Ctrl+Space");
   });
 
   it("shows the shortcut stored in the settings", async () => {
@@ -103,7 +123,8 @@ describe("Record Shortcut settings", () => {
     await userEvent.click(await renderPage());
     key("LeftCtrl", true);
 
-    await userEvent.click(screen.getByText("Starts and stops a Recording from any application."));
+    // The description shows the capture hint while capturing, so click the label instead.
+    await userEvent.click(screen.getByText("Record Shortcut"));
 
     expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(1);
     expect(backend.commandsCalled("set_record_shortcut")).toHaveLength(0);
@@ -243,13 +264,15 @@ describe("Cancel Shortcut settings", () => {
         "Cancels the current Dictation. Active only while recording or transcribing.",
       ),
     ).toBeInTheDocument();
-    expect(await resetButton("cancel")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Reset to default" })).not.toBeInTheDocument();
   });
 
   it("captures a new Cancel Shortcut and saves it", async () => {
     await renderPage();
     await userEvent.click(cancelField());
     expect(screen.getByText("A click elsewhere cancels.")).toBeInTheDocument();
+    // Esc can be the new value here, so Cancel does not offer it as the way out.
+    expect(screen.getByRole("button", { name: "Cancel" })).not.toHaveTextContent("Esc");
 
     key("LeftCtrl", true);
     key("Q", true);

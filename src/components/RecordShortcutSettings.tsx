@@ -14,7 +14,10 @@ import {
 } from "../store/recordShortcut";
 import { useSetting } from "../store/settings";
 import { FailureMessage } from "./FailureMessage";
+import { PencilIcon, ResetIcon } from "./icons";
 import { Keycap } from "./Keycap";
+import { SectionHeading } from "./SectionHeading";
+import { SettingRow } from "./SettingRow";
 
 const MODES: readonly ShortcutMode[] = ["pushToTalk", "toggle"];
 
@@ -42,14 +45,16 @@ export function RecordShortcutSettings() {
     };
   }, [captureKey]);
 
+  const { t } = useTranslation();
   return (
-    <>
-      <section className="divide-y divide-line rounded-card border border-line bg-surface">
-        <ShortcutRow target="record" feedback={feedback?.target === "record" ? feedback : null} />
-        <ModePicker />
-        <ShortcutRow target="cancel" feedback={feedback?.target === "cancel" ? feedback : null} />
-      </section>
-    </>
+    <section aria-labelledby="shortcuts-heading">
+      <SectionHeading id="shortcuts-heading">
+        {t("pages.dictation.sections.shortcuts")}
+      </SectionHeading>
+      <ShortcutRow target="record" feedback={feedback?.target === "record" ? feedback : null} />
+      <ModePicker />
+      <ShortcutRow target="cancel" feedback={feedback?.target === "cancel" ? feedback : null} />
+    </section>
   );
 }
 
@@ -65,26 +70,25 @@ function ShortcutRow({
   feedback: ShortcutFeedback | null;
 }) {
   const { t } = useTranslation();
+  const capturing = useRecordShortcut((s) => s.target === target && s.capture !== null);
   return (
-    <div className="flex flex-col gap-2 px-6 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-3">
-        <div className="flex min-w-0 grow basis-48 flex-col gap-0.5 break-words">
-          <span className="font-medium" id={`${target}-shortcut-label`}>
-            {t(`${TEXTS[target]}.label`)}
-          </span>
-          <span className="text-note text-muted">{t(`${TEXTS[target]}.description`)}</span>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <ShortcutField target={target} />
-          <ResetButton target={target} />
-        </div>
-      </div>
-      {feedback && <Feedback feedback={feedback} />}
-    </div>
+    <SettingRow
+      label={t(`${TEXTS[target]}.label`)}
+      description={t(`${TEXTS[target]}.${capturing ? "captureHint" : "description"}`)}
+      labelId={`${target}-shortcut-label`}
+      below={feedback && <Feedback feedback={feedback} />}
+    >
+      <ShortcutField target={target} />
+      <ResetButton target={target} />
+    </SettingRow>
   );
 }
 
-/** The current shortcut as key caps; click to capture a new one. */
+/**
+ * The current shortcut as key caps; on hover a light grey fill and a pencil mark it as editable,
+ * and a click captures a new one. While capturing it shows the held keys, and a Cancel button sits
+ * next to it.
+ */
 function ShortcutField({ target }: { target: ShortcutTarget }) {
   const { t } = useTranslation();
   const [current] = useSetting(SETTING_OF[target]);
@@ -92,10 +96,11 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
   const beginCapture = useRecordShortcut((s) => s.beginCapture);
   const endCapture = useRecordShortcut((s) => s.endCapture);
   const label = useKeyLabel();
-  const field = useRef<HTMLButtonElement>(null);
+  const field = useRef<HTMLDivElement>(null);
   const capturing = capture !== null;
 
-  // Clicking anywhere outside the field, or the window losing focus, ends capture unchanged.
+  // Clicking anywhere outside the field (and its Cancel button), or the window losing focus, ends
+  // capture unchanged.
   useEffect(() => {
     if (!capturing) return;
     const onPointerDown = (event: PointerEvent) => {
@@ -113,32 +118,57 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
   const held = capture ? heldCombination(capture) : "";
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <div ref={field} className="flex items-center gap-3">
       <button
-        ref={field}
         type="button"
         aria-label={
           capturing ? undefined : t(`${TEXTS[target]}.change`, { shortcut: label(current) })
         }
         aria-describedby={`${target}-shortcut-label`}
         data-testid={`${target}-shortcut-field`}
-        onClick={() => void beginCapture(target)}
-        className={`flex min-h-10 min-w-48 items-center justify-center gap-1.5 rounded-lg border px-3 py-1.5 transition-colors duration-150 ${
-          capturing
-            ? "border-accent bg-accent-soft text-accent-soft-fg"
-            : "border-control bg-bg hover:border-muted"
+        onClick={() => {
+          if (!capturing) void beginCapture(target);
+        }}
+        title={capturing ? undefined : t(`${TEXTS[target]}.change`, { shortcut: label(current) })}
+        className={`group -mr-2 flex min-h-8 items-center gap-2 rounded-lg px-2 transition-colors duration-150 ${
+          capturing ? "" : "cursor-pointer hover:bg-raised/50"
         }`}
       >
         {capturing ? (
-          <span aria-live="polite" className="flex items-center gap-1.5">
+          <span
+            aria-live="polite"
+            className="flex items-center gap-2 text-sm font-medium text-accent-strong"
+          >
+            <span
+              aria-hidden="true"
+              className="size-1.5 rounded-full bg-accent shadow-[0_0_0_3px_var(--color-accent-soft)]"
+            />
             {held ? <KeyCaps combination={held} /> : t("recordShortcut.capturing")}
           </span>
         ) : (
-          <KeyCaps combination={current} />
+          <>
+            {/* Always takes its space, so the hover fill does not shift the row. */}
+            <span className="text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+              <PencilIcon />
+            </span>
+            <KeyCaps combination={current} />
+          </>
         )}
       </button>
       {capturing && (
-        <span className="text-note text-muted">{t(`${TEXTS[target]}.captureHint`)}</span>
+        <button
+          type="button"
+          onClick={() => void endCapture()}
+          className="hit-target flex items-center gap-1.5 rounded-md text-sm text-muted underline-offset-4 hover:text-fg hover:underline"
+        >
+          {/* Esc ends capture of the Record Shortcut; for the Cancel Shortcut it is a value. */}
+          {target === "record" && (
+            <span aria-hidden="true">
+              <Keycap size="small">{label("Escape")}</Keycap>
+            </span>
+          )}
+          {t("recordShortcut.stopCapture")}
+        </button>
       )}
     </div>
   );
@@ -168,16 +198,18 @@ function ResetButton({ target }: { target: ShortcutTarget }) {
   const { t } = useTranslation();
   const reset = useRecordShortcut((s) => s.reset);
   const [current] = useSetting(SETTING_OF[target]);
-  const isDefault = current === DEFAULT_OF[target];
+  // Only shown once the shortcut differs from its default, at the row's right edge.
+  if (current === DEFAULT_OF[target]) return null;
   return (
     <button
       type="button"
+      aria-label={t("recordShortcut.reset")}
+      title={t("recordShortcut.reset")}
       aria-describedby={`${target}-shortcut-label`}
       onClick={() => void reset(target)}
-      disabled={isDefault}
-      className="rounded-lg px-3 py-1.5 text-sm text-accent-strong transition-colors duration-150 hover:bg-accent-soft hover:text-accent-soft-fg disabled:cursor-default disabled:text-muted disabled:opacity-60 disabled:hover:bg-transparent"
+      className="-mr-1.5 grid size-7 shrink-0 place-items-center rounded-md text-muted transition-colors duration-150 hover:bg-raised hover:text-fg"
     >
-      {t("recordShortcut.reset")}
+      <ResetIcon />
     </button>
   );
 }
@@ -212,17 +244,26 @@ function Feedback({ feedback }: { feedback: ShortcutFeedback }) {
 function ModePicker() {
   const { t } = useTranslation();
   const [mode, setMode] = useSetting("shortcutMode");
+  // A segmented control built from real radios; the chosen mode's hint is the row's description.
   return (
-    <fieldset className="flex flex-col gap-3 px-6 py-4">
-      <legend className="float-left mb-3 font-medium">{t("recordShortcut.mode.label")}</legend>
-      <div className="clear-left grid grid-cols-2 gap-3">
+    <SettingRow
+      label={t("recordShortcut.mode.label")}
+      description={t(`recordShortcut.mode.${mode}Hint`)}
+      labelId="shortcut-mode-label"
+    >
+      <div
+        role="radiogroup"
+        aria-labelledby="shortcut-mode-label"
+        className="flex rounded-lg border border-line p-0.5"
+      >
         {MODES.map((option) => {
           const checked = mode === option;
           return (
             <label
               key={option}
-              className={`flex cursor-pointer gap-3 rounded-xl border px-4 py-3 transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-                checked ? "border-accent bg-accent-soft/60" : "border-line hover:bg-raised/50"
+              title={t(`recordShortcut.mode.${option}`)}
+              className={`relative max-w-52 cursor-pointer truncate rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
+                checked ? "bg-raised font-medium text-fg" : "text-muted hover:text-fg"
               }`}
             >
               <input
@@ -233,20 +274,16 @@ function ModePicker() {
                 onChange={() => void setMode(option)}
                 aria-labelledby={`shortcut-mode-${option}`}
                 aria-describedby={`shortcut-mode-${option}-hint`}
-                className="mt-1 accent-accent-strong"
+                className="sr-only"
               />
-              <span className="flex flex-col gap-0.5">
-                <span id={`shortcut-mode-${option}`} className="font-medium">
-                  {t(`recordShortcut.mode.${option}`)}
-                </span>
-                <span id={`shortcut-mode-${option}-hint`} className="text-note text-muted">
-                  {t(`recordShortcut.mode.${option}Hint`)}
-                </span>
+              <span id={`shortcut-mode-${option}`}>{t(`recordShortcut.mode.${option}`)}</span>
+              <span id={`shortcut-mode-${option}-hint`} className="sr-only">
+                {t(`recordShortcut.mode.${option}Hint`)}
               </span>
             </label>
           );
         })}
       </div>
-    </fieldset>
+    </SettingRow>
   );
 }

@@ -26,6 +26,10 @@ export const en = {
       title: "Dictation",
       description:
         "How you start, stop and cancel a Dictation, and which Microphone Echo listens to.",
+      sections: {
+        shortcuts: "Shortcuts",
+        microphone: "Microphone",
+      },
     },
     model: {
       title: "Model & language",
@@ -310,6 +314,7 @@ export const en = {
     change: "Change the Record Shortcut, currently {{shortcut}}",
     capturing: "Press the new shortcut…",
     captureHint: "Esc or a click elsewhere cancels.",
+    stopCapture: "Cancel",
     reset: "Reset to default",
     keepsPrevious: "Your previous shortcut stays active.",
     problems: {

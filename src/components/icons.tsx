@@ -21,6 +21,26 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement> & { children: Reac
   );
 }
 
+/** A counter-clockwise arrow: back to the default. */
+export function ResetIcon() {
+  return (
+    <Icon width="16" height="16">
+      <path d="M3 12a9 9 0 1 0 2.6-6.4L3 8" />
+      <path d="M3 3v5h5" />
+    </Icon>
+  );
+}
+
+/** A pencil: this value can be edited. */
+export function PencilIcon() {
+  return (
+    <Icon width="14" height="14">
+      <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" />
+      <path d="m13.5 6.5 4 4" />
+    </Icon>
+  );
+}
+
 /**
  * Echo's mark without its app-icon tile: three bars on the brand's 32-unit grid. The outer bars
  * use the current text colour so they read on light and dark; the middle one is the accent.

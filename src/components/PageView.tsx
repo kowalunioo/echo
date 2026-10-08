@@ -11,7 +11,7 @@ import { VocabularySection } from "../vocabulary/VocabularySection";
 export function PageView({ page }: { page: Page }) {
   if (page === "history") return <HistoryPage />;
   return (
-    <article className="mx-auto flex max-w-2xl flex-col gap-6 px-10 py-12">
+    <article className="flex max-w-[760px] flex-col gap-8 px-10 py-10">
       <PageHeader page={page} />
 
       <NoModelPanel onModelsPage={page === "model"} />

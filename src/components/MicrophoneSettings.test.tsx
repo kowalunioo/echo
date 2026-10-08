@@ -25,6 +25,13 @@ async function openPicker() {
 }
 
 describe("Microphone picker", () => {
+  it("sits under its own Microphone heading", async () => {
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { level: 2, name: "Microphone" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows Default with the Windows default device's name", async () => {
     render(<App />);
 

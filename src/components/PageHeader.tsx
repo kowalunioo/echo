@@ -8,9 +8,11 @@ export function PageHeader({ page, children }: { page: Page; children?: ReactNod
   const { t } = useTranslation();
   return (
     <header className="flex items-start justify-between gap-6">
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <h1 className="font-display text-title text-balance">{t(`pages.${page}.title`)}</h1>
-        <p className="max-w-prose text-pretty text-muted">{t(`pages.${page}.description`)}</p>
+      <div className="flex min-w-0 flex-col gap-1">
+        <h1 className="font-display text-xl font-semibold tracking-[-0.01em] text-balance">
+          {t(`pages.${page}.title`)}
+        </h1>
+        <p className="text-pretty text-muted">{t(`pages.${page}.description`)}</p>
       </div>
       {children}
     </header>

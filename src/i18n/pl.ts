@@ -24,6 +24,10 @@ export const pl: Translation = {
       title: "Dyktowanie",
       description:
         "Jak rozpoczynasz, kończysz i anulujesz dyktowanie oraz którego mikrofonu słucha Echo.",
+      sections: {
+        shortcuts: "Skróty",
+        microphone: "Mikrofon",
+      },
     },
     model: {
       title: "Model i język",
@@ -303,6 +307,7 @@ export const pl: Translation = {
     change: "Zmień skrót nagrywania, obecnie {{shortcut}}",
     capturing: "Naciśnij nowy skrót…",
     captureHint: "Esc lub kliknięcie obok anuluje.",
+    stopCapture: "Anuluj",
     reset: "Przywróć domyślny",
     keepsPrevious: "Poprzedni skrót pozostaje aktywny.",
     problems: {
@@ -323,9 +328,9 @@ export const pl: Translation = {
     captureUnavailable: "Zmiana skrótu jest teraz niedostępna.",
     mode: {
       label: "Tryb skrótu",
-      pushToTalk: "Przytrzymaj, aby nagrywać",
+      pushToTalk: "Przytrzymaj",
       pushToTalkHint: "Nagrywanie trwa dokładnie tak długo, jak trzymasz skrót.",
-      toggle: "Naciśnij, aby zacząć, naciśnij ponownie, aby zakończyć",
+      toggle: "Przełączaj",
       toggleHint: "Pierwsze naciśnięcie rozpoczyna nagrywanie, kolejne je kończy.",
     },
   },
