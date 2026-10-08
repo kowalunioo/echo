@@ -8,25 +8,25 @@ A small always-on-top indicator that shows a Dictation is recording or transcrib
 
 1. The Overlay is hidden when Echo is Idle and no message is pending.
 2. **Getting ready:** shown as soon as a Recording is requested, until the first audio arrives from the Audio Source. It shows the visible label "Getting ready…" next to a muted, pulsing Echo mark, and the cancel button; there is no level meter and no timer yet, so the user can see the Microphone is not live.
-3. **Listening:** shown while Recording once audio flows. The label gives way to a live level meter (about 9 bars) reacting to the input level, updated about 30 times per second with smoothing, the Echo mark turns to full colour, and an elapsed-time counter (m:ss) and the cancel button are shown. The pill keeps its width, so the change from label to meter is the cue that audio is live; the meter fades in (a plain fade, also with reduced motion). "Listening" is announced to assistive technology.
-4. **Transcribing:** shown from the moment the Recording stops until Insertion completes. It displays a spinner, the label "Transcribing…", and the cancel button (active while Transcribing; hidden once Inserting starts).
+3. **Listening:** shown while Recording once audio flows. The label gives way to a live level meter (about 9 bars) reacting to the input level, updated about 30 times per second with smoothing, the Echo mark turns to full colour, and the cancel button stays. There is no timer. The pill keeps its width, so the change from label to meter is the cue that audio is live; the label fades out as the meter fades in (plain fades, also with reduced motion). "Listening" is announced to assistive technology.
+4. **Transcribing:** shown from the moment the Recording stops until Insertion completes. The pill folds into a short capsule that splits into three round dots, which bounce and light up in turn; the Echo mark, the label and the cancel button go with the pill. "Transcribing…" is announced to assistive technology. The Cancel Shortcut (`cancel-shortcut.md`) still cancels while Transcribing. If the Dictation then fails, the message's pill grows back out of the dots.
 5. **Message:** a single short line of text with no controls (it must fit on one line in the Overlay window: at most 60 characters in every UI Language, leading with what to do when the message has an action and dropping details the main window notice already gives), used for notices and errors defined in other specs (errors are also indicated on the tray icon and in the main window, see `dictation-pipeline.md` rules 39a–39d) (e.g. "Selected microphone not found — using the default microphone", "Transcription failed", "No Model — open Echo to download one", "Allow microphone access in privacy settings"). A message stays for 2.5 s then hides, unless a new Recording takes over the Overlay earlier. Clicking a message that has an associated action (e.g. "open Models page", or "show the main window" for an Insertion failure, `dictation-pipeline.md` rule 36) performs it. A clickable message stays a button for assistive technology; its text line is what is announced.
-6. When a Dictation ends (inserted, empty, cancelled or failed), the Overlay fades out over about 300 ms. If a new Recording starts during the fade, the Overlay immediately shows "Getting ready" again; a stale hide never hides a newer Dictation's Overlay.
-7. The Overlay appears with a short fade/slide-in (about 150–200 ms); motion is reduced to a plain fade when Windows "Show animations" is off.
+6. When a Dictation ends (inserted, empty, cancelled or failed), the Overlay fades out over about 200 ms (quicker than it appears). If a new Recording starts during the fade, the Overlay immediately shows "Getting ready" again; a stale hide never hides a newer Dictation's Overlay.
+7. The Overlay appears with a short fade/slide-in (about 150–200 ms); motion is reduced to a plain fade when Windows "Show animations" is off: the pill and the dots cross-fade in place, and the dots light up in turn without bouncing.
 
 ### Focus and input
 
 8. The Overlay never takes keyboard focus: showing, updating, moving or hiding it leaves the focused application and its caret unchanged, so Insertion lands where the user was typing.
 9. The Overlay does not appear in the taskbar or in Alt+Tab.
-10. Clicking the cancel button triggers Cancellation (same as `cancel-shortcut.md`) without moving keyboard focus away from the application the user was typing in.
-11. Apart from its buttons, the Overlay does not block mouse clicks to the windows beneath it outside its visible shape.
+10. Clicking the cancel button (getting ready and listening) triggers Cancellation (same as `cancel-shortcut.md`) without moving keyboard focus away from the application the user was typing in.
+11. Apart from its buttons, the Overlay does not block mouse clicks to the windows beneath it outside its visible shape; while transcribing that shape is a small capsule around the three dots.
 12. The Overlay stays above other windows, including after other always-on-top windows appear, and above full-screen windows that are not exclusive full-screen games.
 
 ### Position and size
 
 13. The Overlay appears horizontally centred on the monitor that contains the mouse pointer at the moment it is shown.
 14. Position setting **Bottom** (default): the Overlay's bottom edge sits 12 logical pixels above the bottom edge of that monitor's work area (so it never overlaps the taskbar). Position **Top**: it sits a few pixels below the top edge of that monitor.
-15. The compact Overlay is about 256 × 50 logical pixels (the working state may be narrower); it scales with the monitor's display scaling and with the Windows accessibility "Text size" setting, so it is crisp and correctly sized on every monitor, including when moving between monitors with different scaling.
+15. The compact Overlay is about 200 × 44 logical pixels while recording (a message may be wider; transcribing is just the three dots); it scales with the monitor's display scaling and with the Windows accessibility "Text size" setting, so it is crisp and correctly sized on every monitor, including when moving between monitors with different scaling.
 16. Changing the position setting moves the Overlay immediately if visible.
 
 ### Visibility setting
@@ -43,8 +43,9 @@ A small always-on-top indicator that shows a Dictation is recording or transcrib
 
 ## UI
 
-- The look is calm and minimal: a rounded pill with a soft neutral background, the level meter or label in the centre, and the timer and a small "×" cancel button on the right. On the left, the recording states show Echo's mark (the logo's three bars, middle one lavender), muted while getting ready; Transcribing shows a spinner; messages show a small status dot (red for errors). One row at a time; the pill animates its width between states.
-- The pill's edge is a ring in the control colour (`--echo-control`, 3:1 or more against a white or a dark editor in both appearances) rather than a hairline, so it stays visible over any window. There is no outer shadow: the window is clipped to the pill's shape (rule 11).
+- The look is calm and minimal: a rounded pill with a solid neutral background, the level meter or label in the centre, and a small "×" cancel button on the right. On the left, the recording states show Echo's mark (the logo's three bars, middle one lavender), muted while getting ready; messages show a small status dot (red for errors). One row at a time; the pill animates its width between states.
+- While transcribing, the pill becomes three round dots in the pill's own colour and edge (no lavender) that bounce and light up in turn.
+- The pill's edge is one light outline (`--echo-overlay-edge`: about 2:1 against a white page or a dark editor, so a blank document still shows it, by choice under the 3:1 of a control's edge), with a band sweeping along it while recording (getting ready and listening): white in dark mode, dark in light mode, so it shows on a white page. There is no outer shadow: the window is clipped to the pill's shape (rule 11).
 - Settings: a toggle "Show the Overlay" and a choice "Position: bottom / top".
 - PR screenshots must show each state: getting ready, listening, transcribing, message, on light and dark.
 
@@ -63,7 +64,9 @@ A small always-on-top indicator that shows a Dictation is recording or transcrib
 
 ## Decisions
 
-- **Elapsed timer:** shown in the compact Overlay — useful in Toggle Mode.
+- **Elapsed timer:** not shown — the meter already says the Recording is live, and the pill is calmer and narrower without it (an earlier version showed m:ss for Toggle Mode).
+- **No blur behind the pill:** Windows' blur-behind for a window (the composition accent) blurs the whole window rectangle and ignores its rounded clip on Windows 11 23H2, and a rounded blur would need drawing it ourselves with Windows' composition engine; the pill stays solid.
+- **Transcribing as dots:** the pill folds into three bouncing dots instead of a spinner, label and cancel button — Transcribing is short, and the Cancel Shortcut still covers a slow one.
 - **Bottom placement:** 12 px above the bottom edge of the monitor's work area — legacy's fixed offset could overlap the taskbar.
 - **Errors when the Overlay is off:** error messages are still shown; only the recording/transcribing states and non-error notices are suppressed — errors must stay visible.
 - **Getting ready vs Listening:** a visible label while getting ready, replaced by the meter when audio flows — colour and pulse alone were too subtle, and users started talking before the Microphone was live.

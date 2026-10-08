@@ -1,4 +1,11 @@
-import { type RefObject, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { type OverlayMessage, type OverlayView, commands, events } from "../bindings";
@@ -6,27 +13,26 @@ import { TestAudioMarker } from "../components/TestAudioMarker";
 import { EchoMark } from "../components/icons";
 import { changeUiLanguage } from "../i18n";
 import { useSettings } from "../store/settings";
-import { SILENT_BARS, formatElapsed, nextBars } from "./meter";
+import { BAR_COUNT, SILENT_BARS, nextBars } from "./meter";
 
 const HIDDEN: OverlayView = { kind: "hidden" };
-/** How long the pill takes to change width; the click region shrinks only after it. */
-const WIDTH_TRANSITION_MS = 220;
-
-interface Frame {
-  bars: readonly number[];
-  elapsedMs: number;
-}
-const FIRST_FRAME: Frame = { bars: SILENT_BARS, elapsedMs: 0 };
+/** How long the pill takes to change shape; the click region shrinks only after it. */
+const SHAPE_TRANSITION_MS = 220;
+/** The pill shrinks into a capsule, then the capsule splits into the dots (overlay.md rule 4). */
+const DOTS_SETTLED_MS = SHAPE_TRANSITION_MS + 170;
+/** The region the three dots need, bounce and glow included (see `.overlay-dot` in styles.css). */
+const DOTS_SHAPE = { width: 64, height: 30 };
 
 /**
  * The Overlay window's content (overlay.md): a rounded pill that shows getting ready, listening
- * (level meter, timer, cancel), transcribing (spinner, label, cancel) or a short message. The
- * backend decides what to show and when the window appears; this draws it, fades it in and out
- * and tells the backend the pill's size so clicks beside it reach the windows beneath.
+ * (level meter and cancel) or a short message, and turns into three bouncing dots while
+ * transcribing. The backend decides what to show and when the window appears; this draws it,
+ * fades it in and out and tells the backend the shape's size so clicks beside it reach the
+ * windows beneath.
  */
 export function OverlayApp() {
   const view = useOverlayView();
-  const frame = useFrames(view);
+  const bars = useBars(view);
   const uiLanguage = useSettings((s) => s.settings?.uiLanguage);
   const position = useSettings((s) => s.settings?.overlayPosition ?? "bottom");
 
@@ -39,78 +45,112 @@ export function OverlayApp() {
   const visible = view.kind !== "hidden";
   const [shown, setShown] = useState<OverlayView>(view);
   if (visible && shown !== view) setShown(view);
+  // While the pill folds into the dots, it keeps the content it had so that content can fade.
+  const [body, setBody] = useState<OverlayView>(shown);
+  if (shown.kind !== "transcribing" && body !== shown) setBody(shown);
+  // A message that follows the dots fades in once the pill has grown back (styles.css).
+  const [phases, setPhases] = useState({ current: shown.kind, previous: shown.kind });
+  if (phases.current !== shown.kind) setPhases({ current: shown.kind, previous: phases.current });
 
-  const pill = useRef<HTMLDivElement>(null);
+  const shape = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  const style = usePillShape(pill, content);
+  const folding = shown.kind === "transcribing";
+  const style = usePillShape(shape, content, folding);
 
   return (
     <div className="flex h-full items-center justify-center">
       <div
-        ref={pill}
         data-testid="overlay-pill"
         data-visible={visible}
         data-position={position}
-        style={style}
-        className="overlay-pill h-full overflow-hidden rounded-full border border-control bg-surface text-fg"
+        data-phase={shown.kind}
+        data-previous={phases.previous}
+        className="overlay-pill relative flex h-full items-center justify-center"
       >
-        <div ref={content} className="inline-flex h-full w-max items-center">
-          {/* dictation-pipeline.md rule 41: a fake-microphone session is marked here too. */}
-          {shown.kind !== "hidden" && (
-            <span className="flex shrink-0 empty:hidden pl-3">
-              <TestAudioMarker compact />
-            </span>
-          )}
-          <Content view={shown} frame={frame} />
+        <div ref={shape} style={style} className="overlay-shape bg-surface text-fg">
+          <span data-testid="overlay-edge" aria-hidden className="overlay-edge">
+            <span className="overlay-shine" />
+          </span>
+          {/* While folding into the dots, what fades out is neither announced nor clickable. */}
+          <div
+            ref={content}
+            aria-hidden={folding}
+            inert={folding}
+            className="overlay-content relative inline-flex h-full w-max items-center"
+          >
+            {/* dictation-pipeline.md rule 41: a fake-microphone session is marked here too. */}
+            {body.kind !== "hidden" && (
+              <span className="flex shrink-0 empty:hidden pl-3">
+                <TestAudioMarker compact />
+              </span>
+            )}
+            <Content view={body} bars={bars} />
+          </div>
         </div>
+        <Dots transcribing={folding} />
       </div>
     </div>
   );
 }
 
-function Content({ view, frame }: { view: OverlayView; frame: Frame }) {
+function Content({ view, bars }: { view: OverlayView; bars: readonly number[] }) {
   const { t } = useTranslation();
   switch (view.kind) {
     case "hidden":
+    case "transcribing":
       return null;
     case "gettingReady":
     case "listening": {
       const live = view.kind === "listening";
       return (
-        <div className="flex w-64 items-center gap-3 pr-1.5 pl-4">
+        <div className="flex w-[200px] items-center gap-3 pr-2 pl-[17px]">
           <Mark live={live} />
-          {/* One live region: on screen until audio flows (rule 2), then the meter takes its place. */}
-          <span
-            role="status"
-            className={live ? "sr-only" : "flex-1 truncate text-note font-medium text-muted"}
-          >
+          <span className="relative flex h-[22px] flex-1 items-center">
+            {/* On screen until audio flows (rule 2), then it fades as the meter fades in. */}
+            <span
+              aria-hidden
+              data-testid="overlay-label"
+              data-shown={!live}
+              className="overlay-label absolute inset-x-0 truncate text-note font-medium text-muted"
+            >
+              {t("overlay.gettingReady")}
+            </span>
+            {live && <Bars bars={bars} />}
+          </span>
+          {/* One live region for both recording states. */}
+          <span role="status" className="sr-only">
             {t(live ? "overlay.listening" : "overlay.gettingReady")}
           </span>
-          {live && (
-            <>
-              <Bars bars={frame.bars} />
-              <span className="text-note text-muted tabular-nums">
-                {formatElapsed(frame.elapsedMs)}
-              </span>
-            </>
-          )}
           <CancelButton />
         </div>
       );
     }
-    case "transcribing":
-      return (
-        <div className={`flex items-center gap-2.5 pl-4 ${view.cancellable ? "pr-1.5" : "pr-5"}`}>
-          <Spinner />
-          <span role="status" className="text-note font-medium">
-            {t("overlay.transcribing")}
-          </span>
-          {view.cancellable && <CancelButton />}
-        </div>
-      );
     case "message":
       return <Message message={view.message} actionable={view.actionable} />;
   }
+}
+
+/** Transcribing (rule 4): the pill has become three dots that bounce and light up in turn. */
+function Dots({ transcribing }: { transcribing: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <span aria-hidden={!transcribing} className="overlay-dots">
+      <span data-testid="overlay-dots" className="contents">
+        {[-1, 0, 1].map((place) => (
+          <span key={place} className="overlay-dot" style={{ "--place": place } as CSSProperties}>
+            <span className="overlay-dot-body">
+              <span className="overlay-edge" />
+            </span>
+          </span>
+        ))}
+      </span>
+      {transcribing && (
+        <span role="status" className="sr-only">
+          {t("overlay.transcribing")}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function Message({ message, actionable }: { message: OverlayMessage; actionable: boolean }) {
@@ -155,14 +195,9 @@ function Message({ message, actionable }: { message: OverlayMessage; actionable:
   );
 }
 
-function Dot({ tone, pulsing }: { tone: "accent" | "muted" | "danger"; pulsing?: boolean }) {
-  const colour = { accent: "bg-accent", muted: "bg-muted", danger: "bg-danger" }[tone];
-  return (
-    <span
-      aria-hidden
-      className={`size-2 shrink-0 rounded-full ${colour} ${pulsing ? "animate-pulse" : ""}`}
-    />
-  );
+function Dot({ tone }: { tone: "accent" | "danger" }) {
+  const colour = { accent: "bg-accent", danger: "bg-danger" }[tone];
+  return <span aria-hidden className={`size-2 shrink-0 rounded-full ${colour}`} />;
 }
 
 /**
@@ -187,39 +222,16 @@ function Bars({ bars }: { bars: readonly number[] }) {
     <span
       aria-hidden
       data-testid="overlay-meter"
-      className="overlay-meter flex h-[22px] flex-1 items-center justify-center gap-1"
+      className="overlay-meter absolute inset-0 flex items-center justify-center gap-1"
     >
       {bars.map((height, i) => (
         <span
           key={i}
-          className="h-full w-1 rounded-full bg-accent"
-          style={{ transform: `scaleY(${height.toFixed(3)})`, transformOrigin: "center" }}
+          className="overlay-bar h-full w-[3px] rounded-full bg-accent"
+          style={{ transform: `scaleY(${height.toFixed(3)})` }}
         />
       ))}
     </span>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg aria-hidden viewBox="0 0 16 16" className="size-4 shrink-0 animate-spin text-accent">
-      <circle
-        cx="8"
-        cy="8"
-        r="6"
-        fill="none"
-        stroke="currentColor"
-        strokeOpacity="0.25"
-        strokeWidth="2"
-      />
-      <path
-        d="M8 2a6 6 0 0 1 6 6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
   );
 }
 
@@ -277,21 +289,18 @@ function useOverlayView(): OverlayView {
   return view;
 }
 
-/** Level-meter and timer frames while recording; a new Recording starts from silence. */
-function useFrames(view: OverlayView): Frame {
-  const [frame, setFrame] = useState<Frame>(FIRST_FRAME);
+/** Level-meter frames while recording; a new Recording starts from silence. */
+function useBars(view: OverlayView): readonly number[] {
+  const [bars, setBars] = useState<readonly number[]>(SILENT_BARS);
   const recording = view.kind === "gettingReady" || view.kind === "listening";
   const [wasRecording, setWasRecording] = useState(recording);
   if (recording !== wasRecording) {
     setWasRecording(recording);
-    if (recording) setFrame(FIRST_FRAME);
+    if (recording) setBars(SILENT_BARS);
   }
   useEffect(() => {
     const stop = events.overlayFrame.listen((event) => {
-      setFrame((previous) => ({
-        bars: nextBars(previous.bars, event.payload.level ?? 0),
-        elapsedMs: event.payload.elapsedMs,
-      }));
+      setBars((previous) => nextBars(previous, event.payload.level ?? 0));
     });
     return () => {
       void stop.then((unlisten) => {
@@ -299,16 +308,18 @@ function useFrames(view: OverlayView): Frame {
       });
     };
   }, []);
-  return frame;
+  return bars.length === BAR_COUNT ? bars : SILENT_BARS;
 }
 
 /**
- * Animates the pill's width to its content's and reports the pill's size to the backend, which
- * clips the window to it (rule 11). The region grows at once and shrinks after the animation.
+ * Animates the pill's width to its content's and reports the shape's size to the backend, which
+ * clips the window to it (rule 11). While transcribing the shape is the three dots. The region
+ * grows at once and shrinks after the animation.
  */
 function usePillShape(
-  pill: RefObject<HTMLDivElement | null>,
+  shape: RefObject<HTMLDivElement | null>,
   content: RefObject<HTMLDivElement | null>,
+  dots: boolean,
 ) {
   const [width, setWidth] = useState<number | null>(null);
 
@@ -327,23 +338,23 @@ function usePillShape(
 
   const reported = useRef(0);
   useEffect(() => {
-    const height = pill.current?.offsetHeight ?? 0;
+    const height = shape.current?.parentElement?.offsetHeight ?? 0;
     if (width === null || height === 0) return;
-    const target = width + 2;
+    const target = dots ? DOTS_SHAPE : { width: width + 2, height };
     const report = () => {
-      reported.current = target;
-      void commands.overlayShape(target, height);
+      reported.current = target.width;
+      void commands.overlayShape(target.width, target.height);
     };
-    if (target >= reported.current) {
+    if (target.width >= reported.current) {
       report();
       return;
     }
-    const timer = setTimeout(report, WIDTH_TRANSITION_MS);
+    const timer = setTimeout(report, dots ? DOTS_SETTLED_MS : SHAPE_TRANSITION_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [pill, width]);
+  }, [shape, width, dots]);
 
-  // The border adds 2 px around the content.
-  return width === null ? undefined : { width: width + 2 };
+  // While transcribing the shape folds into a capsule (styles.css), whatever the content.
+  return width === null || dots ? undefined : { width };
 }

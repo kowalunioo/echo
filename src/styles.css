@@ -44,6 +44,14 @@
   /* Warnings (a limit is close, nothing has failed yet): amber, so it never reads as an error.
      5.7:1 on surface, 5.3:1 on bg, 4.5:1 on raised (the budget bar's track). */
   --echo-warning: #8f5b00;
+  /* The Overlay's light outline: 1.9:1 on white, so a blank document still shows the pill's
+     edge (overlay.md UI, by choice under the 3:1 of a control's edge); the shimmer along it (a
+     dark band here, as a white one would vanish on a white page), and
+     the dots' light and glow as they bounce. */
+  --echo-overlay-edge: rgb(0 0 0 / 0.28);
+  --echo-overlay-shine: rgb(31 31 34 / 0.75);
+  --echo-overlay-lit: rgb(31 31 34 / 0.12);
+  --echo-overlay-glow: rgb(31 31 34 / 0.16);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -72,6 +80,11 @@
     --echo-danger-fg: #222225;
     /* Warnings: 8.0:1 on surface, 8.9:1 on bg, 6.9:1 on raised. */
     --echo-warning: #e8b04a;
+    /* Overlay: the light outline 2.0:1 on surface and on a dark editor. */
+    --echo-overlay-edge: rgb(255 255 255 / 0.22);
+    --echo-overlay-shine: rgb(255 255 255);
+    --echo-overlay-lit: rgb(255 255 255 / 0.28);
+    --echo-overlay-glow: rgb(255 255 255 / 0.4);
   }
 }
 
@@ -205,8 +218,10 @@
 
 /*
  * The Overlay window (overlay.md): transparent around the pill. The pill fades and slides in
- * (~180 ms), fades out (300 ms) and animates its width between states; with Windows "Show
- * animations" off (prefers-reduced-motion) it only fades.
+ * (180 ms) and fades out (200 ms: exits are quicker than entrances). Its shape animates its width
+ * between states; while transcribing it folds into a capsule that splits into three dots
+ * (220 ms + 170 ms). Everything is driven by data-phase, so a new Recording during the fold simply
+ * reverses it. With Windows "Show animations" off (prefers-reduced-motion) it only fades.
  */
 .overlay-window,
 .overlay-window body {
@@ -216,21 +231,115 @@
 .overlay-pill {
   transition:
     opacity 180ms var(--ease-out-strong),
-    translate 180ms var(--ease-out-strong),
-    width 200ms var(--ease-in-out-strong);
+    translate 180ms var(--ease-out-strong);
 }
 
 .overlay-pill[data-visible="false"] {
   opacity: 0;
   translate: 0 6px;
-  transition-duration: 300ms, 300ms, 200ms;
+  transition-duration: 200ms;
 }
 
 .overlay-pill[data-visible="false"][data-position="top"] {
   translate: 0 -6px;
 }
 
-/* The level meter fades in where "Getting ready…" was, the moment audio flows (overlay.md rule 3). */
+.overlay-shape {
+  position: relative;
+  height: 100%;
+  border-radius: 9999px;
+  overflow: hidden;
+  transition:
+    width 220ms var(--ease-in-out-strong),
+    height 220ms var(--ease-in-out-strong),
+    opacity 150ms var(--ease-out-strong),
+    filter 150ms var(--ease-out-strong);
+}
+
+/* The pill shrinks into a short capsule, which then gives way to the dots. The 2 px blur on both
+   sides of the hand-off makes the two read as one shape splitting. */
+.overlay-pill[data-phase="transcribing"] .overlay-shape {
+  width: 40px;
+  height: 12px;
+  opacity: 0;
+  filter: blur(2px);
+  transition-duration: 220ms, 220ms, 120ms, 120ms;
+  transition-delay: 0ms, 0ms, 220ms, 220ms;
+}
+
+.overlay-content {
+  transition: opacity 150ms var(--ease-out-strong);
+}
+
+.overlay-pill[data-phase="transcribing"] .overlay-content {
+  opacity: 0;
+  transition-duration: 120ms;
+}
+
+/* A message that follows the dots waits until the pill has grown back, so its text is not
+   clipped by the moving edge. */
+.overlay-pill[data-phase="message"][data-previous="transcribing"] .overlay-content {
+  transition-delay: 180ms;
+}
+
+/* The edge: one light outline (overlay-edge token), with a light band sweeping along it while
+   recording. The band moves by transform, so it never repaints the pill. */
+.overlay-edge {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1px;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--echo-overlay-edge);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+}
+
+.overlay-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    var(--echo-overlay-shine) 50%,
+    transparent 65%
+  );
+  translate: -100% 0;
+  opacity: 0;
+  transition: opacity 300ms var(--ease-out-strong);
+}
+
+.overlay-pill[data-phase="gettingReady"] .overlay-shine,
+.overlay-pill[data-phase="listening"] .overlay-shine {
+  opacity: 1;
+  animation: overlay-shine 2.6s linear infinite;
+}
+
+@keyframes overlay-shine {
+  from {
+    translate: -100% 0;
+  }
+  to {
+    translate: 100% 0;
+  }
+}
+
+/* "Getting ready…" fades as the meter fades in where it was, the moment audio flows (rule 3). */
+.overlay-label {
+  transition: opacity 150ms var(--ease-out-strong);
+}
+
+.overlay-label[data-shown="false"] {
+  opacity: 0;
+}
+
 .overlay-meter {
   opacity: 1;
   transition: opacity 200ms var(--ease-out-strong);
@@ -240,12 +349,131 @@
   }
 }
 
+/* Frames arrive ~30 times a second; a short linear transition fills the frames between. */
+.overlay-bar {
+  transition: transform 40ms linear;
+}
+
+/* Transcribing (rule 4): three dots split out of the capsule, then bounce and light up in turn.
+   The light and the glow are drawn once and only their opacity animates. */
+.overlay-dots {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  pointer-events: none;
+}
+
+.overlay-dot {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+  filter: blur(2px);
+  transition:
+    translate 170ms var(--ease-out-strong),
+    opacity 150ms var(--ease-out-strong),
+    filter 150ms var(--ease-out-strong);
+}
+
+.overlay-pill[data-phase="transcribing"] .overlay-dot {
+  opacity: 1;
+  filter: none;
+  translate: calc(var(--place) * 17px) 0;
+  transition-delay: 220ms;
+}
+
+.overlay-dot-body {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--echo-surface);
+}
+
+.overlay-dot-body::before,
+.overlay-dot-body::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+}
+
+.overlay-dot-body::before {
+  background: var(--echo-overlay-lit);
+}
+
+.overlay-dot-body::after {
+  box-shadow: 0 0 9px 2px var(--echo-overlay-glow);
+}
+
+.overlay-pill[data-phase="transcribing"] .overlay-dot-body,
+.overlay-pill[data-phase="transcribing"] .overlay-dot-body::before,
+.overlay-pill[data-phase="transcribing"] .overlay-dot-body::after {
+  animation: overlay-bounce 1.05s ease-in-out infinite;
+  animation-delay: calc(390ms + (var(--place) + 1) * 150ms);
+}
+
+.overlay-pill[data-phase="transcribing"] .overlay-dot-body::before,
+.overlay-pill[data-phase="transcribing"] .overlay-dot-body::after {
+  animation-name: overlay-lit;
+}
+
+@keyframes overlay-bounce {
+  0%,
+  60%,
+  100% {
+    translate: 0 0;
+  }
+  30% {
+    translate: 0 -4px;
+  }
+}
+
+@keyframes overlay-lit {
+  0%,
+  60%,
+  100% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: fades only. The pill and the dots cross-fade in place; the dots still light up
+   in turn (opacity), but nothing slides, shrinks, bounces or sweeps. */
 @media (prefers-reduced-motion: reduce) {
   .overlay-pill,
   .overlay-pill[data-visible="false"],
   .overlay-pill[data-visible="false"][data-position="top"] {
     translate: none;
     transition-property: opacity;
+  }
+
+  .overlay-shape,
+  .overlay-pill[data-phase="transcribing"] .overlay-shape {
+    transition-property: opacity;
+  }
+
+  .overlay-dot,
+  .overlay-pill[data-phase="transcribing"] .overlay-dot {
+    translate: calc(var(--place) * 17px) 0;
+    filter: none;
+    transition-property: opacity;
+  }
+
+  .overlay-pill[data-phase="transcribing"] .overlay-dot-body,
+  .overlay-pill[data-phase="gettingReady"] .overlay-shine,
+  .overlay-pill[data-phase="listening"] .overlay-shine {
+    animation: none;
+  }
+
+  .overlay-bar {
+    transition: none;
   }
 }
 

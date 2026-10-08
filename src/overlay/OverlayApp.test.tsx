@@ -43,7 +43,8 @@ describe("Overlay", () => {
     render(<OverlayApp />);
     const status = await screen.findByRole("status");
     expect(status).toHaveTextContent("Getting ready…");
-    expect(status).not.toHaveClass("sr-only");
+    expect(screen.getByTestId("overlay-label")).toHaveTextContent("Getting ready…");
+    expect(screen.getByTestId("overlay-label")).toHaveAttribute("data-shown", "true");
     expect(pill()).toHaveAttribute("data-visible", "true");
     expect(screen.queryByTestId("overlay-meter")).not.toBeInTheDocument();
     expect(screen.queryByText("0:00")).not.toBeInTheDocument();
@@ -51,8 +52,8 @@ describe("Overlay", () => {
     expect(screen.getByRole("button", { name: "Cancel Dictation" })).toBeVisible();
   });
 
-  // Rule 3.
-  it("shows listening with a live meter, a timer and cancel", async () => {
+  // Rule 3. No timer: the meter already shows the Recording is live (overlay.md, Decisions).
+  it("shows listening with a live meter and cancel, and no timer", async () => {
     render(<OverlayApp />);
     act(() => {
       backend.changeOverlay({ kind: "gettingReady" });
@@ -61,18 +62,18 @@ describe("Overlay", () => {
     act(() => {
       backend.changeOverlay({ kind: "listening" });
     });
-    // The same live region now says "Listening"; the meter replaces the visible label.
+    // The same live region now says "Listening"; the visible label fades out as the meter fades in.
     const status = screen.getByRole("status");
     expect(status).toHaveTextContent("Listening");
     expect(status).toHaveClass("sr-only");
+    expect(screen.getByTestId("overlay-label")).toHaveAttribute("data-shown", "false");
     expect(screen.getByTestId("overlay-mark")).toHaveAttribute("data-live", "true");
     expect(screen.getByTestId("overlay-meter").children).toHaveLength(9);
-    expect(screen.getByText("0:00")).toBeVisible();
     const bar = () => screen.getByTestId("overlay-meter").children[4] as HTMLElement;
     const silent = bar().style.transform;
     frame(1, 3_400);
-    expect(screen.getByText("0:03")).toBeVisible();
     expect(bar().style.transform).not.toBe(silent);
+    expect(screen.queryByText("0:03")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel Dictation" }));
     expect(backend.calls.map((c) => c.command)).toContain("overlay_cancel");
@@ -86,10 +87,13 @@ describe("Overlay", () => {
     expect(mark.querySelectorAll("rect")).toHaveLength(3);
   });
 
-  // UI: the pill's edge is a control-strength ring, so it stays visible over a white editor.
-  it("outlines the pill with a control-strength ring", () => {
+  // UI: the pill's edge is a light outline that shimmers while getting ready; one edge, no border.
+  it("draws the pill's edge as one light outline", async () => {
+    backend.overlay = { kind: "gettingReady" };
     render(<OverlayApp />);
-    expect(pill()).toHaveClass("border-control");
+    await screen.findByRole("status");
+    expect(screen.getAllByTestId("overlay-edge")).toHaveLength(1);
+    expect(pill()).toHaveAttribute("data-phase", "gettingReady");
   });
 
   // Rule 5: every message fits on one line in the Overlay window.
@@ -102,17 +106,18 @@ describe("Overlay", () => {
     }
   });
 
-  // Rule 4: cancel while Transcribing, not once Inserting starts.
-  it("shows transcribing with cancel only until Insertion starts", async () => {
+  // Rule 4: the pill becomes three dots; Transcribing is announced but has no button (the
+  // Cancel Shortcut still cancels it).
+  it("shows transcribing as three dots with no cancel button", async () => {
     render(<OverlayApp />);
     act(() => {
       backend.changeOverlay({ kind: "transcribing", cancellable: true });
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("Transcribing…");
-    expect(screen.getByRole("button", { name: "Cancel Dictation" })).toBeVisible();
-    act(() => {
-      backend.changeOverlay({ kind: "transcribing", cancellable: false });
-    });
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Transcribing…");
+    expect(status).toHaveClass("sr-only");
+    expect(pill()).toHaveAttribute("data-phase", "transcribing");
+    expect(screen.getByTestId("overlay-dots").children).toHaveLength(3);
     expect(screen.queryByRole("button", { name: "Cancel Dictation" })).not.toBeInTheDocument();
   });
 
@@ -214,10 +219,14 @@ describe("Overlay", () => {
   // Rule 18.
   it("follows the UI Language", async () => {
     await changeUiLanguage("pl");
-    backend.overlay = { kind: "transcribing", cancellable: true };
+    backend.overlay = { kind: "gettingReady" };
     render(<OverlayApp />);
-    expect(await screen.findByRole("status")).toHaveTextContent("Transkrybuję…");
+    expect(await screen.findByRole("status")).toHaveTextContent("Przygotowuję…");
     expect(screen.getByRole("button", { name: "Anuluj dyktowanie" })).toBeVisible();
+    act(() => {
+      backend.changeOverlay({ kind: "transcribing", cancellable: false });
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Transkrybuję…");
   });
 
   // dictation-pipeline.md rule 41: a fake-microphone session is marked in the Overlay too.
