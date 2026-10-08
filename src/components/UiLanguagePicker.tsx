@@ -15,7 +15,7 @@ export function UiLanguagePicker() {
         <label
           key={language}
           className={`cursor-pointer rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-            uiLanguage === language ? "bg-raised font-medium text-fg" : "text-muted hover:text-fg"
+            uiLanguage === language ? "bg-selected font-medium text-fg" : "text-muted hover:text-fg"
           }`}
         >
           <input

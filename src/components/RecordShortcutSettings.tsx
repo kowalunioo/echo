@@ -263,7 +263,7 @@ function ModePicker() {
               key={option}
               title={t(`recordShortcut.mode.${option}`)}
               className={`relative max-w-52 cursor-pointer truncate rounded-md px-3 py-1 text-sm transition-colors duration-150 has-focus-visible:outline-2 has-focus-visible:outline-focus ${
-                checked ? "bg-raised font-medium text-fg" : "text-muted hover:text-fg"
+                checked ? "bg-selected font-medium text-fg" : "text-muted hover:text-fg"
               }`}
             >
               <input

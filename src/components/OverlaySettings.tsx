@@ -43,7 +43,7 @@ export function OverlaySettings() {
                 show ? "cursor-pointer" : "pointer-events-none"
               } ${
                 position === value
-                  ? "bg-raised font-medium text-fg"
+                  ? "bg-selected font-medium text-fg"
                   : `text-muted ${show ? "hover:text-fg" : ""}`
               }`}
             >

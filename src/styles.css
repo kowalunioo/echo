@@ -23,6 +23,10 @@
   --echo-surface: #ffffff;
   --echo-sidebar: #f0f0f2;
   --echo-raised: #e6e6e9;
+  /* The current sidebar item and chosen segment: a step darker than raised, which is too faint to
+     mark a choice in light mode (1.09:1 on sidebar). 1.16:1 on sidebar, 1.24:1 on bg; fg on it
+     12.3:1, the accent icon on it 3.1:1. */
+  --echo-selected: #dfdfe3;
   --echo-line: #e3e3e6;
   --echo-control: #86868c;
   --echo-fg: #1f1f22;
@@ -51,6 +55,7 @@
     --echo-surface: #222225;
     --echo-sidebar: #141416;
     --echo-raised: #2b2b2f;
+    --echo-selected: #2b2b2f;
     --echo-line: #303034;
     --echo-control: #7a7a82;
     --echo-fg: #ececee;
@@ -75,6 +80,7 @@
   --color-surface: var(--echo-surface);
   --color-sidebar: var(--echo-sidebar);
   --color-raised: var(--echo-raised);
+  --color-selected: var(--echo-selected);
   --color-line: var(--echo-line);
   --color-control: var(--echo-control);
   --color-fg: var(--echo-fg);

@@ -61,7 +61,7 @@ export function Sidebar() {
                   title={t("nav.shortcut", { keys: `Ctrl+${String(index + 1)}` })}
                   className={`flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-[13.5px] transition-colors duration-150 ${
                     current
-                      ? "bg-raised font-medium text-fg"
+                      ? "bg-selected font-medium text-fg"
                       : "text-muted hover:bg-surface hover:text-fg"
                   }`}
                 >
