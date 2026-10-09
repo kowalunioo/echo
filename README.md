@@ -8,7 +8,23 @@
 
 # Echo
 
+<p align="center">
+  <a href="https://github.com/kowalunioo/echo/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/kowalunioo/echo/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
+  <a href="https://github.com/kowalunioo/echo/releases/latest"><img src="https://img.shields.io/github/v/release/kowalunioo/echo?style=flat-square&label=release&color=7c6be0" alt="Latest release"></a>
+  <a href="https://github.com/kowalunioo/echo/releases"><img src="https://img.shields.io/github/downloads/kowalunioo/echo/total?style=flat-square&label=downloads" alt="Total downloads"></a>
+  <img src="https://img.shields.io/badge/platform-Windows-0078d4?style=flat-square" alt="Platform: Windows">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
+</p>
+
 Echo is a private, local dictation app for Windows: press a shortcut, speak, and the Transcript is inserted into whatever app has focus. Speech recognition runs entirely on your machine. Audio and text never leave it; the network is used only to download Models and updates.
+
+<p align="center">
+  <a href="https://github.com/kowalunioo/echo/releases/latest">Download</a> ·
+  <a href="#privacy">Privacy</a> ·
+  <a href="#build-from-source">Build from source</a> ·
+  <a href="https://github.com/kowalunioo/echo/releases">Changelog</a> ·
+  <a href="https://github.com/kowalunioo/echo/issues/new/choose">Report a bug</a>
+</p>
 
 <p align="center">
   <a href="docs/assets/echo-reel.mp4">
@@ -21,6 +37,13 @@ Echo is a private, local dictation app for Windows: press a shortcut, speak, and
 - **Vocabulary** for the names and jargon the Model should favour (GitHub, Tauri, Vulkan…).
 - **Models**: Whisper large-v3-turbo (default), Parakeet TDT 0.6B v3 and Whisper small, with resumable, SHA-256 verified downloads. GPU acceleration on any vendor through Vulkan, with a CPU fallback.
 - **Overlay** that shows when Echo is getting ready, listening and transcribing, a short **History** of recent Transcripts, a tray icon, opt-in autostart and a signed in-app updater.
+
+## Privacy
+
+**Nothing you say leaves your PC.** Echo never sends audio, Transcripts, Vocabulary or settings over the network. There is no account, no telemetry and no cloud service. Echo makes exactly two kinds of request:
+
+- **Model downloads**, from the Model publisher's Hugging Face repository, when you choose a Model. Each file is checked against its published SHA-256.
+- **Update checks**, against this repository's [latest release](https://github.com/kowalunioo/echo/releases/latest). Automatic checks run 30 s after start and then every 4 hours, and can be turned off; an update installs only if its signature matches the key built into Echo.
 
 ## Install
 
