@@ -11,6 +11,7 @@
     "icons": "bun scripts/icons.ts",
     "tray-icons": "bun scripts/tray-icons.ts",
     "bump": "bun scripts/bump.ts",
+    "readme-hero": "bun scripts/readme-hero.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "format": "prettier --write .",
