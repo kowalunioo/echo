@@ -68,8 +68,9 @@ describe("Overlay", () => {
     expect(status).toHaveClass("sr-only");
     expect(screen.getByTestId("overlay-label")).toHaveAttribute("data-shown", "false");
     expect(screen.getByTestId("overlay-mark")).toHaveAttribute("data-live", "true");
-    expect(screen.getByTestId("overlay-meter").children).toHaveLength(9);
-    const bar = () => screen.getByTestId("overlay-meter").children[4] as HTMLElement;
+    // Thirteen bars; a sound shows first in the centre one (meter.ts).
+    expect(screen.getByTestId("overlay-meter").children).toHaveLength(13);
+    const bar = () => screen.getByTestId("overlay-meter").children[6] as HTMLElement;
     const silent = bar().style.transform;
     frame(1, 3_400);
     expect(bar().style.transform).not.toBe(silent);

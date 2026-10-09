@@ -13,7 +13,7 @@ import { TestAudioMarker } from "../components/TestAudioMarker";
 import { EchoMark } from "../components/icons";
 import { changeUiLanguage } from "../i18n";
 import { useSettings } from "../store/settings";
-import { BAR_COUNT, SILENT_BARS, nextBars } from "./meter";
+import { type Meter, SILENT_METER, nextMeter } from "./meter";
 
 const HIDDEN: OverlayView = { kind: "hidden" };
 /** How long the pill takes to change shape; the click region shrinks only after it. */
@@ -291,16 +291,16 @@ function useOverlayView(): OverlayView {
 
 /** Level-meter frames while recording; a new Recording starts from silence. */
 function useBars(view: OverlayView): readonly number[] {
-  const [bars, setBars] = useState<readonly number[]>(SILENT_BARS);
+  const [meter, setMeter] = useState<Meter>(SILENT_METER);
   const recording = view.kind === "gettingReady" || view.kind === "listening";
   const [wasRecording, setWasRecording] = useState(recording);
   if (recording !== wasRecording) {
     setWasRecording(recording);
-    if (recording) setBars(SILENT_BARS);
+    if (recording) setMeter(SILENT_METER);
   }
   useEffect(() => {
     const stop = events.overlayFrame.listen((event) => {
-      setBars((previous) => nextBars(previous, event.payload.level ?? 0));
+      setMeter((previous) => nextMeter(previous, event.payload.level ?? 0));
     });
     return () => {
       void stop.then((unlisten) => {
@@ -308,7 +308,7 @@ function useBars(view: OverlayView): readonly number[] {
       });
     };
   }, []);
-  return bars.length === BAR_COUNT ? bars : SILENT_BARS;
+  return meter.bars;
 }
 
 /**

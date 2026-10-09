@@ -78,6 +78,7 @@ mod tests {
 
     #[test]
     fn app_info_reports_the_package_version() {
-        assert_eq!(app_info().version, "0.1.0");
+        // The crate's own version, so a release bump never breaks this test.
+        assert_eq!(app_info().version, env!("CARGO_PKG_VERSION"));
     }
 }

@@ -1,29 +1,50 @@
 /**
- * The Overlay's level meter (overlay.md rule 3): nine bars that follow the input level, ~30
- * frames a second, smoothed so they rise quickly and fall gently.
+ * The Overlay's level meter (overlay.md rule 3): thirteen bars, ~30 frames a second. Each level
+ * starts at the centre and travels outward to both edges, fading a little as it goes, so every
+ * syllable sends an echo out from the middle; each bar rises quickly and falls gently.
  */
 
-export const BAR_COUNT = 9;
+export const BAR_COUNT = 13;
 
-/** How far each bar reaches at full level: the centre moves most, so the shape stays calm. */
-const REACH = [0.42, 0.58, 0.76, 0.9, 1, 0.9, 0.76, 0.58, 0.42];
 /** The height of a silent bar, as a fraction of the full height. */
 export const BAR_FLOOR = 0.12;
 /** Share of the gap to the target closed per frame when rising and when falling. */
 const ATTACK = 0.6;
 const RELEASE = 0.2;
+/** The echo moves one bar outward every this many frames (~15 bars a second). */
+const FRAMES_PER_STEP = 2;
+/** How much of a level is left one bar further out. */
+const FADE = 0.88;
+/** Levels from the centre (index 0) out to an edge. */
+const SIDE = (BAR_COUNT + 1) / 2;
 
-export const SILENT_BARS: readonly number[] = REACH.map(() => BAR_FLOOR);
+export interface Meter {
+  /** Bar heights (0–1), left to right. */
+  bars: readonly number[];
+  /** Recent levels, newest at the centre (index 0) and oldest at the edges. */
+  echo: readonly number[];
+  frame: number;
+}
 
-/** The bar heights (0–1) one frame on, given the previous heights and the input level (0–1). */
-export function nextBars(previous: readonly number[], level: number): number[] {
+export const SILENT_METER: Meter = {
+  bars: Array.from({ length: BAR_COUNT }, () => BAR_FLOOR),
+  echo: Array.from({ length: SIDE }, () => 0),
+  frame: 0,
+};
+
+/** The meter one frame on, given the input level (0–1). */
+export function nextMeter(previous: Meter, level: number): Meter {
   const clamped = Math.min(1, Math.max(0, level));
-  return REACH.map((reach, i) => {
-    const target = BAR_FLOOR + (1 - BAR_FLOOR) * clamped * reach;
-    const before = previous[i] ?? BAR_FLOOR;
+  // The centre always shows the live level; on a step the older levels move one bar out.
+  const step = previous.frame % FRAMES_PER_STEP === 0;
+  const echo = [clamped, ...previous.echo.slice(step ? 0 : 1, step ? SIDE - 1 : SIDE)];
+  const bars = previous.bars.map((before, i) => {
+    const distance = Math.abs(i - (BAR_COUNT - 1) / 2);
+    const target = BAR_FLOOR + (1 - BAR_FLOOR) * (echo[distance] ?? 0) * FADE ** distance;
     const rate = target > before ? ATTACK : RELEASE;
     return before + (target - before) * rate;
   });
+  return { bars, echo, frame: previous.frame + 1 };
 }
 
 /** The elapsed-time counter: m:ss. */

@@ -49,7 +49,7 @@
      dark band here, as a white one would vanish on a white page), and
      the dots' light and glow as they bounce. */
   --echo-overlay-edge: rgb(0 0 0 / 0.28);
-  --echo-overlay-shine: rgb(31 31 34 / 0.75);
+  --echo-overlay-shine: rgb(31 31 34 / 0.4);
   --echo-overlay-lit: rgb(31 31 34 / 0.12);
   --echo-overlay-glow: rgb(31 31 34 / 0.16);
 }
@@ -82,7 +82,7 @@
     --echo-warning: #e8b04a;
     /* Overlay: the light outline 2.0:1 on surface and on a dark editor. */
     --echo-overlay-edge: rgb(255 255 255 / 0.22);
-    --echo-overlay-shine: rgb(255 255 255);
+    --echo-overlay-shine: rgb(255 255 255 / 0.55);
     --echo-overlay-lit: rgb(255 255 255 / 0.28);
     --echo-overlay-glow: rgb(255 255 255 / 0.4);
   }
@@ -319,7 +319,7 @@
 .overlay-pill[data-phase="gettingReady"] .overlay-shine,
 .overlay-pill[data-phase="listening"] .overlay-shine {
   opacity: 1;
-  animation: overlay-shine 2.6s linear infinite;
+  animation: overlay-shine 3.4s linear infinite;
 }
 
 @keyframes overlay-shine {
