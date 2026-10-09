@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- The Overlay window's page (overlay.md). The class is in the markup, not added by script: the
+     base styles paint the body opaque, and until main.tsx has run (slow right after login) the
+     window would show that as a rectangle instead of the pill. -->
+<html lang="en" class="overlay-window">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Echo overlay</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

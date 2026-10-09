@@ -15,6 +15,8 @@ export default defineConfig({
   },
   build: {
     target: "es2022",
+    // The Overlay has a page of its own so it is transparent from the first paint (overlay.html).
+    rollupOptions: { input: ["index.html", "overlay.html"] },
   },
   test: {
     environment: "jsdom",

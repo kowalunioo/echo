@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Echo",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "identifier": "com.enloque.echo",
   "build": {
     "beforeDevCommand": "bun run dev",
@@ -25,7 +25,7 @@
       {
         "label": "overlay",
         "title": "Echo overlay",
-        "url": "index.html",
+        "url": "overlay.html",
         "width": 520,
         "height": 44,
         "visible": false,

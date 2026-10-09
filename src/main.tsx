@@ -14,10 +14,9 @@ await useSettings.getState().load();
 initI18n(useSettings.getState().settings?.uiLanguage ?? uiLanguageForLocale(navigator.language));
 
 const root = document.getElementById("root");
-if (!root) throw new Error("#root is missing from index.html");
+if (!root) throw new Error("#root is missing from the page");
 
-// One page serves both the main window and the Overlay window (overlay.md).
+// index.html serves the main window, overlay.html the Overlay window (overlay.md); both run this.
 const overlay = getCurrentWindow().label === "overlay";
-if (overlay) document.documentElement.classList.add("overlay-window");
 
 createRoot(root).render(<StrictMode>{overlay ? <OverlayApp /> : <App />}</StrictMode>);

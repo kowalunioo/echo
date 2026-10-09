@@ -155,6 +155,7 @@ pub fn run() {
             let autostart = window::launched_by_autostart(std::env::args());
             if let Some(main) = app.get_webview_window(window::MAIN_WINDOW) {
                 tracker.restore(&main);
+                let _ = main.set_background_color(Some(window::background(main.theme().ok())));
                 let completed = app.state::<SettingsStore>().get().onboarding_completed;
                 // After an update's restart, the window comes back as it was (updater.md rule 6).
                 let show = after_update

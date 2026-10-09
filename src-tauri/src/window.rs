@@ -29,6 +29,16 @@ pub fn show_at_launch(autostart: bool, onboarding_completed: bool) -> bool {
     !autostart || !onboarding_completed
 }
 
+/// What the main window shows until its page has painted: the page's own background
+/// (`--echo-bg`) for the Windows app theme. WebView2's default is white, which flashes at launch
+/// in dark mode.
+pub fn background(theme: Option<tauri::Theme>) -> tauri::window::Color {
+    match theme {
+        Some(tauri::Theme::Dark) => tauri::window::Color(0x1b, 0x1b, 0x1d, 0xff),
+        _ => tauri::window::Color(0xf7, 0xf7, 0xf8, 0xff),
+    }
+}
+
 /// A rectangle in physical pixels (virtual-screen coordinates).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rect {
@@ -330,6 +340,17 @@ mod tests {
         std::fs::write(&path, bytes).unwrap();
 
         assert_eq!(WindowState::load(&path), Some(state));
+    }
+
+    #[test]
+    fn the_background_before_the_page_paints_matches_the_app_theme() {
+        use tauri::{Theme, window::Color};
+        assert_eq!(background(Some(Theme::Dark)), Color(0x1b, 0x1b, 0x1d, 0xff));
+        assert_eq!(
+            background(Some(Theme::Light)),
+            Color(0xf7, 0xf7, 0xf8, 0xff)
+        );
+        assert_eq!(background(None), Color(0xf7, 0xf7, 0xf8, 0xff));
     }
 
     #[test]
