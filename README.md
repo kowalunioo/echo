@@ -17,7 +17,7 @@ Echo is a private, local dictation app for Windows: press a shortcut, speak, and
 </p>
 
 - **Record Shortcut** in Toggle Mode (press to start, press to stop) or Push-to-Talk Mode (hold to record), plus a **Cancel Shortcut** that inserts nothing.
-- **Polish and English** are equals, for the UI and for Dictation; pick a Dictation Language or let the Model detect it.
+- **99 Dictation languages**: pick a Dictation Language or let the Model detect it. The UI is in Polish and English.
 - **Vocabulary** for the names and jargon the Model should favour (GitHub, Tauri, Vulkan…).
 - **Models**: Whisper large-v3-turbo (default), Parakeet TDT 0.6B v3 and Whisper small, with resumable, SHA-256 verified downloads. GPU acceleration on any vendor through Vulkan, with a CPU fallback.
 - **Overlay** that shows when Echo is getting ready, listening and transcribing, a short **History** of recent Transcripts, a tray icon, opt-in autostart and a signed in-app updater.
