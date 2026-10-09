@@ -10,6 +10,12 @@
 
 Echo is a private, local dictation app for Windows: press a shortcut, speak, and the Transcript is inserted into whatever app has focus. Speech recognition runs entirely on your machine. Audio and text never leave it; the network is used only to download Models and updates.
 
+<p align="center">
+  <a href="docs/assets/echo-reel.mp4">
+    <img src="docs/assets/echo-reel.webp" width="880" alt="Echo in 22 seconds: the logo's three bars move as Echo listens; the Overlay pill ripples while you speak and, when you stop, puts the Transcript into a Notes window; Dictation in 99 languages; runs on your PC, no account, nothing uploaded.">
+  </a>
+</p>
+
 - **Record Shortcut** in Toggle Mode (press to start, press to stop) or Push-to-Talk Mode (hold to record), plus a **Cancel Shortcut** that inserts nothing.
 - **Polish and English** are equals, for the UI and for Dictation; pick a Dictation Language or let the Model detect it.
 - **Vocabulary** for the names and jargon the Model should favour (GitHub, Tauri, Vulkan…).
