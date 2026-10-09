@@ -13,7 +13,8 @@ use super::language::effective_language;
 use super::vad::Earshot;
 use super::{
     Dictation, DictationContext, DictationDeps, DictationModel, DictationModels, DictationStatus,
-    ProblemKind, runtime::MAX_RECORDING,
+    ProblemKind,
+    runtime::{LOAD_DELAY, MAX_RECORDING},
 };
 use crate::audio::AudioSource;
 use crate::audio::fake_microphone::FakeMicrophone;
@@ -91,6 +92,7 @@ pub fn install(app: &AppHandle) {
             }
         }),
         max_recording: MAX_RECORDING,
+        load_delay: LOAD_DELAY,
     });
 
     let reporter = dictation.clone();

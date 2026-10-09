@@ -237,6 +237,7 @@ fn rig(engine: FakeEngine, source: impl AudioSource + 'static) -> Rig {
             *shown.lock().unwrap() = status.clone();
         }),
         max_recording: Duration::from_secs(600),
+        load_delay: Duration::ZERO,
     });
     Rig {
         dictation,

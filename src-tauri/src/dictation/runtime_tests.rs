@@ -128,6 +128,7 @@ struct Setup {
     engine: Option<FakeEngine>,
     source: Box<dyn AudioSource>,
     max_recording: Duration,
+    load_delay: Duration,
     context: Box<dyn Fn() -> DictationContext + Send>,
     /// Whether History keeps entries (`false`: a History limit of 0).
     history_on: bool,
@@ -139,6 +140,7 @@ impl Setup {
             engine: Some(engine),
             source: Box::new(source),
             max_recording: MAX_RECORDING,
+            load_delay: Duration::ZERO,
             context: Box::new(DictationContext::default),
             history_on: true,
         }
@@ -192,6 +194,7 @@ impl Setup {
                 }
             }),
             max_recording: self.max_recording,
+            load_delay: self.load_delay,
         });
         Rig {
             dictation,
@@ -821,6 +824,27 @@ fn model_loading_starts_with_the_recording() {
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+// Rule 6: the load waits until the Overlay has slid in, which it would otherwise freeze.
+#[test]
+fn model_loading_waits_for_the_load_delay() {
+    let engine = FakeEngine::returning("x");
+    let mut setup = Setup::new(engine.clone(), ScriptedSource::default());
+    setup.load_delay = Duration::from_millis(500);
+    let rig = setup.spawn();
+    let started = Instant::now();
+    rig.dictation.intent(Start);
+    rig.wait_state(DictationState::Recording);
+    assert_eq!(engine.load_count(), 0, "the Model loaded before the delay");
+    while engine.load_count() == 0 {
+        assert!(
+            started.elapsed() < Duration::from_secs(5),
+            "the Model was not loaded during the Recording"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(started.elapsed() >= Duration::from_millis(500));
 }
 
 /// An Engine whose transcription panics.

@@ -117,6 +117,7 @@ fn dictate_with(model: Arc<dyn DictationModel>, wav: &Path, context: DictationCo
         shortcut_reset: Box::new(|| {}),
         publish: Box::new(move |status| seen.lock().unwrap().push(status.state)),
         max_recording: Duration::from_secs(600),
+        load_delay: Duration::ZERO,
     });
     dictation.intent(RecordIntent::Start);
     let until = Instant::now() + Duration::from_secs(300);

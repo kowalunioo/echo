@@ -29,6 +29,10 @@ use super::{DictationProblem, DictationStatus, ProblemKind};
 
 /// A Recording stops by itself after this long (rule 12).
 pub const MAX_RECORDING: Duration = Duration::from_secs(10 * 60);
+/// How long after the Recording starts the Model begins loading (rule 6): loading it onto the
+/// GPU stalls the Overlay's rendering for about a second, so it waits until the pill has slid
+/// in (180 ms).
+pub const LOAD_DELAY: Duration = Duration::from_millis(250);
 
 /// Where Dictations get their Model: the Model manager in the app, a fixed Engine in tests.
 pub trait DictationModels: Send {
@@ -124,6 +128,8 @@ pub struct DictationDeps {
     pub publish: Box<dyn FnMut(&DictationStatus) + Send>,
     /// [`MAX_RECORDING`] in the app; shorter in tests.
     pub max_recording: Duration,
+    /// [`LOAD_DELAY`] in the app; none in tests unless they check it.
+    pub load_delay: Duration,
 }
 
 enum Msg {
@@ -384,12 +390,16 @@ impl Worker {
                 return self.feed(Input::StartFailed);
             }
         };
-        // Rule 6: load in the background while the user speaks.
+        // Rule 6: load in the background while the user speaks, once the Overlay has slid in.
         let loading = Arc::clone(&model);
+        let delay = self.deps.load_delay;
         self.load = Some(
             std::thread::Builder::new()
                 .name("echo-model-load".into())
-                .spawn(move || loading.load())
+                .spawn(move || {
+                    std::thread::sleep(delay);
+                    loading.load()
+                })
                 .expect("spawn the Model load thread"),
         );
         self.context = (self.deps.context)();
