@@ -19,6 +19,7 @@ A global key combination that adds the text selected in any application to the V
     2. It sends Ctrl+Insert to the focused application and waits up to 250 ms for the clipboard to change.
     3. If the clipboard did not change and the focused window is not a terminal (a console window, Windows Terminal, or another window known to treat Ctrl+C as an interrupt), Echo sends Ctrl+C and waits up to a further 250 ms. In a terminal, Ctrl+C is never sent.
 7. If the clipboard changed and holds text, that text is the selection. If it did not change, or holds no text (e.g. an image or files), nothing is selected.
+7a. Code editors copy the whole current line when nothing is selected. So a copy marked by the editor as coming from an empty selection (VS Code and editors built on it put `isFromEmptySelection: true` in their `vscode-editor-data` clipboard format), or text ending in a line break, also counts as nothing selected.
 8. Afterwards Echo restores the saved clipboard as in `dictation-pipeline.md` rules 34.5–34.7: not if something else changed the clipboard after the copy, emptied again if it was empty, and the restored content is not added to clipboard history as a new entry.
 9. Echo never runs elevated; if the focused application runs as administrator and the copy keystrokes cannot reach it, nothing is selected.
 
@@ -70,6 +71,9 @@ A global key combination that adds the text selected in any application to the V
 6. *Busy.* During a Recording, pressing the Vocabulary Shortcut does not call the selection reader and does not affect the Recording. (FSL, WAV.)
 7. *Overlay off.* With "Show Overlay" off, the added message is still shown and is not an error. (Fake window.)
 8. *Message length.* A 50-character entry yields messages of at most 60 characters ending the entry with "…", in both UI Languages. (Unit.)
+9a. *Whole-line copy.* Copied text with the VS Code empty-selection marker, or ending in "
+" or "
+", gives the nothing-selected message and leaves the Vocabulary unchanged; the clipboard is still restored. (Unit with fake clipboard.)
 9. *Copy order.* Fake copier: Ctrl+Insert changes the clipboard → Ctrl+C is not sent. Ctrl+Insert does nothing and the window is not a terminal → Ctrl+C is sent. Ctrl+Insert does nothing and the window is a terminal → Ctrl+C is not sent, nothing selected. (Unit with fake clipboard and window classifier.)
 10. *Uniqueness.* Setting any of the three shortcuts to a combination held by another (including a turned-off Vocabulary Shortcut) is rejected with a message naming the other shortcut; the previous value stays. (Unit + frontend.)
 11. *Editing combinations.* Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Ctrl+S, Ctrl+Insert, Shift+Insert and Shift+Delete are rejected for all three shortcuts; Ctrl+Alt+D is accepted. (Unit.)
@@ -85,6 +89,7 @@ A global key combination that adds the text selected in any application to the V
 - **Default:** Ctrl+Alt+D, enabled out of the box.
 - **Feedback:** Overlay message, shown even with the Overlay off; clicking "Added" opens the Vocabulary page (removing the chip there is the undo) — a hidden undo in a 2.5 s pill is easy to miss.
 - **Copy keystroke:** Ctrl+Insert first, then Ctrl+C except in terminals — Ctrl+C with no selection interrupts the program running in a terminal. The copied text may still enter Windows clipboard history, because the copying application, not Echo, writes it.
+- **Whole-line copies:** treated as nothing selected (rule 7a) — otherwise pressing the shortcut with no selection in an editor would add a line of code to the Vocabulary. Trade-off: a selection that really ends in a line break (e.g. a triple-clicked line) must be reselected without it.
 - **Size limit:** 50 characters and at most 3 words — Vocabulary entries are names and terms; a sentence is almost certainly selected by mistake.
 - **Polish endings:** added as selected; the user selects the stem. Guessing would break names that really end in -a or -u.
 - **Placement:** with the other shortcuts on the Dictation page.
