@@ -7,6 +7,7 @@
 //! keystrokes) plus [`ForegroundWindow`], and a [`Clock`]. The Windows implementations live in
 //! `win32`; tests use fakes, never the real keyboard.
 
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use crate::insertion::paste::{Clock, Desktop, Key, KeyEvent, POLL, Restore};
@@ -91,6 +92,8 @@ pub fn is_from_empty_selection(editor_data: &str) -> bool {
 pub trait ForegroundWindow: Send {
     /// Whether it is a terminal, where Ctrl+C interrupts the running program (rule 6.3).
     fn is_terminal(&self) -> bool;
+    /// Its window class, if it can be read: where Ctrl+Insert is known not to copy (rule 6.2).
+    fn class(&self) -> Option<String>;
 }
 
 /// Window classes of terminals, where Ctrl+C with nothing selected interrupts the running
@@ -121,6 +124,9 @@ pub struct CopySelectionReader<C, D, W, T> {
     desktop: D,
     window: W,
     clock: T,
+    /// Window classes where Ctrl+Insert did not copy but Ctrl+C did, during this session: they
+    /// get Ctrl+C at once (rule 6.2), saving the wait for Ctrl+Insert.
+    ctrl_c_first: HashSet<String>,
 }
 
 impl<C, D, W, T> CopySelectionReader<C, D, W, T>
@@ -136,6 +142,7 @@ where
             desktop,
             window,
             clock,
+            ctrl_c_first: HashSet::new(),
         }
     }
 
@@ -210,9 +217,11 @@ where
     T: Clock,
 {
     fn read(&mut self, release_by: Instant) -> Selection {
+        let start = self.clock.now();
         if !self.keys_released(release_by) {
             return Selection::KeysHeld;
         }
+        let released = self.clock.now();
         // Windows silently drops simulated input into an elevated window (rule 9).
         if self.desktop.foreground_elevated() {
             log::info!("Vocabulary Shortcut: the focused window is elevated; not copying");
@@ -227,13 +236,30 @@ where
             }
         };
         let before = self.clipboard.sequence();
-        let copied = match self.copy_with(Key::Insert, before) {
-            Some(copied) => copied,
-            None if self.window.is_terminal() => return Selection::Nothing,
-            None => match self.copy_with(Key::C, before) {
-                Some(copied) => copied,
-                None => return Selection::Nothing,
-            },
+        let class = self.window.class();
+        let copied = if class.as_ref().is_some_and(|c| self.ctrl_c_first.contains(c)) {
+            self.copy_with(Key::C, before)
+        } else {
+            match self.copy_with(Key::Insert, before) {
+                Some(copied) => Some(copied),
+                None if self.window.is_terminal() => None,
+                None => {
+                    let copied = self.copy_with(Key::C, before);
+                    if let (Some(_), Some(class)) = (&copied, class) {
+                        log::debug!("Vocabulary Shortcut: {class} copies only with Ctrl+C");
+                        self.ctrl_c_first.insert(class);
+                    }
+                    copied
+                }
+            }
+        };
+        log::debug!(
+            "Vocabulary Shortcut: keys released after {} ms, copy read {} ms later",
+            released.duration_since(start).as_millis(),
+            self.clock.now().duration_since(released).as_millis(),
+        );
+        let Some(copied) = copied else {
+            return Selection::Nothing;
         };
         match self.clipboard.restore_if_sequence(saved, copied.sequence) {
             Ok(Restore::Restored) => {}
@@ -333,6 +359,8 @@ mod tests {
         modifiers_held_until: Option<Instant>,
         elevated: bool,
         terminal: bool,
+        /// The focused window's class.
+        class: Option<String>,
         /// Another program writes the clipboard right after the copy.
         written_after_copy: bool,
         /// The application empties the clipboard at once but writes the copy only this much
@@ -372,6 +400,7 @@ mod tests {
                     modifiers_held_until: None,
                     elevated: false,
                     terminal: false,
+                    class: Some("Notepad".into()),
                     written_after_copy: false,
                     copy_lands_after: None,
                     pending: None,
@@ -494,6 +523,9 @@ mod tests {
         fn is_terminal(&self) -> bool {
             self.inner.lock().unwrap().terminal
         }
+        fn class(&self) -> Option<String> {
+            self.inner.lock().unwrap().class.clone()
+        }
     }
 
     impl Clock for World {
@@ -550,6 +582,79 @@ mod tests {
             world.inner.lock().unwrap().text.as_deref(),
             Some("previous")
         );
+    }
+
+    /// Latency: a copy that Ctrl+Insert makes at once is read without waiting for a poll.
+    #[test]
+    fn a_ctrl_insert_copy_is_read_at_once() {
+        let world = World::new();
+        world.with(|w| w.copies_on = Some((Key::Insert, Some("Tauri".into()))));
+        let start = world.now();
+
+        world.reader().read(far(&world));
+
+        assert!(world.now() - start < POLL, "took {:?}", world.now() - start);
+    }
+
+    /// Rule 6.2: where Ctrl+Insert did not copy but Ctrl+C did, later attempts in a window of
+    /// the same class send Ctrl+C at once instead of first waiting for Ctrl+Insert.
+    #[test]
+    fn a_window_class_that_copies_only_with_ctrl_c_gets_ctrl_c_first_next_time() {
+        let world = World::new();
+        world.with(|w| w.copies_on = Some((Key::C, Some("Tauri".into()))));
+        let mut reader = world.reader();
+        reader.read(far(&world));
+        world.with(|w| w.events.clear());
+        let start = world.now();
+
+        let selection = reader.read(far(&world));
+
+        assert_eq!(selection, Selection::Text("Tauri".into()));
+        assert_eq!(world.sent(), [Key::C]);
+        assert!(world.now() - start < POLL, "took {:?}", world.now() - start);
+        // Nothing selected there: Ctrl+C alone, one wait.
+        world.with(|w| {
+            w.events.clear();
+            w.copies_on = None;
+        });
+        let start = world.now();
+        assert_eq!(reader.read(far(&world)), Selection::Nothing);
+        assert_eq!(world.sent(), [Key::C]);
+        assert!(world.now() - start <= COPY_WAIT + POLL);
+
+        // Another class still gets Ctrl+Insert first.
+        world.with(|w| {
+            w.events.clear();
+            w.class = Some("Chrome_WidgetWin_1".into());
+            w.copies_on = Some((Key::C, Some("Tauri".into())));
+        });
+        reader.read(far(&world));
+        assert_eq!(world.sent(), [Key::Insert, Key::C]);
+    }
+
+    /// Nothing is learnt where Ctrl+Insert copies, where neither key copies, or where the class
+    /// is unknown.
+    #[test]
+    fn only_a_ctrl_c_copy_after_a_silent_ctrl_insert_is_learnt() {
+        let world = World::new();
+        let mut reader = world.reader();
+        world.with(|w| w.copies_on = Some((Key::Insert, Some("Tauri".into()))));
+        reader.read(far(&world));
+        world.with(|w| w.copies_on = None);
+        reader.read(far(&world));
+        world.with(|w| {
+            w.class = None;
+            w.copies_on = Some((Key::C, Some("Tauri".into())));
+        });
+        reader.read(far(&world));
+        world.with(|w| {
+            w.events.clear();
+            w.class = Some("Notepad".into());
+        });
+
+        reader.read(far(&world));
+
+        assert_eq!(world.sent(), [Key::Insert, Key::C]);
     }
 
     /// Acceptance test 9, third case: Ctrl+C would interrupt the terminal's program.

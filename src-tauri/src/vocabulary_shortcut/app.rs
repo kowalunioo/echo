@@ -65,6 +65,7 @@ pub fn run(app: &AppHandle, attempt: VocabularyAttempt) {
     let spawned = std::thread::Builder::new()
         .name("echo-vocabulary-shortcut".into())
         .spawn(move || {
+            let started = std::time::Instant::now();
             let (Some(reader), Some(store)) = (
                 app.try_state::<SharedSelectionReader>(),
                 app.try_state::<SettingsStore>(),
@@ -82,6 +83,10 @@ pub fn run(app: &AppHandle, attempt: VocabularyAttempt) {
             drop(reader);
             if let (Some(message), Some(overlay)) = (message, app.try_state::<Overlay>()) {
                 overlay.notice(message);
+                log::debug!(
+                    "Vocabulary Shortcut: message sent {} ms after the press",
+                    started.elapsed().as_millis()
+                );
             }
             drop(attempt);
         });

@@ -59,13 +59,15 @@ pub struct WindowsForegroundWindow;
 
 impl ForegroundWindow for WindowsForegroundWindow {
     fn is_terminal(&self) -> bool {
+        self.class().is_some_and(|class| is_terminal_class(&class))
+    }
+
+    fn class(&self) -> Option<String> {
         let mut name = [0u16; 256];
         // SAFETY: plain queries; GetClassNameW writes at most `name.len()` units.
         let length = unsafe { GetClassNameW(GetForegroundWindow(), &mut name) };
-        let Ok(length) = usize::try_from(length) else {
-            return false;
-        };
-        is_terminal_class(&String::from_utf16_lossy(&name[..length.min(name.len())]))
+        let length = usize::try_from(length).ok().filter(|&l| l > 0)?;
+        Some(String::from_utf16_lossy(&name[..length.min(name.len())]))
     }
 }
 
