@@ -237,7 +237,10 @@ where
         };
         let before = self.clipboard.sequence();
         let class = self.window.class();
-        let copied = if class.as_ref().is_some_and(|c| self.ctrl_c_first.contains(c)) {
+        let copied = if class
+            .as_ref()
+            .is_some_and(|c| self.ctrl_c_first.contains(c))
+        {
             self.copy_with(Key::C, before)
         } else {
             match self.copy_with(Key::Insert, before) {
