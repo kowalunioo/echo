@@ -71,10 +71,8 @@ A global key combination that adds the text selected in any application to the V
 6. *Busy.* During a Recording, pressing the Vocabulary Shortcut does not call the selection reader and does not affect the Recording. (FSL, WAV.)
 7. *Overlay off.* With "Show Overlay" off, the added message is still shown and is not an error. (Fake window.)
 8. *Message length.* A 50-character entry yields messages of at most 60 characters ending the entry with "…", in both UI Languages. (Unit.)
-9a. *Whole-line copy.* Copied text with the VS Code empty-selection marker, or ending in "
-" or "
-", gives the nothing-selected message and leaves the Vocabulary unchanged; the clipboard is still restored. (Unit with fake clipboard.)
 9. *Copy order.* Fake copier: Ctrl+Insert changes the clipboard → Ctrl+C is not sent. Ctrl+Insert does nothing and the window is not a terminal → Ctrl+C is sent. Ctrl+Insert does nothing and the window is a terminal → Ctrl+C is not sent, nothing selected. (Unit with fake clipboard and window classifier.)
+9a. *Whole-line copy.* Copied text with the VS Code empty-selection marker, or ending in a line break (LF or CRLF), gives the nothing-selected message and leaves the Vocabulary unchanged; the clipboard is still restored. (Unit with fake clipboard.)
 10. *Uniqueness.* Setting any of the three shortcuts to a combination held by another (including a turned-off Vocabulary Shortcut) is rejected with a message naming the other shortcut; the previous value stays. (Unit + frontend.)
 11. *Editing combinations.* Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Ctrl+S, Ctrl+Insert, Shift+Insert and Shift+Delete are rejected for all three shortcuts; Ctrl+Alt+D is accepted. (Unit.)
 12. *Off.* With the switch off, FSL pressing Ctrl+Alt+D triggers nothing and the keystrokes are not swallowed. (FSL / hook unit test.)
