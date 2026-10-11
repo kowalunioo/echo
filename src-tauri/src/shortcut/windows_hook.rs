@@ -40,7 +40,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::keys;
-use super::matcher::{KeyboardState, Matcher, Output, RawKey, own_window_raw_key};
+use super::matcher::{KeyboardState, Matcher, Output, RawKey, Verdict, own_window_raw_key};
 use super::{
     CaptureSink, KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutListener, ShortcutSink,
 };
@@ -151,7 +151,8 @@ impl ShortcutListener for WindowsShortcutListener {
         let pressed = action == KeyAction::Pressed;
         // Echo's window cannot hold back what it already received, so "swallowed" here only
         // means the keystroke belongs to a shortcut.
-        let shortcut_key = process(own_window_raw_key(vk, !pressed, &System));
+        let verdict = process(own_window_raw_key(vk, !pressed, &System), &System);
+        let shortcut_key = verdict.swallow;
         // Windows saw every key go down, so a bare Win or Alt release would open the Start menu
         // or a menu bar: mask it when it is part of a shortcut or being captured (losing focus
         // would also end the capture).
@@ -169,7 +170,9 @@ impl ShortcutListener for WindowsShortcutListener {
         ]
         .into_iter()
         .any(|k| System.is_down(k));
-        if pressed && ((capturing && alt_or_win(vk)) || (shortcut_key && alt_or_win_held)) {
+        if verdict.mask
+            || (pressed && ((capturing && alt_or_win(vk)) || (shortcut_key && alt_or_win_held)))
+        {
             send_mask_key();
         }
     }
@@ -231,7 +234,9 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
         // SAFETY: for HC_ACTION, lparam points to a KBDLLHOOKSTRUCT (WH_KEYBOARD_LL contract).
         let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
         // A panic must never unwind into Windows; if one happens, the key passes through.
-        if let Ok(true) = catch_unwind(AssertUnwindSafe(|| on_key(info))) {
+        if let Ok(true) = catch_unwind(AssertUnwindSafe(|| {
+            on_key(info, &System, &mut send_mask_key)
+        })) {
             return LRESULT(1);
         }
     }
@@ -239,8 +244,11 @@ unsafe extern "system" fn hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
 }
 
-/// Handles one keystroke; returns whether to swallow it.
-fn on_key(info: &KBDLLHOOKSTRUCT) -> bool {
+/// Handles one keystroke; returns whether to swallow it. `mask` sends the masking keystroke when
+/// the matcher asks for one — only once no lock is held: Windows runs this hook again for the
+/// injected keystroke before `SendInput` returns, and that nested call must not wait for a lock
+/// the outer call still holds (it would hang the hook thread, and with it every shortcut).
+fn on_key(info: &KBDLLHOOKSTRUCT, system: &impl KeyboardState, mask: &mut dyn FnMut()) -> bool {
     let stamp = KeyStamp {
         vk: info.vkCode,
         scan: info.scanCode,
@@ -248,31 +256,36 @@ fn on_key(info: &KBDLLHOOKSTRUCT) -> bool {
         time: info.time,
         extra: info.dwExtraInfo,
     };
-    let mut last = lock(&LAST_KEY);
-    if let Some((seen, swallowed)) = *last
+    if let Some((seen, swallowed)) = *lock(&LAST_KEY)
         && seen == stamp
     {
         return swallowed;
     }
-    let swallow = decide(info);
-    *last = Some((stamp, swallow));
-    swallow
+    let verdict = decide(info, system);
+    *lock(&LAST_KEY) = Some((stamp, verdict.swallow));
+    if verdict.mask {
+        mask();
+    }
+    verdict.swallow
 }
 
-fn decide(info: &KBDLLHOOKSTRUCT) -> bool {
-    process(RawKey {
-        vk: u16::try_from(info.vkCode).unwrap_or(0),
-        scan: info.scanCode,
-        up: info.flags.contains(LLKHF_UP),
-        from_echo: info.dwExtraInfo == ECHO_INPUT_TAG,
-    })
+fn decide(info: &KBDLLHOOKSTRUCT, system: &impl KeyboardState) -> Verdict {
+    process(
+        RawKey {
+            vk: u16::try_from(info.vkCode).unwrap_or(0),
+            scan: info.scanCode,
+            up: info.flags.contains(LLKHF_UP),
+            from_echo: info.dwExtraInfo == ECHO_INPUT_TAG,
+        },
+        system,
+    )
 }
 
-/// Runs one keystroke through the matcher, delivers its events and masks if asked; returns
-/// whether to swallow it.
-fn process(key: RawKey) -> bool {
+/// Runs one keystroke through the matcher and delivers its events; returns whether to swallow
+/// it and whether to mask. The caller sends the masking keystroke after every lock is released.
+fn process(key: RawKey, system: &impl KeyboardState) -> Verdict {
     let mut outputs = Vec::new();
-    let verdict = lock(&MATCHER).handle(key, &System, &mut |o| outputs.push(o));
+    let verdict = lock(&MATCHER).handle(key, system, &mut |o| outputs.push(o));
     if !outputs.is_empty() {
         let mut sinks = lock(&SINKS);
         for output in outputs {
@@ -290,10 +303,7 @@ fn process(key: RawKey) -> bool {
             }
         }
     }
-    if verdict.mask {
-        send_mask_key();
-    }
-    verdict.swallow
+    verdict
 }
 
 fn send_mask_key() {
@@ -330,5 +340,63 @@ impl KeyboardState for System {
             GetWindowThreadProcessId(window, Some(&mut process));
             process == std::process::id()
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use windows::Win32::UI::WindowsAndMessaging::KBDLLHOOKSTRUCT_FLAGS;
+
+    use super::*;
+
+    /// Every key the test pressed is down; Echo is not in the foreground.
+    struct Held;
+
+    impl KeyboardState for Held {
+        fn is_down(&self, _vk: u16) -> bool {
+            true
+        }
+        fn echo_in_foreground(&self) -> bool {
+            false
+        }
+    }
+
+    fn key(vk: u16, extra: usize) -> KBDLLHOOKSTRUCT {
+        KBDLLHOOKSTRUCT {
+            vkCode: u32::from(vk),
+            scanCode: 0,
+            flags: KBDLLHOOKSTRUCT_FLAGS(0),
+            time: 1,
+            dwExtraInfo: extra,
+        }
+    }
+
+    // vocabulary-shortcut.md: Ctrl+Alt+D asks for the masking keystroke, and Windows runs the
+    // hook again for it while SendInput is still inside the first call. That nested call used to
+    // wait forever for a lock the outer call held, which hung the hook thread and every shortcut.
+    #[test]
+    fn the_masking_keystroke_can_reenter_the_hook() {
+        lock(&MATCHER)
+            .bind(Shortcut::Vocabulary, Some(&"Ctrl+Alt+D".parse().unwrap()))
+            .unwrap();
+        let (done, finished) = mpsc::channel();
+        std::thread::spawn(move || {
+            let mut masks = 0;
+            for vk in [keys::vk::LCONTROL, keys::vk::LMENU, 0x44] {
+                on_key(&key(vk, 0), &Held, &mut || {
+                    masks += 1;
+                    // What SendInput does: the hook sees the injected keystroke at once.
+                    on_key(&key(MASK_VK, ECHO_INPUT_TAG), &Held, &mut || {});
+                });
+            }
+            let _ = done.send(masks);
+        });
+
+        let masks = finished.recv_timeout(Duration::from_secs(5));
+        lock(&MATCHER).bind(Shortcut::Vocabulary, None).unwrap();
+        assert_eq!(masks, Ok(1), "the hook hung on the nested call");
     }
 }
