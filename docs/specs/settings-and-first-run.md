@@ -62,7 +62,7 @@ All other settings are owned by their feature specs; the settings UI groups them
 
 The main window has a left navigation with these sections (names in English / Polish):
 
-1. **Dictation / Dyktowanie** — Record Shortcut and mode, Cancel Shortcut, Microphone. (`record-shortcut.md`, `cancel-shortcut.md`, `microphone.md`)
+1. **Dictation / Dyktowanie** — Record Shortcut and mode, Cancel Shortcut, Vocabulary Shortcut, Microphone. (`record-shortcut.md`, `cancel-shortcut.md`, `vocabulary-shortcut.md`, `microphone.md`)
 2. **Model & language / Model i język** — the Models list with download/activate/delete, the active Model indicator, and the Dictation Language picker for the active Model. (`models.md`, `dictation-language.md`)
 3. **Vocabulary / Słownik** — the Vocabulary list and budget. (`vocabulary.md`)
 4. **History / Historia** — the History list, limit and clear-all. (`history.md`)

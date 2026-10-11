@@ -65,6 +65,6 @@ No hard cap on the number of entries; the budget indicator (UI) guides the user.
 
 - **Duplicates:** compared case-insensitively everywhere — legacy was inconsistent.
 - **Polish inflection with Parakeet:** keep the Polish ending and correct only the stem (rule 10.8) — replacing "GitHuba" with "GitHub" is grammatically wrong.
-- **Quick-add from selection:** the global "add selected text to Vocabulary" shortcut goes to the backlog — not in 0.1.0 scope.
+- **Quick-add from selection:** not in 0.1.0; added later as the Vocabulary Shortcut, see `vocabulary-shortcut.md`.
 - **Entry count:** no hard cap; the budget indicator guides the user.
 - **Correction strength:** fixed value, no setting.

@@ -42,6 +42,10 @@ _Avoid_: PTT, hold mode
 **Cancel Shortcut**:
 The key combination that triggers Cancellation of the current Dictation.
 
+**Vocabulary Shortcut**:
+The key combination that adds the text selected in any application to the Vocabulary.
+_Avoid_: Quick-add, add-word hotkey
+
 ### Recognition
 
 **Engine**:

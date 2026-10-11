@@ -40,7 +40,8 @@ The global key combination that starts and stops a Recording from any applicatio
     - a single modifier alone, either side (e.g. Ctrl, Shift, Win, right Alt, right Ctrl);
     - Escape alone (reserved as the default Cancel Shortcut);
     - combinations Windows reserves and does not deliver to applications (Ctrl+Alt+Delete, Win+L);
-    - a combination identical to the Cancel Shortcut.
+    - text-editing combinations every application relies on: Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Ctrl+S, Ctrl+Insert, Shift+Insert, Shift+Delete;
+    - a combination identical to the Cancel Shortcut or the Vocabulary Shortcut (`vocabulary-shortcut.md` rule 19), even while the Vocabulary Shortcut is turned off; the message names the shortcut that uses it.
 21. A combination is stored and shown in a canonical order: Ctrl, Alt, Shift, Win, then the main key.
 
 ### Changing the shortcut
