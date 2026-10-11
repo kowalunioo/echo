@@ -1,5 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type OverlayView, commands } from "../bindings";
@@ -277,5 +279,15 @@ describe("Overlay", () => {
     render(<OverlayApp />);
     expect(await screen.findByRole("status")).toHaveTextContent("Listening");
     expect(screen.queryByRole("status", { name: "Test audio" })).not.toBeInTheDocument();
+  });
+
+  // Rule 6: the pill fades out in place. Sliding down 6 px makes the page taller than the window;
+  // if the page could scroll, WebView2 would add a scrollbar for the length of the fade, the page
+  // would get narrower and the centred pill would hop left. jsdom has no layout, so the
+  // stylesheet itself is checked.
+  it("never lets the Overlay window scroll, so sliding never moves the pill sideways", () => {
+    const css = readFileSync("src/styles.css", "utf8");
+    const rule = /\.overlay-window,\s*\.overlay-window body\s*\{([^}]*)\}/.exec(css);
+    expect(rule?.[1]).toMatch(/overflow:\s*hidden/);
   });
 });
