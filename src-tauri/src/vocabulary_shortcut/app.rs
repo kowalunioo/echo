@@ -34,7 +34,7 @@ pub fn install(app: &AppHandle) {
 
 #[cfg(windows)]
 fn system_reader() -> Box<dyn SelectionReader> {
-    use super::selection::{CopySelectionReader, FakeSelectionReader};
+    use super::selection::{CopySelectionReader, UnavailableSelectionReader};
     use super::win32::WindowsForegroundWindow;
     use crate::insertion::paste::SystemClock;
     use crate::insertion::{WindowsClipboard, WindowsDesktop};
@@ -48,14 +48,14 @@ fn system_reader() -> Box<dyn SelectionReader> {
         )),
         Err(error) => {
             log::error!("the Vocabulary Shortcut cannot read selections: {error}");
-            Box::new(FakeSelectionReader::new())
+            Box::new(UnavailableSelectionReader)
         }
     }
 }
 
 #[cfg(not(windows))]
 fn system_reader() -> Box<dyn SelectionReader> {
-    Box::new(super::selection::FakeSelectionReader::new())
+    Box::new(super::selection::UnavailableSelectionReader)
 }
 
 /// Runs `attempt` on its own thread (the copy waits up to half a second) and shows its message.

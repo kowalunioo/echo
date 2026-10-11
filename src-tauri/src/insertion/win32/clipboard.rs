@@ -239,14 +239,21 @@ impl WindowsClipboard {
         unsafe { GetClipboardSequenceNumber() }
     }
 
-    /// The clipboard's Unicode text, if it holds any, and the sequence number while it was read
-    /// (with the clipboard open, so nobody changed it in between).
-    pub fn text(&self) -> Result<(Option<String>, u32), String> {
-        self.call(|window, _| {
+    /// The clipboard's Unicode text, if it holds any, the data of the registered format
+    /// `format_name`, and the sequence number while they were read — all with the clipboard open
+    /// once, so nobody changed it in between.
+    pub fn text_with(&self, format_name: &str) -> Result<ClipboardText, String> {
+        let name: Vec<u16> = format_name.encode_utf16().chain([0]).collect();
+        self.call(move |window, _| {
             let _open = OpenGuard::open(window)?;
             let text = read_text();
-            // SAFETY: GetClipboardSequenceNumber has no preconditions.
-            Ok((text, unsafe { GetClipboardSequenceNumber() }))
+            let named = register(PCWSTR(name.as_ptr())).ok().and_then(read_format);
+            Ok(ClipboardText {
+                text,
+                named,
+                // SAFETY: GetClipboardSequenceNumber has no preconditions.
+                sequence: unsafe { GetClipboardSequenceNumber() },
+            })
         })?
     }
 
@@ -285,14 +292,27 @@ fn put_back(saved: &Saved) -> Result<(), String> {
     Ok(())
 }
 
-/// The open clipboard's Unicode text, up to its terminating NUL.
-fn read_text() -> Option<String> {
-    let format = u32::from(CF_UNICODETEXT.0);
+/// What [`WindowsClipboard::text_with`] read.
+#[derive(Debug, Default)]
+pub struct ClipboardText {
+    pub text: Option<String>,
+    /// The raw data of the named format, if the clipboard holds it.
+    pub named: Option<Vec<u8>>,
+    pub sequence: u32,
+}
+
+/// The open clipboard's data in `format`, if it holds a memory block in it.
+fn read_format(format: u32) -> Option<Vec<u8>> {
     // SAFETY: the clipboard is open on this thread.
     unsafe { IsClipboardFormatAvailable(format) }.ok()?;
     // SAFETY: the clipboard is open on this thread.
     let handle = unsafe { GetClipboardData(format) }.ok()?;
-    let bytes = read_memory(HGLOBAL(handle.0))?;
+    read_memory(HGLOBAL(handle.0))
+}
+
+/// The open clipboard's Unicode text, up to its terminating NUL.
+fn read_text() -> Option<String> {
+    let bytes = read_format(u32::from(CF_UNICODETEXT.0))?;
     let units: Vec<u16> = bytes
         .as_chunks::<2>()
         .0

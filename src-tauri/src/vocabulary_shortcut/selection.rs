@@ -24,6 +24,9 @@ pub enum Selection {
     /// The shortcut's keys were still held at the deadline: the attempt is dropped silently
     /// (rule 4).
     KeysHeld,
+    /// Selections cannot be read at all (the clipboard could not be set up): the attempt shows
+    /// no message, because "select a word first" would send the user looking for the wrong fix.
+    Unavailable,
 }
 
 /// Reads the selected text of the focused application.
@@ -41,11 +44,47 @@ pub trait SelectionClipboard: Send {
     fn save(&self) -> Result<Self::Saved, String>;
     /// The change counter, which changes whenever anything writes the clipboard.
     fn sequence(&self) -> u32;
-    /// The clipboard's text, if it holds any, and the change counter at the moment it was read.
-    fn text(&self) -> Result<(Option<String>, u32), String>;
+    /// What the clipboard holds, read in one opening so the text, the editor's marker and the
+    /// change counter belong together.
+    fn copied(&self) -> Result<Copied, String>;
     /// Puts `saved` back unless the counter has moved on from `sequence` (rule 8, as
     /// `dictation-pipeline.md` rules 34.5–34.7).
     fn restore_if_sequence(&self, saved: Self::Saved, sequence: u32) -> Result<Restore, String>;
+}
+
+/// What the clipboard held after a copy keystroke.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Copied {
+    /// Its text, if it holds any.
+    pub text: Option<String>,
+    /// The editor marked the copy as made from an empty selection, i.e. a whole-line copy
+    /// (rule 7a).
+    pub from_empty_selection: bool,
+    /// The change counter at the moment it was read.
+    pub sequence: u32,
+}
+
+impl Copied {
+    /// Whether the copy is an editor's whole-line copy rather than a selection (rule 7a): marked
+    /// as such, or ending in a line break (LF or CRLF).
+    pub fn is_whole_line(&self) -> bool {
+        self.from_empty_selection || self.text.as_deref().is_some_and(|t| t.ends_with('\n'))
+    }
+}
+
+/// The clipboard format in which VS Code and editors built on it describe a copy.
+pub const EDITOR_DATA_FORMAT: &str = "vscode-editor-data";
+
+/// Whether `editor_data` (the JSON in [`EDITOR_DATA_FORMAT`]) marks a copy made with nothing
+/// selected (`"isFromEmptySelection": true`). Anything unreadable counts as unmarked.
+pub fn is_from_empty_selection(editor_data: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(editor_data.trim_end_matches('\0'))
+        .ok()
+        .and_then(|data| {
+            data.get("isFromEmptySelection")
+                .and_then(serde_json::Value::as_bool)
+        })
+        .unwrap_or(false)
 }
 
 /// The focused window, as far as copying needs to know it.
@@ -116,8 +155,13 @@ where
     }
 
     /// Sends Ctrl+`key` and waits up to [`COPY_WAIT`] for the clipboard to move on from
-    /// `before`. Returns whether it did.
-    fn copy_with(&mut self, key: Key, before: u32) -> bool {
+    /// `before`. Returns what it then holds, or `None` if it did not change.
+    ///
+    /// An application copies by emptying the clipboard and then writing it, and emptying alone
+    /// already changes the sequence number. So a change that left no text is not taken as the
+    /// copy until the wait is over: the reader keeps polling for a further change that brings
+    /// the text.
+    fn copy_with(&mut self, key: Key, before: u32) -> Option<Copied> {
         let events = [
             KeyEvent::Down(Key::Control),
             KeyEvent::Down(key),
@@ -126,15 +170,32 @@ where
         ];
         if let Err(error) = self.desktop.send(&events) {
             log::warn!("could not send the copy keystroke: {error}");
-            return false;
+            return None;
         }
         let deadline = self.clock.now() + COPY_WAIT;
+        let mut seen = before;
+        let mut copied = None;
         loop {
-            if self.clipboard.sequence() != before {
-                return true;
+            let sequence = self.clipboard.sequence();
+            if sequence != seen {
+                match self.clipboard.copied() {
+                    Ok(read) if read.text.is_some() => return Some(read),
+                    Ok(read) => {
+                        seen = read.sequence;
+                        copied = Some(read);
+                    }
+                    // Still held open by the application: try again on the next poll.
+                    Err(error) => {
+                        log::debug!("could not read the clipboard yet: {error}");
+                        copied.get_or_insert(Copied {
+                            sequence,
+                            ..Copied::default()
+                        });
+                    }
+                }
             }
             if self.clock.now() >= deadline {
-                return false;
+                return copied;
             }
             self.clock.sleep(POLL);
         }
@@ -165,24 +226,36 @@ where
             }
         };
         let before = self.clipboard.sequence();
-        let copied = self.copy_with(Key::Insert, before)
-            || (!self.window.is_terminal() && self.copy_with(Key::C, before));
-        if !copied {
-            return Selection::Nothing;
-        }
-        let (text, sequence) = match self.clipboard.text() {
-            Ok(read) => read,
-            Err(error) => {
-                log::warn!("could not read the copied selection: {error}");
-                (None, self.clipboard.sequence())
-            }
+        let copied = match self.copy_with(Key::Insert, before) {
+            Some(copied) => copied,
+            None if self.window.is_terminal() => return Selection::Nothing,
+            None => match self.copy_with(Key::C, before) {
+                Some(copied) => copied,
+                None => return Selection::Nothing,
+            },
         };
-        match self.clipboard.restore_if_sequence(saved, sequence) {
+        match self.clipboard.restore_if_sequence(saved, copied.sequence) {
             Ok(Restore::Restored) => {}
             Ok(Restore::KeptNewer) => log::info!("the clipboard changed again; not restoring it"),
             Err(error) => log::warn!("could not restore the clipboard: {error}"),
         }
-        text.map_or(Selection::Nothing, Selection::Text)
+        // An editor's whole-line copy, made with nothing selected (rule 7a).
+        if copied.is_whole_line() {
+            return Selection::Nothing;
+        }
+        copied.text.map_or(Selection::Nothing, Selection::Text)
+    }
+}
+
+/// The [`SelectionReader`] used when the real one could not be set up: every attempt is
+/// [`Selection::Unavailable`], with a warning in the log.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct UnavailableSelectionReader;
+
+impl SelectionReader for UnavailableSelectionReader {
+    fn read(&mut self, _release_by: Instant) -> Selection {
+        log::warn!("Vocabulary Shortcut unavailable: clipboard");
+        Selection::Unavailable
     }
 }
 
@@ -261,7 +334,30 @@ mod tests {
         terminal: bool,
         /// Another program writes the clipboard right after the copy.
         written_after_copy: bool,
+        /// The application empties the clipboard at once but writes the copy only this much
+        /// later, as `EmptyClipboard` then `SetClipboardData` do.
+        copy_lands_after: Option<Duration>,
+        /// The copy is written for `at`.
+        pending: Option<(Instant, Option<String>)>,
+        /// The copy carries the editor's empty-selection marker.
+        copy_marked: bool,
+        /// The clipboard carries the marker now.
+        marked: bool,
         now: Instant,
+    }
+
+    impl Inner {
+        /// Lets a pending copy land once its time has come.
+        fn settle(&mut self) {
+            if let Some((at, text)) = self.pending.take() {
+                if self.now >= at {
+                    self.sequence += 1;
+                    self.text = text;
+                } else {
+                    self.pending = Some((at, text));
+                }
+            }
+        }
     }
 
     impl World {
@@ -276,6 +372,10 @@ mod tests {
                     elevated: false,
                     terminal: false,
                     written_after_copy: false,
+                    copy_lands_after: None,
+                    pending: None,
+                    copy_marked: false,
+                    marked: false,
                     now: Instant::now(),
                 })),
             }
@@ -317,11 +417,18 @@ mod tests {
             Ok(w.text.clone())
         }
         fn sequence(&self) -> u32 {
-            self.inner.lock().unwrap().sequence
-        }
-        fn text(&self) -> Result<(Option<String>, u32), String> {
             let mut w = self.inner.lock().unwrap();
-            let read = (w.text.clone(), w.sequence);
+            w.settle();
+            w.sequence
+        }
+        fn copied(&self) -> Result<Copied, String> {
+            let mut w = self.inner.lock().unwrap();
+            w.settle();
+            let read = Copied {
+                text: w.text.clone(),
+                from_empty_selection: w.marked,
+                sequence: w.sequence,
+            };
             if w.written_after_copy {
                 w.sequence += 1;
                 w.text = Some("newer".into());
@@ -339,6 +446,7 @@ mod tests {
             }
             w.events.push(Event::Restored { sequence });
             w.text = saved;
+            w.marked = false;
             w.sequence += 1;
             Ok(Restore::Restored)
         }
@@ -368,7 +476,14 @@ mod tests {
                 && on == key
             {
                 w.sequence += 1;
-                w.text = text;
+                w.marked = w.copy_marked;
+                match w.copy_lands_after {
+                    Some(after) => {
+                        w.text = None;
+                        w.pending = Some((w.now + after, text));
+                    }
+                    None => w.text = text,
+                }
             }
             Ok(())
         }
@@ -470,6 +585,65 @@ mod tests {
             world.inner.lock().unwrap().text.as_deref(),
             Some("previous")
         );
+    }
+
+    /// The application empties the clipboard before writing the copy: the first change is not
+    /// the copy yet, so the reader waits for the text instead of reporting nothing selected.
+    #[test]
+    fn a_copy_written_after_emptying_the_clipboard_is_waited_for() {
+        let world = World::new();
+        world.with(|w| {
+            w.copies_on = Some((Key::Insert, Some("Tauri".into())));
+            w.copy_lands_after = Some(Duration::from_millis(40));
+        });
+
+        assert_eq!(
+            world.reader().read(far(&world)),
+            Selection::Text("Tauri".into())
+        );
+        assert_eq!(world.sent(), [Key::Insert], "Ctrl+Insert was enough");
+        assert_eq!(
+            world.inner.lock().unwrap().text.as_deref(),
+            Some("previous")
+        );
+    }
+
+    /// Acceptance test 9a: an editor's whole-line copy (marked, or ending in a line break) is
+    /// nothing selected, and the clipboard is still restored.
+    #[test]
+    fn a_whole_line_copy_means_nothing_selected() {
+        let marked = World::new();
+        marked.with(|w| {
+            w.copies_on = Some((Key::Insert, Some("let x = 1;".into())));
+            w.copy_marked = true;
+        });
+        let lf = World::new();
+        lf.with(|w| w.copies_on = Some((Key::Insert, Some("GitHub\n".into()))));
+        let crlf = World::new();
+        crlf.with(|w| w.copies_on = Some((Key::Insert, Some("GitHub\r\n".into()))));
+
+        for world in [marked, lf, crlf] {
+            assert_eq!(world.reader().read(far(&world)), Selection::Nothing);
+            assert_eq!(world.sent(), [Key::Insert], "the copy counted; no Ctrl+C");
+            assert_eq!(
+                world.inner.lock().unwrap().text.as_deref(),
+                Some("previous")
+            );
+        }
+    }
+
+    /// Rule 7a: only `isFromEmptySelection: true` marks a whole-line copy.
+    #[test]
+    fn the_editor_marker_is_read_from_its_json() {
+        assert!(is_from_empty_selection(
+            r#"{"version":1,"isFromEmptySelection":true,"multicursorText":null,"mode":"rust"}"#
+        ));
+        assert!(is_from_empty_selection("{\"isFromEmptySelection\":true}\0"));
+        assert!(!is_from_empty_selection(
+            r#"{"version":1,"isFromEmptySelection":false,"mode":"rust"}"#
+        ));
+        assert!(!is_from_empty_selection(r#"{"version":1}"#));
+        assert!(!is_from_empty_selection("not json"));
     }
 
     /// Rule 8: a clipboard written by someone else after the copy is left alone.
