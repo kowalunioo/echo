@@ -65,8 +65,16 @@ pub fn run_attempt(
     release_by: Instant,
     shortcut: &KeyCombination,
 ) -> Option<OverlayMessage> {
+    log::info!("Vocabulary Shortcut attempt started");
     let text = match reader.read(release_by) {
-        Selection::KeysHeld | Selection::Unavailable => return None,
+        Selection::KeysHeld => {
+            log::info!("Vocabulary Shortcut attempt dropped: keys still held");
+            return None;
+        }
+        Selection::Unavailable => {
+            log::info!("Vocabulary Shortcut attempt dropped: selections cannot be read");
+            return None;
+        }
         Selection::Nothing => None,
         Selection::Text(text) => Some(text),
     };
@@ -80,11 +88,27 @@ pub fn run_attempt(
             shortcut,
         ));
     }) {
-        Ok(_) => message,
+        Ok(_) => {
+            if let Some(message) = &message {
+                log::info!("Vocabulary Shortcut attempt ended: {}", outcome(message));
+            }
+            message
+        }
         Err(error) => {
             log::error!("could not save the Vocabulary: {error}");
             None
         }
+    }
+}
+
+/// The kind of an attempt's outcome, without the selection's text (the log's privacy rule).
+fn outcome(message: &OverlayMessage) -> &'static str {
+    match message {
+        OverlayMessage::VocabularyAdded { .. } => "added",
+        OverlayMessage::VocabularyAlreadyPresent { .. } => "duplicate",
+        OverlayMessage::VocabularyTooLong => "too long",
+        OverlayMessage::VocabularyNothingSelected { .. } => "nothing selected",
+        OverlayMessage::Problem { .. } | OverlayMessage::MicrophoneFallback => "other",
     }
 }
 

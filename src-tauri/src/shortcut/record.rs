@@ -184,8 +184,13 @@ impl RecordShortcut {
         }
         match event.action {
             KeyAction::Pressed => {
-                if !self.capturing && self.config.vocabulary_enabled {
-                    self.attempts.press(now, self.dictation_idle);
+                let started = !self.capturing
+                    && self.config.vocabulary_enabled
+                    && self.attempts.press(now, self.dictation_idle);
+                if !started {
+                    log::info!(
+                        "Vocabulary Shortcut press ignored (capture, turned off, Dictation or attempt under way)"
+                    );
                 }
                 None
             }
@@ -651,6 +656,7 @@ fn run_worker(handle: &RecordShortcutHandle, inputs: &Receiver<Input>, mut sinks
         };
         let intent = match input {
             Ok(Input::Shortcut(event)) if event.shortcut == Shortcut::Vocabulary => {
+                log::debug!("Vocabulary Shortcut {:?}", event.action);
                 let attempt = handle.core().handle_vocabulary(event, Instant::now());
                 if let Some(mut attempt) = attempt {
                     attempt.done = Some(FinishOnDrop(handle.inputs.clone()));

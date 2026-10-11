@@ -69,6 +69,7 @@ pub fn run(app: &AppHandle, attempt: VocabularyAttempt) {
                 app.try_state::<SharedSelectionReader>(),
                 app.try_state::<SettingsStore>(),
             ) else {
+                log::warn!("Vocabulary Shortcut attempt dropped: Echo is not set up yet");
                 return;
             };
             let mut reader = reader.0.lock().unwrap_or_else(PoisonError::into_inner);

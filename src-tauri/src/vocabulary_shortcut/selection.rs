@@ -215,6 +215,7 @@ where
         }
         // Windows silently drops simulated input into an elevated window (rule 9).
         if self.desktop.foreground_elevated() {
+            log::info!("Vocabulary Shortcut: the focused window is elevated; not copying");
             return Selection::Nothing;
         }
         let saved = match self.clipboard.save() {
