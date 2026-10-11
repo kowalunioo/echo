@@ -228,6 +228,36 @@ describe("Overlay", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Transcribing…");
   });
 
+  // Rule 7: a pill that appears fades and slides in with its own shape at once. It must not
+  // regrow from the dots it last folded into, which made a message after a Dictation wait for the
+  // pill to grow back before its text faded in.
+  it("appears in its own shape, not growing from what it showed before it hid", async () => {
+    render(<OverlayApp />);
+    act(() => {
+      backend.changeOverlay({ kind: "transcribing", cancellable: false });
+    });
+    await screen.findByRole("status");
+    act(() => {
+      backend.changeOverlay({ kind: "hidden" });
+    });
+    act(() => {
+      backend.changeOverlay({
+        kind: "message",
+        message: { kind: "vocabularyAdded", entry: "GitHub" },
+        actionable: true,
+      });
+    });
+    expect(pill()).toHaveAttribute("data-visible", "true");
+    expect(pill()).toHaveAttribute("data-phase", "message");
+    expect(pill()).toHaveAttribute("data-previous", "hidden");
+
+    // A change while shown still animates from the previous state.
+    act(() => {
+      backend.changeOverlay({ kind: "gettingReady" });
+    });
+    expect(pill()).toHaveAttribute("data-previous", "message");
+  });
+
   it("keeps a change that arrives before the first view is fetched", async () => {
     let answer: (view: OverlayView) => void = () => undefined;
     const fetched = vi.spyOn(commands, "getOverlayView").mockReturnValue(

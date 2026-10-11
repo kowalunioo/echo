@@ -285,6 +285,13 @@
   transition-delay: 180ms;
 }
 
+/* A pill that appears takes its shape at once, so only its fade and slide-in show (rule 7):
+   it never regrows from the dots or the width it had before it hid. */
+.overlay-pill[data-previous="hidden"] .overlay-shape,
+.overlay-pill[data-previous="hidden"] .overlay-content {
+  transition: none;
+}
+
 /* The edge: one light outline (overlay-edge token), with a light band sweeping along it while
    recording. The band moves by transform, so it never repaints the pill. */
 .overlay-edge {

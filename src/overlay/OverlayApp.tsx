@@ -17,6 +17,13 @@ import { useSettings } from "../store/settings";
 import { type Meter, SILENT_METER, nextMeter } from "./meter";
 
 const HIDDEN: OverlayView = { kind: "hidden" };
+
+/** The state the pill shows and the one it is changing from ("hidden" when it just appeared). */
+interface Phases {
+  current: OverlayView["kind"];
+  previous: OverlayView["kind"];
+  visible: boolean;
+}
 /** How long the pill takes to change shape; the click region shrinks only after it. */
 const SHAPE_TRANSITION_MS = 220;
 /** The pill shrinks into a capsule, then the capsule splits into the dots (overlay.md rule 4). */
@@ -49,9 +56,17 @@ export function OverlayApp() {
   // While the pill folds into the dots, it keeps the content it had so that content can fade.
   const [body, setBody] = useState<OverlayView>(shown);
   if (shown.kind !== "transcribing" && body !== shown) setBody(shown);
-  // A message that follows the dots fades in once the pill has grown back (styles.css).
-  const [phases, setPhases] = useState({ current: shown.kind, previous: shown.kind });
-  if (phases.current !== shown.kind) setPhases({ current: shown.kind, previous: phases.current });
+  // A message that follows the dots fades in once the pill has grown back (styles.css). A pill
+  // that appears has no previous state: it fades in with its own shape (rule 7), rather than
+  // regrowing from whatever it showed before it hid.
+  const kind = visible ? view.kind : shown.kind;
+  const [phases, setPhases] = useState<Phases>({ current: kind, previous: "hidden", visible });
+  if (visible && !phases.visible) {
+    setPhases({ current: kind, previous: "hidden", visible });
+  } else if (phases.current !== kind || phases.visible !== visible) {
+    const previous = phases.current !== kind ? phases.current : phases.previous;
+    setPhases({ current: kind, previous, visible });
+  }
 
   const shape = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
