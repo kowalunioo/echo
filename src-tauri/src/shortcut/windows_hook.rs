@@ -40,7 +40,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 use super::keys;
-use super::matcher::{KeyboardState, Matcher, Output, RawKey};
+use super::matcher::{KeyboardState, Matcher, Output, RawKey, own_window_raw_key};
 use super::{
     CaptureSink, KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutListener, ShortcutSink,
 };
@@ -151,12 +151,7 @@ impl ShortcutListener for WindowsShortcutListener {
         let pressed = action == KeyAction::Pressed;
         // Echo's window cannot hold back what it already received, so "swallowed" here only
         // means the keystroke belongs to a shortcut.
-        let shortcut_key = process(RawKey {
-            vk,
-            scan: 0,
-            up: !pressed,
-            from_echo: false,
-        });
+        let shortcut_key = process(own_window_raw_key(vk, !pressed, &System));
         // Windows saw every key go down, so a bare Win or Alt release would open the Start menu
         // or a menu bar: mask it when it is part of a shortcut or being captured (losing focus
         // would also end the capture).

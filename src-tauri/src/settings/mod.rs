@@ -22,7 +22,9 @@ use crate::dictation::language::DictationLanguageSetting;
 use crate::models::ModelId;
 use crate::overlay::OverlayPosition;
 use crate::shortcut::modes::ShortcutMode;
-use crate::shortcut::validation::{CancelShortcutCombination, RecordShortcutCombination};
+use crate::shortcut::validation::{
+    CancelShortcutCombination, RecordShortcutCombination, VocabularyShortcutCombination,
+};
 use crate::vocabulary::Vocabulary;
 
 /// Generates [`Settings`] and its all-optional twin [`SettingsPatch`] from one list of fields, so
@@ -84,6 +86,11 @@ settings_model! {
     shortcut_mode: ShortcutMode,
     /// The key combination that cancels the current Dictation (`cancel-shortcut.md`).
     cancel_shortcut: CancelShortcutCombination,
+    /// The key combination that adds the selected text to the Vocabulary
+    /// (`vocabulary-shortcut.md`). Held even while the shortcut is turned off (rule 19).
+    vocabulary_shortcut: VocabularyShortcutCombination,
+    /// Whether the Vocabulary Shortcut is turned on (`vocabulary-shortcut.md` rule 20).
+    vocabulary_shortcut_enabled: bool,
     /// Start Echo, hidden, when the user signs in to Windows (`autostart.md`).
     start_with_windows: bool,
     /// The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13).
@@ -117,6 +124,8 @@ impl Settings {
             record_shortcut: RecordShortcutCombination::default(),
             shortcut_mode: ShortcutMode::default(),
             cancel_shortcut: CancelShortcutCombination::default(),
+            vocabulary_shortcut: VocabularyShortcutCombination::default(),
+            vocabulary_shortcut_enabled: true,
             start_with_windows: false,
             tray_hint_shown: false,
             show_overlay: true,

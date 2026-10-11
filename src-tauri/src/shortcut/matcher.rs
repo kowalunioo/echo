@@ -30,6 +30,22 @@ use super::{KeyAction, KeyCombination, Modifiers, Shortcut, ShortcutEvent};
 /// layouts such as Polish) is pressed. That event is not a real Ctrl press and is ignored.
 const ALTGR_FAKE_CTRL_SCAN: u32 = 0x21D;
 
+/// A key from Echo's own window (see [`ShortcutListener::own_window_key`]) as the hook would
+/// have reported it. Such keys carry no scan code, so the left Ctrl that AltGr synthesises is
+/// recognised by right Alt being down with it: AltGr+D must not be Ctrl+Alt+D in Echo's window
+/// either (`vocabulary-shortcut.md` rule 2).
+///
+/// [`ShortcutListener::own_window_key`]: super::ShortcutListener::own_window_key
+pub fn own_window_raw_key(vk: u16, up: bool, system: &impl KeyboardState) -> RawKey {
+    let altgr = vk == vk::LCONTROL && system.is_down(vk::RMENU);
+    RawKey {
+        vk,
+        scan: if altgr { ALTGR_FAKE_CTRL_SCAN } else { 0 },
+        up,
+        from_echo: false,
+    }
+}
+
 /// One keystroke as the low-level hook reports it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RawKey {
@@ -88,17 +104,18 @@ struct Active {
 pub struct Matcher {
     down: [bool; 256],
     swallowed: [bool; 256],
-    bindings: [Option<Binding>; 2],
-    active: [Option<Active>; 2],
+    bindings: [Option<Binding>; 3],
+    active: [Option<Active>; 3],
     capturing: bool,
 }
 
-const SHORTCUTS: [Shortcut; 2] = [Shortcut::Record, Shortcut::Cancel];
+const SHORTCUTS: [Shortcut; 3] = [Shortcut::Record, Shortcut::Cancel, Shortcut::Vocabulary];
 
 fn slot(shortcut: Shortcut) -> usize {
     match shortcut {
         Shortcut::Record => 0,
         Shortcut::Cancel => 1,
+        Shortcut::Vocabulary => 2,
     }
 }
 
@@ -113,8 +130,8 @@ impl Matcher {
         Self {
             down: [false; 256],
             swallowed: [false; 256],
-            bindings: [None, None],
-            active: [None, None],
+            bindings: [None, None, None],
+            active: [None, None, None],
             capturing: false,
         }
     }
@@ -383,6 +400,22 @@ mod tests {
             self.key(vk, false, 0)
         }
 
+        /// A key forwarded from Echo's own window: the system saw it whatever Echo decides.
+        fn own(&mut self, vk: u16, up: bool) -> Verdict {
+            if up {
+                self.system.down.borrow_mut().remove(&vk);
+            } else {
+                self.system.down.borrow_mut().insert(vk);
+            }
+            let raw = own_window_raw_key(vk, up, &self.system);
+            let mut events = Vec::new();
+            let verdict = self
+                .matcher
+                .handle(raw, &self.system, &mut |o| events.push(o));
+            self.events.extend(events);
+            verdict
+        }
+
         fn up(&mut self, vk: u16) -> Verdict {
             self.key(vk, true, 0)
         }
@@ -399,7 +432,7 @@ mod tests {
     }
 
     use KeyAction::{Pressed, Released};
-    use Shortcut::{Cancel, Record};
+    use Shortcut::{Cancel, Record, Vocabulary};
 
     fn swallowed() -> Verdict {
         Verdict {
@@ -801,5 +834,84 @@ mod tests {
         hook.down(KEY_A);
         hook.matcher.set_capturing(true);
         assert_eq!(hook.up(KEY_A), Verdict::default());
+    }
+
+    fn vocabulary_hook() -> Hook {
+        let mut hook = Hook::with("Ctrl+Space");
+        hook.matcher
+            .bind(Vocabulary, Some(&"Ctrl+Alt+D".parse().unwrap()))
+            .unwrap();
+        hook
+    }
+
+    /// vocabulary-shortcut.md rule 3: it acts on press and its keystrokes are swallowed.
+    #[test]
+    fn the_vocabulary_shortcut_presses_on_key_down_and_is_swallowed() {
+        let mut hook = vocabulary_hook();
+
+        hook.down(vk::LCONTROL);
+        hook.down(vk::LMENU);
+        assert_eq!(
+            hook.down(KEY_D),
+            Verdict {
+                swallow: true,
+                mask: true
+            }
+        );
+        assert_eq!(hook.shortcut_events(), vec![(Vocabulary, Pressed)]);
+        assert_eq!(hook.up(KEY_D), swallowed());
+        assert_eq!(hook.shortcut_events(), vec![(Vocabulary, Released)]);
+    }
+
+    /// vocabulary-shortcut.md acceptance test 12: turned off, Ctrl+Alt+D reaches the application.
+    #[test]
+    fn an_unbound_vocabulary_shortcut_is_not_intercepted() {
+        let mut hook = vocabulary_hook();
+        hook.matcher.bind(Vocabulary, None).unwrap();
+
+        hook.down(vk::LCONTROL);
+        hook.down(vk::LMENU);
+        assert_eq!(hook.down(KEY_D), Verdict::default());
+        assert_eq!(hook.up(KEY_D), Verdict::default());
+        assert_eq!(hook.shortcut_events(), vec![]);
+    }
+
+    /// vocabulary-shortcut.md acceptance test 13, global hook half.
+    #[test]
+    fn altgr_d_is_not_ctrl_alt_d_through_the_hook() {
+        let mut hook = vocabulary_hook();
+
+        hook.key(vk::LCONTROL, false, ALTGR_FAKE_CTRL_SCAN);
+        hook.down(vk::RMENU);
+        assert_eq!(hook.down(KEY_D), Verdict::default());
+        hook.up(KEY_D);
+        hook.key(vk::LCONTROL, true, ALTGR_FAKE_CTRL_SCAN);
+        hook.up(vk::RMENU);
+
+        assert_eq!(hook.shortcut_events(), vec![]);
+    }
+
+    /// vocabulary-shortcut.md acceptance test 13, Echo's own window half: those keys carry no
+    /// scan code, so the synthesised Ctrl is told apart by right Alt being down with it.
+    #[test]
+    fn altgr_d_is_not_ctrl_alt_d_in_echos_own_window() {
+        let mut hook = vocabulary_hook();
+        // AltGr: Windows puts right Alt down together with the synthesised left Ctrl, before
+        // Echo's window forwards the Ctrl.
+        hook.system.down.borrow_mut().insert(vk::RMENU);
+
+        hook.own(vk::LCONTROL, false);
+        hook.own(vk::RMENU, false);
+        assert_eq!(hook.own(KEY_D, false), Verdict::default());
+        hook.own(KEY_D, true);
+        hook.own(vk::LCONTROL, true);
+        hook.own(vk::RMENU, true);
+        assert_eq!(hook.shortcut_events(), vec![]);
+
+        // A real Ctrl+Alt+D in Echo's window still counts.
+        hook.own(vk::LCONTROL, false);
+        hook.own(vk::LMENU, false);
+        assert!(hook.own(KEY_D, false).swallow);
+        assert_eq!(hook.shortcut_events(), vec![(Vocabulary, Pressed)]);
     }
 }

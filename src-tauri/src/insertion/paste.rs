@@ -35,6 +35,10 @@ pub enum Key {
     V,
     Return,
     Tab,
+    /// For Ctrl+Insert, the Vocabulary Shortcut's first copy keystroke.
+    Insert,
+    /// For Ctrl+C, the Vocabulary Shortcut's second copy keystroke.
+    C,
 }
 
 /// One injected keyboard event. Every event carries `ECHO_INPUT_TAG` so the Record Shortcut

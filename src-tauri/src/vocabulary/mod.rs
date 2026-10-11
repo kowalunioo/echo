@@ -35,6 +35,20 @@ fn duplicate_key(entry: &str) -> String {
     entry.to_lowercase()
 }
 
+/// Whether some input can be added to the Vocabulary, and as what (rules 2–4). The same checks
+/// as `checkEntry` in `src/vocabulary/vocabulary.ts`, which the Vocabulary page uses.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntryCheck {
+    /// It can be added as this normalised entry.
+    Ok(String),
+    /// Nothing is left after normalisation.
+    Empty,
+    /// Longer than [`MAX_ENTRY_CHARS`] after normalisation (rule 3).
+    TooLong,
+    /// An entry equal to it ignoring case exists, with this spelling (rule 4).
+    Duplicate { existing: String },
+}
+
 /// The Vocabulary setting: an ordered list of normalised, non-empty entries of at most
 /// [`MAX_ENTRY_CHARS`] characters, without case-insensitive duplicates. Empty by default
 /// (rule 1).
@@ -50,6 +64,35 @@ impl Vocabulary {
     /// The entries in list order.
     pub fn entries(&self) -> &[String] {
         &self.0
+    }
+
+    /// Normalises `input` and checks whether it can be added (rules 2–4).
+    pub fn check(&self, input: &str) -> EntryCheck {
+        let entry = normalise_entry(input);
+        if entry.is_empty() {
+            return EntryCheck::Empty;
+        }
+        if entry.chars().count() > MAX_ENTRY_CHARS {
+            return EntryCheck::TooLong;
+        }
+        let key = duplicate_key(&entry);
+        match self.0.iter().find(|e| duplicate_key(e) == key) {
+            Some(existing) => EntryCheck::Duplicate {
+                existing: existing.clone(),
+            },
+            None => EntryCheck::Ok(entry),
+        }
+    }
+
+    /// Appends an entry that [`check`](Self::check) accepted, at the end of the list.
+    pub fn push(&mut self, check: &EntryCheck) -> bool {
+        match check {
+            EntryCheck::Ok(entry) if self.check(entry) == *check => {
+                self.0.push(entry.clone());
+                true
+            }
+            _ => false,
+        }
     }
 }
 
@@ -145,5 +188,61 @@ mod tests {
             serde_json::from_value::<Vocabulary>(json).unwrap(),
             vocabulary
         );
+    }
+
+    // The same cases as `checkEntry` in src/vocabulary/vocabulary.test.ts, so the Vocabulary
+    // page and the Vocabulary Shortcut agree (vocabulary-shortcut.md rule 10).
+    #[test]
+    fn check_normalises_and_accepts_a_new_entry() {
+        let empty = Vocabulary::default();
+        assert_eq!(
+            empty.check("  \"Claude   Code\" "),
+            EntryCheck::Ok("Claude Code".into())
+        );
+        assert_eq!(empty.check("<Tauri>\t 2"), EntryCheck::Ok("Tauri 2".into()));
+        // A selection spanning lines (vocabulary-shortcut.md rule 10).
+        assert_eq!(empty.check("  GitHub \n"), EntryCheck::Ok("GitHub".into()));
+        assert_eq!(
+            empty.check("Claude\r\nCode"),
+            EntryCheck::Ok("Claude Code".into())
+        );
+    }
+
+    #[test]
+    fn check_finds_duplicates_ignoring_case_and_names_the_stored_spelling() {
+        let vocabulary = list(&["Echo", "GitHub"]).unwrap();
+        assert_eq!(
+            vocabulary.check("github"),
+            EntryCheck::Duplicate {
+                existing: "GitHub".into()
+            }
+        );
+        assert!(matches!(
+            vocabulary.check(" GITHUB "),
+            EntryCheck::Duplicate { .. }
+        ));
+    }
+
+    #[test]
+    fn check_limits_length_in_characters_and_treats_blank_input_as_empty() {
+        let empty = Vocabulary::default();
+        assert!(matches!(empty.check(&"a".repeat(50)), EntryCheck::Ok(_)));
+        assert_eq!(empty.check(&"a".repeat(51)), EntryCheck::TooLong);
+        assert!(matches!(empty.check(&"ł".repeat(50)), EntryCheck::Ok(_)));
+        assert!(matches!(empty.check(&"😀".repeat(50)), EntryCheck::Ok(_)));
+        assert_eq!(empty.check("   "), EntryCheck::Empty);
+        assert_eq!(empty.check("\"\""), EntryCheck::Empty);
+    }
+
+    #[test]
+    fn push_appends_only_a_checked_entry_at_the_end() {
+        let mut vocabulary = list(&["Echo"]).unwrap();
+        let check = vocabulary.check(" Tauri ");
+        assert!(vocabulary.push(&check));
+        assert_eq!(vocabulary.entries(), ["Echo", "Tauri"]);
+        // Checked against another list: refused rather than duplicated.
+        assert!(!vocabulary.push(&check));
+        assert!(!vocabulary.push(&EntryCheck::TooLong));
+        assert_eq!(vocabulary.entries(), ["Echo", "Tauri"]);
     }
 }

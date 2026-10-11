@@ -120,6 +120,17 @@ impl<S: OverlaySurface> OverlayController<S> {
         self.apply(now);
     }
 
+    /// Shows `message` for 2.5 s, e.g. a Vocabulary Shortcut outcome (`vocabulary-shortcut.md`
+    /// rule 13). A Recording that starts meanwhile replaces it (rule 16).
+    pub fn notice(&mut self, message: OverlayMessage, now: Instant) {
+        self.message = Some(Message {
+            message,
+            until: now + MESSAGE_DURATION,
+            survives_next_start: false,
+        });
+        self.apply(now);
+    }
+
     /// The Overlay settings changed.
     pub fn settings(&mut self, settings: OverlaySettings, now: Instant) {
         let moved = settings.position != self.settings.position;
@@ -187,7 +198,7 @@ impl<S: OverlaySurface> OverlayController<S> {
     fn desired(&self, now: Instant) -> OverlayView {
         if let Some(m) = &self.message
             && m.until > now
-            && (self.settings.show || m.message.is_error())
+            && (self.settings.show || m.message.shows_when_overlay_off())
         {
             return OverlayView::Message {
                 actionable: m.message.action().is_some(),
@@ -526,6 +537,61 @@ mod tests {
         r.error(3000, ProblemKind::TranscriptionFailed);
         assert_eq!(r.view(), &message(ProblemKind::TranscriptionFailed, false));
         assert!(r.visible());
+    }
+
+    /// vocabulary-shortcut.md acceptance test 7 and rule 15: shown with the Overlay off, not as
+    /// an error, and the "added" message opens the Vocabulary page.
+    #[test]
+    fn vocabulary_shortcut_messages_show_even_with_the_overlay_off() {
+        let mut r = Rig::new(OFF);
+        let added = OverlayMessage::VocabularyAdded {
+            entry: "GitHub".into(),
+        };
+        assert!(!added.is_error());
+        r.c.notice(added.clone(), r.at(0));
+        assert_eq!(
+            r.view(),
+            &OverlayView::Message {
+                message: added,
+                actionable: true
+            }
+        );
+        assert!(r.visible());
+        assert_eq!(
+            r.c.message_clicked(r.at(100)),
+            Some(MessageAction::OpenVocabulary)
+        );
+
+        for message in [
+            OverlayMessage::VocabularyAlreadyPresent {
+                entry: "GitHub".into(),
+            },
+            OverlayMessage::VocabularyTooLong,
+            OverlayMessage::VocabularyNothingSelected {
+                shortcut: "Ctrl+Alt+D".into(),
+            },
+        ] {
+            assert!(!message.is_error());
+            r.c.notice(message.clone(), r.at(200));
+            assert_eq!(
+                r.view(),
+                &OverlayView::Message {
+                    message,
+                    actionable: false
+                }
+            );
+        }
+        r.tick(2700);
+        assert!(r.view().is_hidden());
+    }
+
+    /// vocabulary-shortcut.md rule 16.
+    #[test]
+    fn a_recording_replaces_a_vocabulary_shortcut_message() {
+        let mut r = Rig::new(ON);
+        r.c.notice(OverlayMessage::VocabularyTooLong, r.at(0));
+        r.state(500, DictationState::Recording, false);
+        assert_eq!(r.view(), &OverlayView::GettingReady);
     }
 
     #[test]

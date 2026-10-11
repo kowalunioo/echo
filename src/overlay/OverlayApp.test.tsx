@@ -180,6 +180,19 @@ describe("Overlay", () => {
     );
   });
 
+  // vocabulary-shortcut.md rules 13 and 15: not an error, and "added" opens the Vocabulary page.
+  it("shows a Vocabulary Shortcut message that opens the Vocabulary page", async () => {
+    backend.overlay = {
+      kind: "message",
+      message: { kind: "vocabularyAdded", entry: "GitHub" },
+      actionable: true,
+    };
+    render(<OverlayApp />);
+    const button = await screen.findByRole("button", { name: 'Added "GitHub" to Vocabulary' });
+    await userEvent.click(button);
+    expect(backend.commandsCalled("overlay_message_clicked")).toHaveLength(1);
+  });
+
   // Rule 6: the content stays while the pill fades out.
   it("fades out showing what it showed last", async () => {
     render(<OverlayApp />);

@@ -16,8 +16,10 @@ use super::modes::RecordIntent;
 use super::record::{
     RecordShortcut, RecordShortcutConfig, RecordShortcutHandle, ShortcutChangeError, spawn,
 };
-use super::validation::{CancelShortcutCombination, RecordShortcutCombination};
-use super::{KeyAction, ShortcutListener};
+use super::validation::{
+    CancelShortcutCombination, RecordShortcutCombination, VocabularyShortcutCombination,
+};
+use super::{KeyAction, KeyCombination, ShortcutListener};
 use crate::dictation::Dictation;
 use crate::settings::{Settings, SettingsStore};
 
@@ -35,6 +37,8 @@ fn config_of(settings: &Settings) -> RecordShortcutConfig {
         combination: settings.record_shortcut.combination(),
         mode: settings.shortcut_mode,
         cancel: settings.cancel_shortcut.combination(),
+        vocabulary: settings.vocabulary_shortcut.combination(),
+        vocabulary_enabled: settings.vocabulary_shortcut_enabled,
     }
 }
 
@@ -43,6 +47,8 @@ fn config_of(settings: &Settings) -> RecordShortcutConfig {
 enum PutBack {
     Record(RecordShortcutCombination),
     Cancel(CancelShortcutCombination),
+    Vocabulary(VocabularyShortcutCombination),
+    VocabularyEnabled(bool),
 }
 
 impl PutBack {
@@ -50,16 +56,39 @@ impl PutBack {
         match self {
             Self::Record(value) => settings.record_shortcut = value,
             Self::Cancel(value) => settings.cancel_shortcut = value,
+            Self::Vocabulary(value) => settings.vocabulary_shortcut = value,
+            Self::VocabularyEnabled(value) => settings.vocabulary_shortcut_enabled = value,
         }
     }
 }
 
-/// Settings saved with the Cancel Shortcut equal to the Record Shortcut (only possible by editing
-/// the file) are repaired by putting the Cancel Shortcut back to its default, Escape, which the
-/// Record Shortcut can never be (`record-shortcut.md` rule 20).
-fn without_conflict(settings: &Settings) -> Option<CancelShortcutCombination> {
-    (settings.cancel_shortcut.combination() == settings.record_shortcut.combination())
-        .then(CancelShortcutCombination::default)
+/// Combinations the Vocabulary Shortcut falls back to when stored settings give it one another
+/// shortcut holds; with two other shortcuts, one of the three is always free.
+const VOCABULARY_FALLBACKS: [&str; 3] = ["Ctrl+Alt+D", "Ctrl+Alt+Shift+D", "Ctrl+Alt+Shift+Win+D"];
+
+/// Repairs stored settings in which two shortcuts share a combination. That happens by editing
+/// the file, or when a Record or Cancel Shortcut chosen before the Vocabulary Shortcut existed is
+/// its default, Ctrl+Alt+D. The Cancel Shortcut goes back to Escape, which the Record Shortcut can
+/// never be (`record-shortcut.md` rule 20); the Vocabulary Shortcut moves to the first free
+/// combination of [`VOCABULARY_FALLBACKS`].
+fn without_conflict(settings: &Settings) -> Vec<PutBack> {
+    let mut repairs = Vec::new();
+    let record = settings.record_shortcut.combination();
+    let mut cancel = settings.cancel_shortcut.combination();
+    if cancel == record {
+        repairs.push(PutBack::Cancel(CancelShortcutCombination::default()));
+        cancel = CancelShortcutCombination::default().combination();
+    }
+    let vocabulary = settings.vocabulary_shortcut.combination();
+    if vocabulary == record || vocabulary == cancel {
+        let free = VOCABULARY_FALLBACKS
+            .iter()
+            .map(|text| text.parse::<KeyCombination>().expect("a valid fallback"))
+            .find(|c| *c != record && *c != cancel)
+            .and_then(|c| VocabularyShortcutCombination::try_from(c).ok());
+        repairs.extend(free.map(PutBack::Vocabulary));
+    }
+    repairs
 }
 
 /// Starts the Record Shortcut from the settings (the [`SettingsStore`] must already be managed):
@@ -73,10 +102,10 @@ pub fn install(app: &AppHandle) {
     let listener: Box<dyn ShortcutListener> = Box::new(super::FakeShortcutListener::new());
 
     let store = app.state::<SettingsStore>();
-    if let Some(repaired) = without_conflict(&store.get()) {
-        log::warn!("the Cancel Shortcut was the Record Shortcut; it is reset to Escape");
-        if let Err(error) = store.update(|s| s.cancel_shortcut = repaired) {
-            log::warn!("cannot save the repaired Cancel Shortcut: {error}");
+    for repaired in without_conflict(&store.get()) {
+        log::warn!("two shortcuts shared a combination; repairing: {repaired:?}");
+        if let Err(error) = store.update(|s| repaired.apply(s)) {
+            log::warn!("cannot save the repaired shortcut: {error}");
         }
     }
     let settings = store.get();
@@ -84,6 +113,7 @@ pub fn install(app: &AppHandle) {
     let intents_app = app.clone();
     let cancel_app = app.clone();
     let keys_app = app.clone();
+    let vocabulary_app = app.clone();
     let (handle, started) = spawn(
         core,
         // The dictation pipeline is installed before the Record Shortcut.
@@ -112,6 +142,7 @@ pub fn install(app: &AppHandle) {
                 dictation.cancel();
             }
         }),
+        Box::new(move |attempt| crate::vocabulary_shortcut::app::run(&vocabulary_app, attempt)),
     );
     if let Err(error) = started {
         log::error!("the Record Shortcut is unavailable: {error}");
@@ -165,6 +196,23 @@ fn follow_settings(
             put_back.push(PutBack::Cancel(in_force));
         }
     }
+    if old.vocabulary_shortcut != new.vocabulary_shortcut
+        && let Err(error) =
+            shortcut.apply_vocabulary_combination(&new.vocabulary_shortcut.combination())
+    {
+        log::warn!("cannot activate {:?}: {error}", new.vocabulary_shortcut);
+        if let Ok(in_force) = shortcut.config().vocabulary.try_into() {
+            put_back.push(PutBack::Vocabulary(in_force));
+        }
+    }
+    if old.vocabulary_shortcut_enabled != new.vocabulary_shortcut_enabled
+        && let Err(error) = shortcut.set_vocabulary_enabled(new.vocabulary_shortcut_enabled)
+    {
+        log::warn!("cannot turn the Vocabulary Shortcut on or off: {error}");
+        put_back.push(PutBack::VocabularyEnabled(
+            shortcut.config().vocabulary_enabled,
+        ));
+    }
     if shortcut_wanted(old) != shortcut_wanted(new)
         && let Err(error) = shortcut.set_active(shortcut_wanted(new))
     {
@@ -209,6 +257,26 @@ pub fn set_cancel_shortcut(
     })
 }
 
+/// Validates and activates a new Vocabulary Shortcut given in canonical text form
+/// (`"Ctrl+Alt+D"`), then saves it (`vocabulary-shortcut.md` rules 18–21). A turned-off
+/// Vocabulary Shortcut takes the new combination without binding it. On failure the previous one
+/// stays active and saved, and the error names the shortcut that holds the combination
+/// (`sameAsRecord`, `sameAsCancel`). Ends a capture in progress. Returns the new settings.
+#[tauri::command]
+#[specta::specta]
+pub fn set_vocabulary_shortcut(
+    shortcut: State<'_, RecordShortcutHandle>,
+    store: State<'_, SettingsStore>,
+    combination: String,
+) -> Result<Settings, ShortcutChangeError> {
+    let accepted = shortcut.set_vocabulary_combination(&combination)?;
+    store
+        .update(|s| s.vocabulary_shortcut = accepted)
+        .map_err(|e| ShortcutChangeError::ActivationFailed {
+            reason: e.to_string(),
+        })
+}
+
 /// Starts shortcut capture: the Record Shortcut is suspended and keys arrive as
 /// [`CapturedKeyEvent`]s instead of reaching applications.
 #[tauri::command]
@@ -250,7 +318,13 @@ mod tests {
     ) -> (FakeShortcutListener, RecordShortcutHandle) {
         let fake = FakeShortcutListener::new();
         let core = RecordShortcut::new(Box::new(fake.clone()), config, active);
-        let (handle, started) = spawn(core, Box::new(|_| {}), Box::new(|_| {}), Box::new(|| {}));
+        let (handle, started) = spawn(
+            core,
+            Box::new(|_| {}),
+            Box::new(|_| {}),
+            Box::new(|| {}),
+            Box::new(drop),
+        );
         started.unwrap();
         (fake, handle)
     }
@@ -416,8 +490,91 @@ mod tests {
         let settings = with_cancel(&with_shortcut(&finished_setup(), "F9"), "F9");
         assert_eq!(
             without_conflict(&settings),
-            Some(CancelShortcutCombination::default())
+            vec![PutBack::Cancel(CancelShortcutCombination::default())]
         );
-        assert_eq!(without_conflict(&finished_setup()), None);
+        assert_eq!(without_conflict(&finished_setup()), vec![]);
+    }
+
+    fn with_vocabulary(settings: &Settings, text: &str) -> Settings {
+        Settings {
+            vocabulary_shortcut: text.to_owned().try_into().unwrap(),
+            ..settings.clone()
+        }
+    }
+
+    fn vocabulary(text: &str) -> PutBack {
+        PutBack::Vocabulary(text.to_owned().try_into().unwrap())
+    }
+
+    // A Record or Cancel Shortcut chosen before the Vocabulary Shortcut existed may be its
+    // default; the Vocabulary Shortcut moves out of the way (vocabulary-shortcut.md rule 19).
+    #[test]
+    fn a_stored_vocabulary_shortcut_held_by_another_shortcut_moves_to_a_free_one() {
+        let record_has_it = with_shortcut(&finished_setup(), "Ctrl+Alt+D");
+        assert_eq!(
+            without_conflict(&record_has_it),
+            vec![vocabulary("Ctrl+Alt+Shift+D")]
+        );
+        let both_taken = with_cancel(&record_has_it, "Ctrl+Alt+Shift+D");
+        assert_eq!(
+            without_conflict(&both_taken),
+            vec![vocabulary("Ctrl+Alt+Shift+Win+D")]
+        );
+        let cancel_has_it = with_vocabulary(&with_cancel(&finished_setup(), "F8"), "F8");
+        assert_eq!(
+            without_conflict(&cancel_has_it),
+            vec![vocabulary("Ctrl+Alt+D")]
+        );
+    }
+
+    fn vocabulary_bound(fake: &FakeShortcutListener) -> Option<String> {
+        fake.binding(Shortcut::Vocabulary).map(|c| c.to_string())
+    }
+
+    // vocabulary-shortcut.md rules 20-21 via the settings (the switch, "Reset to default").
+    #[test]
+    fn the_vocabulary_shortcut_follows_the_settings() {
+        let (fake, handle) = running(true);
+        let old = finished_setup();
+        assert_eq!(vocabulary_bound(&fake).as_deref(), Some("Ctrl+Alt+D"));
+
+        let changed = with_vocabulary(&old, "Ctrl+Alt+V");
+        assert_eq!(follow_settings(&handle, &old, &changed), vec![]);
+        assert_eq!(vocabulary_bound(&fake).as_deref(), Some("Ctrl+Alt+V"));
+
+        let off = Settings {
+            vocabulary_shortcut_enabled: false,
+            ..changed.clone()
+        };
+        assert_eq!(follow_settings(&handle, &changed, &off), vec![]);
+        assert_eq!(vocabulary_bound(&fake), None);
+        assert!(!handle.config().vocabulary_enabled);
+    }
+
+    #[test]
+    fn a_vocabulary_shortcut_held_by_another_shortcut_is_put_back() {
+        let (fake, handle) = running(true);
+        let old = finished_setup();
+
+        let put_back = follow_settings(&handle, &old, &with_vocabulary(&old, "Ctrl+Space"));
+
+        assert_eq!(put_back, vec![vocabulary("Ctrl+Alt+D")]);
+        assert_eq!(vocabulary_bound(&fake).as_deref(), Some("Ctrl+Alt+D"));
+    }
+
+    #[test]
+    fn a_switch_that_cannot_be_activated_is_put_back() {
+        let (fake, handle) = running(true);
+        let old = finished_setup();
+        fake.reject_binds(Some("in use"));
+
+        let off = Settings {
+            vocabulary_shortcut_enabled: false,
+            ..old.clone()
+        };
+        assert_eq!(
+            follow_settings(&handle, &old, &off),
+            vec![PutBack::VocabularyEnabled(true)]
+        );
     }
 }

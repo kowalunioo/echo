@@ -25,6 +25,7 @@ pub mod system;
 pub mod tray;
 pub mod updater;
 pub mod vocabulary;
+pub mod vocabulary_shortcut;
 pub mod window;
 
 use std::sync::Arc;
@@ -71,6 +72,7 @@ pub fn specta_builder() -> Builder<tauri::Wry> {
             models::commands::delete_model,
             shortcut::app::set_record_shortcut,
             shortcut::app::set_cancel_shortcut,
+            shortcut::app::set_vocabulary_shortcut,
             shortcut::app::begin_shortcut_capture,
             shortcut::app::end_shortcut_capture,
             shortcut::app::own_window_key,
@@ -137,6 +139,7 @@ pub fn run() {
             open_models(app.handle(), &data_dir);
             overlay::app::install(app.handle());
             dictation::app::install(app.handle());
+            vocabulary_shortcut::app::install(app.handle());
             shortcut::app::install(app.handle());
             autostart::commands::install(app.handle());
             let after_update =

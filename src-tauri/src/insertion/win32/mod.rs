@@ -6,7 +6,7 @@ mod desktop;
 
 use std::sync::Arc;
 
-pub use clipboard::WindowsClipboard;
+pub use clipboard::{Saved, WindowsClipboard};
 pub use desktop::WindowsDesktop;
 
 use super::InsertionError;

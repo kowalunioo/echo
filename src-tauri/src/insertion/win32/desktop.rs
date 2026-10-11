@@ -10,8 +10,9 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT,
-    KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, MAPVK_VK_TO_VSC, MapVirtualKeyW, SendInput, VIRTUAL_KEY,
-    VK_CONTROL, VK_LWIN, VK_MENU, VK_RETURN, VK_RWIN, VK_SHIFT, VK_TAB,
+    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, MAPVK_VK_TO_VSC, MapVirtualKeyW,
+    SendInput, VIRTUAL_KEY, VK_CONTROL, VK_INSERT, VK_LWIN, VK_MENU, VK_RETURN, VK_RWIN, VK_SHIFT,
+    VK_TAB,
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 
@@ -82,6 +83,15 @@ fn virtual_key(key: Key, flags: KEYBD_EVENT_FLAGS) -> INPUT {
         Key::V => VIRTUAL_KEY(u16::from(b'V')),
         Key::Return => VK_RETURN,
         Key::Tab => VK_TAB,
+        Key::Insert => VK_INSERT,
+        Key::C => VIRTUAL_KEY(u16::from(b'C')),
+    };
+    // Insert is on the extended part of the keyboard; without the flag its scan code is the
+    // numeric keypad's 0.
+    let flags = if key == Key::Insert {
+        flags | KEYEVENTF_EXTENDEDKEY
+    } else {
+        flags
     };
     // Some applications look at the scan code rather than the virtual key.
     // SAFETY: MapVirtualKeyW has no preconditions.

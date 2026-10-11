@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { type OverlayMessage, type OverlayView, commands, events } from "../bindings";
+import { overlayMessageText } from "./messageText";
 import { TestAudioMarker } from "../components/TestAudioMarker";
 import { EchoMark } from "../components/icons";
 import { changeUiLanguage } from "../i18n";
@@ -155,10 +156,7 @@ function Dots({ transcribing }: { transcribing: boolean }) {
 
 function Message({ message, actionable }: { message: OverlayMessage; actionable: boolean }) {
   const { t } = useTranslation();
-  const text =
-    message.kind === "problem"
-      ? t(`overlay.messages.${message.problem}`)
-      : t("overlay.messages.microphoneFallback");
+  const text = overlayMessageText(message, t);
   const body = (
     <>
       <Dot tone={message.kind === "problem" ? "danger" : "accent"} />

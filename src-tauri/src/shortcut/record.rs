@@ -2,6 +2,10 @@
 //! [`ShortcutListener`] while the shortcut is active, validates changes, suspends it during
 //! shortcut capture, and turns its presses into [`RecordIntent`]s through [`RecordModes`].
 //!
+//! The Cancel Shortcut and the Vocabulary Shortcut share the listener, so they are bound and
+//! validated here too; Vocabulary Shortcut presses become [`VocabularyAttempt`]s through
+//! [`VocabularyAttempts`].
+//!
 //! The combination and mode are settings (`settings::Settings::record_shortcut` and
 //! `shortcut_mode`); this module does not store them. `app.rs` saves accepted changes and feeds
 //! changes made elsewhere back in through [`RecordShortcutHandle::apply_combination`],
@@ -20,9 +24,11 @@ use specta::Type;
 
 use super::modes::{RecordIntent, RecordModes, ShortcutMode};
 use super::validation::{
-    CancelShortcutCombination, RecordShortcutCombination, ShortcutProblem, default_cancel_shortcut,
-    default_record_shortcut, validate_cancel_shortcut, validate_record_shortcut,
+    CancelShortcutCombination, RecordShortcutCombination, ShortcutCombinations, ShortcutProblem,
+    VocabularyShortcutCombination, default_cancel_shortcut, default_record_shortcut,
+    default_vocabulary_shortcut, validate_shortcut,
 };
+use super::vocabulary::VocabularyAttempts;
 use super::{
     CaptureSink, CapturedKey, KeyAction, KeyCombination, Shortcut, ShortcutError, ShortcutEvent,
     ShortcutListener, ShortcutSink,
@@ -37,6 +43,22 @@ pub struct RecordShortcutConfig {
     pub mode: ShortcutMode,
     /// The Cancel Shortcut for the next Dictation (`cancel-shortcut.md` rule 12).
     pub cancel: KeyCombination,
+    /// The Vocabulary Shortcut (`vocabulary-shortcut.md`); it holds its combination even while
+    /// turned off (rule 19).
+    pub vocabulary: KeyCombination,
+    /// Whether the Vocabulary Shortcut is turned on (rule 20).
+    pub vocabulary_enabled: bool,
+}
+
+impl RecordShortcutConfig {
+    /// The three combinations, which must differ from one another.
+    pub fn combinations(&self) -> ShortcutCombinations {
+        ShortcutCombinations {
+            record: self.combination.clone(),
+            cancel: self.cancel.clone(),
+            vocabulary: self.vocabulary.clone(),
+        }
+    }
 }
 
 impl Default for RecordShortcutConfig {
@@ -47,7 +69,27 @@ impl Default for RecordShortcutConfig {
             combination: default_record_shortcut(),
             mode: ShortcutMode::default(),
             cancel: default_cancel_shortcut(),
+            vocabulary: default_vocabulary_shortcut(),
+            vocabulary_enabled: true,
         }
+    }
+}
+
+/// A Vocabulary Shortcut press whose keys were released in time: the selection is to be read
+/// once every key is up, by `release_by` at the latest (`vocabulary-shortcut.md` rule 4).
+/// Dropping it ends the attempt, so the next press can start another (rule 5).
+pub struct VocabularyAttempt {
+    pub release_by: Instant,
+    /// The Vocabulary Shortcut, for the "nothing selected" message.
+    pub shortcut: KeyCombination,
+    done: Option<FinishOnDrop>,
+}
+
+struct FinishOnDrop(Sender<Input>);
+
+impl Drop for FinishOnDrop {
+    fn drop(&mut self) {
+        let _ = self.0.send(Input::VocabularyFinished);
     }
 }
 
@@ -77,6 +119,9 @@ pub struct RecordShortcut {
     active: bool,
     /// Whether the Cancel Shortcut is bound now (during a Dictation).
     cancel_bound: bool,
+    /// Whether the Dictation is Idle (the Vocabulary Shortcut does nothing otherwise).
+    dictation_idle: bool,
+    attempts: VocabularyAttempts,
 }
 
 impl RecordShortcut {
@@ -93,12 +138,18 @@ impl RecordShortcut {
             capturing: false,
             active,
             cancel_bound: false,
+            dictation_idle: true,
+            attempts: VocabularyAttempts::new(),
         }
     }
 
-    /// Starts the listener and, if the shortcut is active, binds the configured combination.
+    /// Starts the listener and, if the shortcut is active, binds the configured combination;
+    /// binds the Vocabulary Shortcut if it is turned on.
     pub fn start(&mut self, sink: ShortcutSink) -> Result<(), ShortcutError> {
         self.listener.start(sink)?;
+        if let Err(error) = self.rebind_vocabulary() {
+            log::warn!("cannot activate the Vocabulary Shortcut: {error}");
+        }
         self.rebind()
     }
 
@@ -121,6 +172,39 @@ impl RecordShortcut {
         }
     }
 
+    /// Feeds one Vocabulary Shortcut event at `now`; returns the attempt to run once its keys
+    /// are released in time (`vocabulary-shortcut.md` rules 4–5).
+    pub fn handle_vocabulary(
+        &mut self,
+        event: ShortcutEvent,
+        now: Instant,
+    ) -> Option<VocabularyAttempt> {
+        if event.shortcut != Shortcut::Vocabulary {
+            return None;
+        }
+        match event.action {
+            KeyAction::Pressed => {
+                if !self.capturing && self.config.vocabulary_enabled {
+                    self.attempts.press(now, self.dictation_idle);
+                }
+                None
+            }
+            KeyAction::Released => self
+                .attempts
+                .release(now)
+                .map(|release_by| VocabularyAttempt {
+                    release_by,
+                    shortcut: self.config.vocabulary.clone(),
+                    done: None,
+                }),
+        }
+    }
+
+    /// The attempt in progress ended; the next press may start another.
+    pub fn vocabulary_finished(&mut self) {
+        self.attempts.finished();
+    }
+
     /// Whether `event` is a press of the Cancel Shortcut that must trigger Cancellation
     /// (`cancel-shortcut.md` rule 6: presses only, never releases).
     pub fn is_cancel(&self, event: ShortcutEvent) -> bool {
@@ -135,6 +219,7 @@ impl RecordShortcut {
     /// the combination in force when the Dictation began, so a change made during a Dictation
     /// applies from the next one (rule 12).
     pub fn dictation_state(&mut self, state: DictationState) {
+        self.dictation_idle = state == DictationState::Idle;
         let wanted = matches!(
             state,
             DictationState::Recording | DictationState::Transcribing
@@ -159,6 +244,8 @@ impl RecordShortcut {
         self.end_capture();
         let not_allowed = |problem| ShortcutChangeError::NotAllowed { problem };
         let combination: KeyCombination = text.parse().map_err(not_allowed)?;
+        validate_shortcut(Shortcut::Cancel, &combination, &self.config.combinations())
+            .map_err(not_allowed)?;
         let setting =
             CancelShortcutCombination::try_from(combination.clone()).map_err(not_allowed)?;
         self.apply_cancel_combination(&combination)
@@ -167,22 +254,25 @@ impl RecordShortcut {
     }
 
     /// Takes a Cancel Shortcut changed in the settings (e.g. by "Reset to default") for the next
-    /// Dictation, unless it is the Record Shortcut.
+    /// Dictation, unless another shortcut holds it.
     pub fn apply_cancel_combination(
         &mut self,
         combination: &KeyCombination,
     ) -> Result<(), ShortcutProblem> {
-        validate_cancel_shortcut(combination, &self.config.combination)?;
+        validate_shortcut(Shortcut::Cancel, combination, &self.config.combinations())?;
         self.config.cancel = combination.clone();
         Ok(())
     }
 
-    /// When [`tick`](Self::tick) must next be called (Push-to-Talk release grace).
+    /// When [`tick`](Self::tick) must next be called (Push-to-Talk release grace, a held
+    /// Vocabulary Shortcut).
     pub fn next_deadline(&self) -> Option<Instant> {
-        self.modes.next_deadline()
+        let modes = self.modes.next_deadline();
+        modes.into_iter().chain(self.attempts.next_deadline()).min()
     }
 
     pub fn tick(&mut self, now: Instant) -> Option<RecordIntent> {
+        self.attempts.tick(now);
         self.modes.tick(now)
     }
 
@@ -220,7 +310,8 @@ impl RecordShortcut {
         self.end_capture();
         let not_allowed = |problem| ShortcutChangeError::NotAllowed { problem };
         let combination: KeyCombination = text.parse().map_err(not_allowed)?;
-        validate_record_shortcut(&combination, &self.config.cancel).map_err(not_allowed)?;
+        validate_shortcut(Shortcut::Record, &combination, &self.config.combinations())
+            .map_err(not_allowed)?;
         let setting =
             RecordShortcutCombination::try_from(combination.clone()).map_err(not_allowed)?;
         self.apply_combination(&combination).map_err(|e| {
@@ -232,16 +323,20 @@ impl RecordShortcut {
     }
 
     /// Puts an already validated combination in force (e.g. one changed in the settings by
-    /// "Restore default"). On failure, including a combination equal to the Cancel Shortcut
+    /// "Restore default"). On failure, including a combination another shortcut holds
     /// (rule 20), the previous combination stays in force.
     pub fn apply_combination(&mut self, combination: &KeyCombination) -> Result<(), ShortcutError> {
         if *combination == self.config.combination {
             return Ok(());
         }
-        if *combination == self.config.cancel {
+        if let Some(problem) = self
+            .config
+            .combinations()
+            .held_by_other(Shortcut::Record, combination)
+        {
             return Err(ShortcutError::Rejected {
                 combination: combination.to_string(),
-                reason: ShortcutProblem::SameAsCancel.to_string(),
+                reason: problem.to_string(),
             });
         }
         if self.active && !self.capturing {
@@ -252,14 +347,88 @@ impl RecordShortcut {
         Ok(())
     }
 
-    /// Starts shortcut capture: the Record Shortcut is suspended (rule 14) and keys go to `sink`.
+    /// Validates and activates a new Vocabulary Shortcut given in text form
+    /// (`vocabulary-shortcut.md` rules 18–21) and returns it as the value to save. Ends a capture
+    /// in progress first. If it fails, the previous combination stays in force.
+    pub fn set_vocabulary_combination(
+        &mut self,
+        text: &str,
+    ) -> Result<VocabularyShortcutCombination, ShortcutChangeError> {
+        self.end_capture();
+        let not_allowed = |problem| ShortcutChangeError::NotAllowed { problem };
+        let combination: KeyCombination = text.parse().map_err(not_allowed)?;
+        validate_shortcut(
+            Shortcut::Vocabulary,
+            &combination,
+            &self.config.combinations(),
+        )
+        .map_err(not_allowed)?;
+        let setting =
+            VocabularyShortcutCombination::try_from(combination.clone()).map_err(not_allowed)?;
+        self.apply_vocabulary_combination(&combination)
+            .map_err(|e| ShortcutChangeError::ActivationFailed {
+                reason: e.to_string(),
+            })?;
+        Ok(setting)
+    }
+
+    /// Puts an already validated Vocabulary Shortcut in force (e.g. one reset to its default in
+    /// the settings). On failure, including a combination another shortcut holds, the previous
+    /// combination stays in force (rule 21).
+    pub fn apply_vocabulary_combination(
+        &mut self,
+        combination: &KeyCombination,
+    ) -> Result<(), ShortcutError> {
+        if *combination == self.config.vocabulary {
+            return Ok(());
+        }
+        if let Some(problem) = self
+            .config
+            .combinations()
+            .held_by_other(Shortcut::Vocabulary, combination)
+        {
+            return Err(ShortcutError::Rejected {
+                combination: combination.to_string(),
+                reason: problem.to_string(),
+            });
+        }
+        if self.config.vocabulary_enabled && !self.capturing {
+            self.listener
+                .bind(Shortcut::Vocabulary, Some(combination.clone()))?;
+        }
+        self.config.vocabulary = combination.clone();
+        Ok(())
+    }
+
+    /// Turns the Vocabulary Shortcut on or off at once (rules 20–21). While off its combination
+    /// is not intercepted. If the change cannot be activated, the previous state stays.
+    pub fn set_vocabulary_enabled(&mut self, enabled: bool) -> Result<(), ShortcutError> {
+        if enabled == self.config.vocabulary_enabled {
+            return Ok(());
+        }
+        let binding = (enabled && !self.capturing).then(|| self.config.vocabulary.clone());
+        self.listener.bind(Shortcut::Vocabulary, binding)?;
+        self.config.vocabulary_enabled = enabled;
+        if !enabled {
+            self.attempts.cancel_held();
+        }
+        Ok(())
+    }
+
+    /// Starts shortcut capture: the Record Shortcut and the Vocabulary Shortcut are suspended
+    /// (rule 14, `vocabulary-shortcut.md` rule 5) and keys go to `sink`.
     pub fn begin_capture(&mut self, sink: CaptureSink) -> Result<(), ShortcutError> {
         self.listener.capture(Some(sink))?;
         self.capturing = true;
-        if let Err(error) = self.listener.bind(Shortcut::Record, None) {
+        let unbound = self
+            .listener
+            .bind(Shortcut::Record, None)
+            .and_then(|()| self.listener.bind(Shortcut::Vocabulary, None));
+        if let Err(error) = unbound {
             self.end_capture();
             return Err(error);
         }
+        self.attempts.cancel_held();
         Ok(())
     }
 
@@ -272,6 +441,9 @@ impl RecordShortcut {
         let _ = self.listener.capture(None);
         if let Err(error) = self.rebind() {
             log::warn!("cannot reactivate the Record Shortcut: {error}");
+        }
+        if let Err(error) = self.rebind_vocabulary() {
+            log::warn!("cannot reactivate the Vocabulary Shortcut: {error}");
         }
     }
 
@@ -290,6 +462,14 @@ impl RecordShortcut {
         let binding = (self.active && !self.capturing).then(|| self.config.combination.clone());
         self.listener.bind(Shortcut::Record, binding)
     }
+
+    /// Binds the Vocabulary Shortcut if it is turned on and no capture is active, otherwise
+    /// clears the binding.
+    fn rebind_vocabulary(&mut self) -> Result<(), ShortcutError> {
+        let binding = (self.config.vocabulary_enabled && !self.capturing)
+            .then(|| self.config.vocabulary.clone());
+        self.listener.bind(Shortcut::Vocabulary, binding)
+    }
 }
 
 /// Receives the Record Shortcut's intents; this is what the dictation pipeline (#13) consumes.
@@ -303,9 +483,14 @@ pub type CapturedKeySink = Box<dyn FnMut(CapturedKey) + Send>;
 /// the app triggers Cancellation (`Dictation::cancel`).
 pub type CancelSink = Box<dyn FnMut() + Send>;
 
+/// Called on the shortcut worker thread with each Vocabulary Shortcut attempt to run. It must
+/// return quickly (run the attempt on another thread) and drop the attempt when it is done.
+pub type VocabularySink = Box<dyn FnMut(VocabularyAttempt) + Send>;
+
 enum Input {
     Shortcut(ShortcutEvent),
     Captured(CapturedKey),
+    VocabularyFinished,
 }
 
 /// A running Record Shortcut, shared by the commands and (later) the pipeline.
@@ -389,17 +574,40 @@ impl RecordShortcutHandle {
     ) -> Result<(), ShortcutProblem> {
         self.core().apply_cancel_combination(combination)
     }
+
+    /// Validates and activates a Vocabulary Shortcut captured by the user; returns the value to
+    /// save.
+    pub fn set_vocabulary_combination(
+        &self,
+        text: &str,
+    ) -> Result<VocabularyShortcutCombination, ShortcutChangeError> {
+        self.core().set_vocabulary_combination(text)
+    }
+
+    /// Puts a Vocabulary Shortcut changed in the settings in force.
+    pub fn apply_vocabulary_combination(
+        &self,
+        combination: &KeyCombination,
+    ) -> Result<(), ShortcutError> {
+        self.core().apply_vocabulary_combination(combination)
+    }
+
+    /// Turns the Vocabulary Shortcut on or off.
+    pub fn set_vocabulary_enabled(&self, enabled: bool) -> Result<(), ShortcutError> {
+        self.core().set_vocabulary_enabled(enabled)
+    }
 }
 
 /// Starts `core` and a worker thread that turns its listener's events into intents for
-/// `intents` and Cancel Shortcut presses into calls of `cancel`, and forwards captured keys to
-/// `captured`. A listener that cannot start is reported as an error, but the handle still works
-/// for settings.
+/// `intents`, Cancel Shortcut presses into calls of `cancel` and Vocabulary Shortcut attempts
+/// into calls of `vocabulary`, and forwards captured keys to `captured`. A listener that cannot
+/// start is reported as an error, but the handle still works for settings.
 pub fn spawn(
     mut core: RecordShortcut,
     intents: IntentSink,
     captured: CapturedKeySink,
     cancel: CancelSink,
+    vocabulary: VocabularySink,
 ) -> (RecordShortcutHandle, Result<(), ShortcutError>) {
     let (tx, rx) = mpsc::channel();
     let events = tx.clone();
@@ -414,18 +622,27 @@ pub fn spawn(
     let worker = handle.clone();
     std::thread::Builder::new()
         .name("echo-record-shortcut".into())
-        .spawn(move || run_worker(&worker, rx, intents, captured, cancel))
+        .spawn(move || {
+            let sinks = Sinks {
+                intents,
+                captured,
+                cancel,
+                vocabulary,
+            };
+            run_worker(&worker, &rx, sinks);
+        })
         .expect("spawn the Record Shortcut worker");
     (handle, started)
 }
 
-fn run_worker(
-    handle: &RecordShortcutHandle,
-    inputs: Receiver<Input>,
-    mut intents: IntentSink,
-    mut captured: CapturedKeySink,
-    mut cancel: CancelSink,
-) {
+struct Sinks {
+    intents: IntentSink,
+    captured: CapturedKeySink,
+    cancel: CancelSink,
+    vocabulary: VocabularySink,
+}
+
+fn run_worker(handle: &RecordShortcutHandle, inputs: &Receiver<Input>, mut sinks: Sinks) {
     loop {
         let deadline = handle.core().next_deadline();
         let input = match deadline {
@@ -433,24 +650,36 @@ fn run_worker(
             None => inputs.recv().map_err(|_| RecvTimeoutError::Disconnected),
         };
         let intent = match input {
+            Ok(Input::Shortcut(event)) if event.shortcut == Shortcut::Vocabulary => {
+                let attempt = handle.core().handle_vocabulary(event, Instant::now());
+                if let Some(mut attempt) = attempt {
+                    attempt.done = Some(FinishOnDrop(handle.inputs.clone()));
+                    (sinks.vocabulary)(attempt);
+                }
+                None
+            }
             Ok(Input::Shortcut(event)) => {
                 let is_cancel = handle.core().is_cancel(event);
                 if is_cancel {
-                    cancel();
+                    (sinks.cancel)();
                     None
                 } else {
                     handle.core().handle(event, Instant::now())
                 }
             }
             Ok(Input::Captured(key)) => {
-                captured(key);
+                (sinks.captured)(key);
+                None
+            }
+            Ok(Input::VocabularyFinished) => {
+                handle.core().vocabulary_finished();
                 None
             }
             Err(RecvTimeoutError::Timeout) => handle.core().tick(Instant::now()),
             Err(RecvTimeoutError::Disconnected) => return,
         };
         if let Some(intent) = intent {
-            intents(intent);
+            (sinks.intents)(intent);
         }
     }
 }
@@ -655,7 +884,7 @@ mod tests {
         let mut rig = Rig::new(ShortcutMode::Toggle);
         rig.fake.reject_binds(Some("already in use"));
 
-        let result = rig.core.set_combination("Ctrl+Alt+D");
+        let result = rig.core.set_combination("Ctrl+Alt+R");
 
         assert!(matches!(
             result,
@@ -776,11 +1005,13 @@ mod tests {
         let (tx, intents) = mpsc::channel();
         let (key_tx, keys) = mpsc::channel();
         let (cancel_tx, cancels) = mpsc::channel();
+        let (vocabulary_tx, attempts) = mpsc::channel();
         let (handle, started) = spawn(
             core,
             Box::new(move |i| tx.send(i).unwrap()),
             Box::new(move |k| key_tx.send(k).unwrap()),
             Box::new(move || cancel_tx.send(()).unwrap()),
+            Box::new(move |a| vocabulary_tx.send(a).unwrap()),
         );
         started.unwrap();
         let wait = Duration::from_secs(5);
@@ -799,6 +1030,187 @@ mod tests {
         fake.capture_key("LeftCtrl", KeyAction::Pressed);
         assert_eq!(keys.recv_timeout(wait).unwrap().key, "LeftCtrl");
         handle.end_capture();
+
+        // vocabulary-shortcut.md: an attempt arrives at the release, and a second press is
+        // ignored until the first attempt is dropped (rule 5).
+        handle.dictation_state(DictationState::Idle);
+        fake.press(Shortcut::Vocabulary);
+        fake.release(Shortcut::Vocabulary);
+        let attempt = attempts.recv_timeout(wait).unwrap();
+        assert_eq!(attempt.shortcut.to_string(), "Ctrl+Alt+D");
+        fake.press(Shortcut::Vocabulary);
+        fake.release(Shortcut::Vocabulary);
+        assert!(attempts.recv_timeout(Duration::from_millis(100)).is_err());
+        drop(attempt);
+        let deadline = Instant::now() + wait;
+        loop {
+            fake.press(Shortcut::Vocabulary);
+            fake.release(Shortcut::Vocabulary);
+            if attempts.recv_timeout(Duration::from_millis(50)).is_ok() {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the finished attempt was not forgotten"
+            );
+        }
+    }
+
+    /// Delivers the Vocabulary Shortcut events the fake reported at `ms`; returns the attempts.
+    fn vocabulary_attempts(rig: &mut Rig, ms: u64) -> Vec<VocabularyAttempt> {
+        let now = rig.at(ms);
+        let events: Vec<_> = rig.events.try_iter().collect();
+        events
+            .into_iter()
+            .filter_map(|e| rig.core.handle_vocabulary(e, now))
+            .collect()
+    }
+
+    fn vocabulary_bound(rig: &Rig) -> Option<String> {
+        rig.fake
+            .binding(Shortcut::Vocabulary)
+            .map(|c| c.to_string())
+    }
+
+    #[test]
+    fn the_vocabulary_shortcut_is_bound_when_turned_on_and_unbound_when_off() {
+        let mut rig = Rig::with(ShortcutMode::Toggle, false);
+        // Bound even before first-run setup is finished: it does not start a Dictation.
+        assert_eq!(vocabulary_bound(&rig).as_deref(), Some("Ctrl+Alt+D"));
+
+        // Acceptance test 12: turned off, the combination is not intercepted.
+        rig.core.set_vocabulary_enabled(false).unwrap();
+        assert_eq!(vocabulary_bound(&rig), None);
+        assert!(!rig.fake.press(Shortcut::Vocabulary));
+
+        rig.core.set_vocabulary_enabled(true).unwrap();
+        assert_eq!(vocabulary_bound(&rig).as_deref(), Some("Ctrl+Alt+D"));
+    }
+
+    /// Acceptance test 2.
+    #[test]
+    fn the_attempt_starts_only_at_the_release() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+
+        rig.fake.press(Shortcut::Vocabulary);
+        assert!(vocabulary_attempts(&mut rig, 0).is_empty());
+        rig.core.tick(rig.at(1000));
+        rig.fake.release(Shortcut::Vocabulary);
+        let attempts = vocabulary_attempts(&mut rig, 1200);
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0].release_by, rig.at(2000));
+    }
+
+    /// Acceptance test 3.
+    #[test]
+    fn keys_held_for_more_than_two_seconds_drop_the_attempt() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+
+        rig.fake.press(Shortcut::Vocabulary);
+        vocabulary_attempts(&mut rig, 0);
+        assert_eq!(rig.core.next_deadline(), Some(rig.at(2000)));
+        rig.core.tick(rig.at(2000));
+        rig.fake.release(Shortcut::Vocabulary);
+        assert!(vocabulary_attempts(&mut rig, 2100).is_empty());
+        assert_eq!(rig.core.next_deadline(), None);
+    }
+
+    /// Acceptance test 6 and rule 5: nothing during a Dictation, and the Recording goes on.
+    #[test]
+    fn the_vocabulary_shortcut_does_nothing_during_a_dictation() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        assert_eq!(rig.press(0), vec![Start]);
+        rig.release(100);
+        rig.core.dictation_state(DictationState::Recording);
+
+        rig.fake.press(Shortcut::Vocabulary);
+        rig.fake.release(Shortcut::Vocabulary);
+        assert!(vocabulary_attempts(&mut rig, 200).is_empty());
+        assert_eq!(rig.press(300), vec![Stop]);
+
+        // Nothing was remembered for later.
+        rig.core.dictation_state(DictationState::Idle);
+        assert!(vocabulary_attempts(&mut rig, 400).is_empty());
+    }
+
+    #[test]
+    fn the_vocabulary_shortcut_is_suspended_during_capture() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        rig.core.begin_capture(Box::new(|_| {})).unwrap();
+        assert_eq!(vocabulary_bound(&rig), None);
+        rig.core.end_capture();
+        assert_eq!(vocabulary_bound(&rig).as_deref(), Some("Ctrl+Alt+D"));
+
+        rig.core.set_vocabulary_enabled(false).unwrap();
+        rig.core.begin_capture(Box::new(|_| {})).unwrap();
+        rig.core.end_capture();
+        assert_eq!(vocabulary_bound(&rig), None);
+    }
+
+    /// Rules 19 and 21; acceptance test 10 (core half).
+    #[test]
+    fn a_new_vocabulary_shortcut_takes_effect_at_once_and_must_differ_from_the_others() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+
+        let saved = rig.core.set_vocabulary_combination("Alt+Ctrl+V").unwrap();
+        assert_eq!(String::from(saved), "Ctrl+Alt+V");
+        assert_eq!(vocabulary_bound(&rig).as_deref(), Some("Ctrl+Alt+V"));
+
+        for (text, problem) in [
+            ("Ctrl+Space", ShortcutProblem::SameAsRecord),
+            ("Escape", ShortcutProblem::EscapeReserved),
+            ("Ctrl+C", ShortcutProblem::EditingCombination),
+        ] {
+            assert_eq!(
+                rig.core.set_vocabulary_combination(text),
+                Err(ShortcutChangeError::NotAllowed { problem }),
+                "{text}"
+            );
+        }
+        assert_eq!(vocabulary_bound(&rig).as_deref(), Some("Ctrl+Alt+V"));
+
+        // A turned-off Vocabulary Shortcut still holds its combination.
+        rig.core.set_vocabulary_enabled(false).unwrap();
+        assert_eq!(
+            rig.core.set_combination("Ctrl+Alt+V"),
+            Err(ShortcutChangeError::NotAllowed {
+                problem: ShortcutProblem::SameAsVocabulary
+            })
+        );
+        assert_eq!(
+            rig.core.set_cancel_combination("Ctrl+Alt+V"),
+            Err(ShortcutChangeError::NotAllowed {
+                problem: ShortcutProblem::SameAsVocabulary
+            })
+        );
+        assert!(
+            rig.core
+                .apply_combination(&"Ctrl+Alt+V".parse().unwrap())
+                .is_err()
+        );
+        assert!(
+            rig.core
+                .apply_vocabulary_combination(&"Ctrl+Space".parse().unwrap())
+                .is_err()
+        );
+        // Changed while off: stored, not bound.
+        rig.core.set_vocabulary_combination("Ctrl+Alt+W").unwrap();
+        assert_eq!(vocabulary_bound(&rig), None);
+        assert_eq!(rig.core.config().vocabulary.to_string(), "Ctrl+Alt+W");
+    }
+
+    #[test]
+    fn a_vocabulary_shortcut_that_cannot_be_activated_keeps_the_old_one() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+        rig.fake.reject_binds(Some("taken"));
+
+        assert!(matches!(
+            rig.core.set_vocabulary_combination("Ctrl+Alt+V"),
+            Err(ShortcutChangeError::ActivationFailed { .. })
+        ));
+        assert_eq!(rig.core.config().vocabulary.to_string(), "Ctrl+Alt+D");
+        assert!(rig.core.set_vocabulary_enabled(false).is_err());
+        assert!(rig.core.config().vocabulary_enabled);
     }
 
     fn cancel_bound(rig: &Rig) -> Option<String> {

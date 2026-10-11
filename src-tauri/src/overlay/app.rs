@@ -15,7 +15,7 @@ use super::controller::{OverlayController, OverlaySettings, OverlaySurface};
 #[cfg(windows)]
 use super::placement::pill_region;
 use super::placement::{self, Monitor, Rect};
-use super::{MessageAction, OverlayPosition, OverlayView};
+use super::{MessageAction, OverlayMessage, OverlayPosition, OverlayView};
 use crate::dictation::{Dictation, DictationStatus};
 use crate::settings::{Settings, SettingsStore};
 use crate::window::{MAIN_WINDOW, show_main};
@@ -59,6 +59,7 @@ pub struct MainPageRequested(pub MainPage);
 enum Msg {
     Status(DictationStatus),
     MicrophoneFallback,
+    Notice(OverlayMessage),
     Settings(OverlaySettings),
     MessageClicked,
 }
@@ -84,6 +85,11 @@ impl Overlay {
     /// The selected Microphone was missing; the starting Recording uses the default one.
     pub fn microphone_fallback(&self) {
         let _ = self.tx.send(Msg::MicrophoneFallback);
+    }
+
+    /// Shows `message` for 2.5 s (e.g. a Vocabulary Shortcut outcome).
+    pub fn notice(&self, message: OverlayMessage) {
+        let _ = self.tx.send(Msg::Notice(message));
     }
 
     fn view(&self) -> OverlayView {
@@ -201,6 +207,7 @@ fn run(
         match msg {
             Ok(Msg::Status(status)) => controller.status(&status, now),
             Ok(Msg::MicrophoneFallback) => controller.microphone_fallback(now),
+            Ok(Msg::Notice(message)) => controller.notice(message, now),
             Ok(Msg::Settings(settings)) => controller.settings(settings, now),
             Ok(Msg::MessageClicked) => {
                 if let Some(action) = controller.message_clicked(now) {
@@ -249,6 +256,12 @@ fn perform(app: &AppHandle, action: MessageAction) {
             }
         }
         MessageAction::ShowNotices => show_main(app),
+        MessageAction::OpenVocabulary => {
+            show_main(app);
+            if let Err(error) = MainPageRequested(MainPage::Vocabulary).emit_to(app, MAIN_WINDOW) {
+                log::warn!("could not open the Vocabulary page: {error}");
+            }
+        }
     }
 }
 

@@ -9,6 +9,10 @@
 //! Every clipboard operation runs on that thread, because the window must keep pumping
 //! messages to answer render requests and the clipboard must be closed by the thread that
 //! opened it.
+//!
+//! The Vocabulary Shortcut copies the selection with the user's application doing the writing,
+//! so ownership says nothing there; it watches the clipboard's sequence number instead
+//! ([`WindowsClipboard::sequence`], [`WindowsClipboard::restore_if_sequence`]).
 
 use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicBool, AtomicIsize, Ordering};
@@ -20,7 +24,8 @@ use windows::Win32::Foundation::{GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRES
 use windows::Win32::Graphics::Gdi::{GetEnhMetaFileBits, HENHMETAFILE, SetEnhMetaFileBits};
 use windows::Win32::System::DataExchange::{
     CloseClipboard, EmptyClipboard, EnumClipboardFormats, GetClipboardData, GetClipboardOwner,
-    OpenClipboard, RegisterClipboardFormatW, SetClipboardData,
+    GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard,
+    RegisterClipboardFormatW, SetClipboardData,
 };
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Memory::{
@@ -221,22 +226,81 @@ impl Clipboard for WindowsClipboard {
             if shared.lost.load(Ordering::SeqCst) || owner != Some(window) {
                 return Ok(Restore::KeptNewer);
             }
-            empty_own_clipboard()?;
-            for item in &saved.items {
-                if let Err(error) = set_saved(item) {
-                    log::warn!(
-                        "could not restore clipboard format {}: {error}",
-                        item.format
-                    );
-                }
-            }
-            // An empty clipboard stays empty, without even the history marks.
-            if !saved.items.is_empty() {
-                mark_excluded(&saved.items, false)?;
-            }
+            put_back(&saved)?;
             Ok(Restore::Restored)
         })?
     }
+}
+
+impl WindowsClipboard {
+    /// The clipboard's sequence number, which Windows increments on every change.
+    pub fn sequence(&self) -> u32 {
+        // SAFETY: GetClipboardSequenceNumber has no preconditions.
+        unsafe { GetClipboardSequenceNumber() }
+    }
+
+    /// The clipboard's Unicode text, if it holds any, and the sequence number while it was read
+    /// (with the clipboard open, so nobody changed it in between).
+    pub fn text(&self) -> Result<(Option<String>, u32), String> {
+        self.call(|window, _| {
+            let _open = OpenGuard::open(window)?;
+            let text = read_text();
+            // SAFETY: GetClipboardSequenceNumber has no preconditions.
+            Ok((text, unsafe { GetClipboardSequenceNumber() }))
+        })?
+    }
+
+    /// Puts `saved` back unless the clipboard changed since its sequence number was `sequence` —
+    /// checked with the clipboard open. Like [`Clipboard::restore`]: an empty `saved` empties it,
+    /// and the restored contents are not added to clipboard history.
+    pub fn restore_if_sequence(&self, saved: Saved, sequence: u32) -> Result<Restore, String> {
+        self.call(move |window, _| {
+            let _open = OpenGuard::open(window)?;
+            // SAFETY: GetClipboardSequenceNumber has no preconditions.
+            if unsafe { GetClipboardSequenceNumber() } != sequence {
+                return Ok(Restore::KeptNewer);
+            }
+            put_back(&saved)?;
+            Ok(Restore::Restored)
+        })?
+    }
+}
+
+/// Replaces the open clipboard's contents with `saved`, marked so clipboard history and cloud
+/// sync leave them out (rule 34.7). An empty `saved` leaves the clipboard empty, without even
+/// the marks (rule 34.6).
+fn put_back(saved: &Saved) -> Result<(), String> {
+    empty_own_clipboard()?;
+    for item in &saved.items {
+        if let Err(error) = set_saved(item) {
+            log::warn!(
+                "could not restore clipboard format {}: {error}",
+                item.format
+            );
+        }
+    }
+    if !saved.items.is_empty() {
+        mark_excluded(&saved.items, false)?;
+    }
+    Ok(())
+}
+
+/// The open clipboard's Unicode text, up to its terminating NUL.
+fn read_text() -> Option<String> {
+    let format = u32::from(CF_UNICODETEXT.0);
+    // SAFETY: the clipboard is open on this thread.
+    unsafe { IsClipboardFormatAvailable(format) }.ok()?;
+    // SAFETY: the clipboard is open on this thread.
+    let handle = unsafe { GetClipboardData(format) }.ok()?;
+    let bytes = read_memory(HGLOBAL(handle.0))?;
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u16::from_ne_bytes(*pair))
+        .take_while(|&unit| unit != 0)
+        .collect();
+    Some(String::from_utf16_lossy(&units))
 }
 
 #[cfg(test)]

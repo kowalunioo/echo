@@ -1,5 +1,7 @@
-//! Which key combinations may be the Record Shortcut (`record-shortcut.md` rules 19–21), and the
-//! text form combinations are stored and exchanged in.
+//! Which key combinations may be the Record Shortcut (`record-shortcut.md` rules 19–21), the
+//! Cancel Shortcut (`cancel-shortcut.md` rule 11) and the Vocabulary Shortcut
+//! (`vocabulary-shortcut.md` rules 18–19), and the text form combinations are stored and
+//! exchanged in.
 
 use std::str::FromStr;
 
@@ -7,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 
 use super::keys;
-use super::{Key, KeyCombination, Modifiers};
+use super::{Key, KeyCombination, Modifiers, Shortcut};
 
 /// Why a proposed combination cannot be the Record Shortcut (rule 20). The interface shows a
 /// message for each.
@@ -36,6 +38,14 @@ pub enum ShortcutProblem {
     /// The same combination as the Record Shortcut (`cancel-shortcut.md` rule 11).
     #[error("this is the Record Shortcut")]
     SameAsRecord,
+    /// The same combination as the Vocabulary Shortcut, even while it is turned off
+    /// (`vocabulary-shortcut.md` rule 19).
+    #[error("this is the Vocabulary Shortcut")]
+    SameAsVocabulary,
+    /// A text-editing combination every application relies on, such as Ctrl+C
+    /// (`record-shortcut.md` rule 20): Echo swallows its shortcuts, so it would take it away.
+    #[error("applications need this combination for editing text")]
+    EditingCombination,
     /// Not a combination Echo understands (unknown key name, two main keys, …).
     #[error("not a valid combination")]
     Invalid,
@@ -103,35 +113,82 @@ pub fn default_cancel_shortcut() -> KeyCombination {
     }
 }
 
-/// Checks `proposal` against the rules for the Record Shortcut (rules 19–20); `cancel` is the
-/// current Cancel Shortcut, which the Record Shortcut must differ from.
-pub fn validate_record_shortcut(
-    proposal: &KeyCombination,
-    cancel: &KeyCombination,
-) -> Result<(), ShortcutProblem> {
-    check_allowed(proposal, false)?;
-    if proposal == cancel {
-        return Err(ShortcutProblem::SameAsCancel);
+/// The default Vocabulary Shortcut, Ctrl+Alt+D (`vocabulary-shortcut.md` rule 17).
+pub fn default_vocabulary_shortcut() -> KeyCombination {
+    KeyCombination {
+        modifiers: Modifiers {
+            ctrl: true,
+            alt: true,
+            ..Modifiers::default()
+        },
+        key: Some(Key("D".into())),
     }
-    Ok(())
 }
 
-/// Checks `proposal` against the rules for the Cancel Shortcut (`cancel-shortcut.md` rule 11):
-/// those of the Record Shortcut plus Escape alone; `record` is the current Record Shortcut,
-/// which the Cancel Shortcut must differ from.
-pub fn validate_cancel_shortcut(
-    proposal: &KeyCombination,
-    record: &KeyCombination,
-) -> Result<(), ShortcutProblem> {
-    check_allowed(proposal, true)?;
-    if proposal == record {
-        return Err(ShortcutProblem::SameAsRecord);
-    }
-    Ok(())
+/// The combinations of all three shortcuts, which must differ from one another
+/// (`vocabulary-shortcut.md` rule 19). A turned-off Vocabulary Shortcut still holds its
+/// combination.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShortcutCombinations {
+    pub record: KeyCombination,
+    pub cancel: KeyCombination,
+    pub vocabulary: KeyCombination,
 }
 
-/// The rules both shortcuts share (`record-shortcut.md` rules 19–20 without the check against
-/// the other shortcut); `escape_alone` says whether Escape without modifiers is allowed.
+impl Default for ShortcutCombinations {
+    fn default() -> Self {
+        Self {
+            record: default_record_shortcut(),
+            cancel: default_cancel_shortcut(),
+            vocabulary: default_vocabulary_shortcut(),
+        }
+    }
+}
+
+impl ShortcutCombinations {
+    /// The combination `shortcut` holds.
+    pub fn of(&self, shortcut: Shortcut) -> &KeyCombination {
+        match shortcut {
+            Shortcut::Record => &self.record,
+            Shortcut::Cancel => &self.cancel,
+            Shortcut::Vocabulary => &self.vocabulary,
+        }
+    }
+
+    /// The problem to report when another shortcut than `shortcut` holds `combination`.
+    pub fn held_by_other(
+        &self,
+        shortcut: Shortcut,
+        combination: &KeyCombination,
+    ) -> Option<ShortcutProblem> {
+        [
+            (Shortcut::Record, ShortcutProblem::SameAsRecord),
+            (Shortcut::Cancel, ShortcutProblem::SameAsCancel),
+            (Shortcut::Vocabulary, ShortcutProblem::SameAsVocabulary),
+        ]
+        .into_iter()
+        .find(|(other, _)| *other != shortcut && self.of(*other) == combination)
+        .map(|(_, problem)| problem)
+    }
+}
+
+/// Checks `proposal` for `shortcut`: the rules every shortcut shares (`record-shortcut.md` rules
+/// 19–20; the Cancel Shortcut may also be Escape alone, `cancel-shortcut.md` rule 11), and that no
+/// other shortcut in `current` holds it (`vocabulary-shortcut.md` rule 19).
+pub fn validate_shortcut(
+    shortcut: Shortcut,
+    proposal: &KeyCombination,
+    current: &ShortcutCombinations,
+) -> Result<(), ShortcutProblem> {
+    check_allowed(proposal, shortcut == Shortcut::Cancel)?;
+    match current.held_by_other(shortcut, proposal) {
+        Some(problem) => Err(problem),
+        None => Ok(()),
+    }
+}
+
+/// The rules all shortcuts share (`record-shortcut.md` rules 19–20 without the check against
+/// the other shortcuts); `escape_alone` says whether Escape without modifiers is allowed.
 fn check_allowed(proposal: &KeyCombination, escape_alone: bool) -> Result<(), ShortcutProblem> {
     let modifiers = proposal.modifiers.count();
     match proposal.key.as_ref().map(|k| k.0.as_str()) {
@@ -152,6 +209,9 @@ fn check_allowed(proposal: &KeyCombination, escape_alone: bool) -> Result<(), Sh
         }
         Some(key) if reserved_by_windows(proposal.modifiers, key) => {
             return Err(ShortcutProblem::ReservedByWindows);
+        }
+        Some(key) if editing_combination(proposal.modifiers, key) => {
+            return Err(ShortcutProblem::EditingCombination);
         }
         Some(_) => {}
     }
@@ -251,6 +311,65 @@ impl From<CancelShortcutCombination> for String {
     }
 }
 
+/// The Vocabulary Shortcut setting (`vocabulary-shortcut.md`): an allowed combination (rule 18)
+/// in canonical text form, e.g. `"Ctrl+Alt+D"`. Like [`RecordShortcutCombination`] it accepts
+/// exactly the allowed combinations; the check against the other shortcuts is made where the
+/// shortcuts are activated.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type)]
+#[serde(try_from = "String", into = "String")]
+#[specta(transparent)]
+pub struct VocabularyShortcutCombination(String);
+
+impl VocabularyShortcutCombination {
+    /// The combination this setting holds.
+    pub fn combination(&self) -> KeyCombination {
+        self.0.parse().expect("validated when created")
+    }
+}
+
+impl Default for VocabularyShortcutCombination {
+    /// Ctrl+Alt+D (rule 17).
+    fn default() -> Self {
+        Self(default_vocabulary_shortcut().to_string())
+    }
+}
+
+impl TryFrom<KeyCombination> for VocabularyShortcutCombination {
+    type Error = ShortcutProblem;
+
+    fn try_from(combination: KeyCombination) -> Result<Self, Self::Error> {
+        check_allowed(&combination, false)?;
+        Ok(Self(combination.to_string()))
+    }
+}
+
+impl TryFrom<String> for VocabularyShortcutCombination {
+    type Error = ShortcutProblem;
+
+    fn try_from(text: String) -> Result<Self, Self::Error> {
+        text.parse::<KeyCombination>()?.try_into()
+    }
+}
+
+impl From<VocabularyShortcutCombination> for String {
+    fn from(setting: VocabularyShortcutCombination) -> Self {
+        setting.0
+    }
+}
+
+/// Ctrl+C, Ctrl+V, Ctrl+X, Ctrl+Z, Ctrl+Y, Ctrl+A, Ctrl+S, Ctrl+Insert, Shift+Insert and
+/// Shift+Delete (`record-shortcut.md` rule 20). Only these exact combinations: Ctrl+Shift+C is
+/// allowed.
+fn editing_combination(modifiers: Modifiers, key: &str) -> bool {
+    let only = |ctrl, shift| Modifiers {
+        ctrl,
+        shift,
+        ..Modifiers::default()
+    };
+    (modifiers == only(true, false) && ["C", "V", "X", "Z", "Y", "A", "S", "Insert"].contains(&key))
+        || (modifiers == only(false, true) && ["Insert", "Delete"].contains(&key))
+}
+
 /// Ctrl+Alt+Delete (the secure attention sequence) and Win+L (lock) never reach applications.
 fn reserved_by_windows(modifiers: Modifiers, key: &str) -> bool {
     (modifiers.ctrl && modifiers.alt && key == "Delete") || (modifiers.win && key == "L")
@@ -265,7 +384,19 @@ mod tests {
     }
 
     fn check(text: &str) -> Result<(), ShortcutProblem> {
-        validate_record_shortcut(&parse(text), &default_cancel_shortcut())
+        validate_shortcut(
+            Shortcut::Record,
+            &parse(text),
+            &ShortcutCombinations::default(),
+        )
+    }
+
+    fn set(record: &str, cancel: &str, vocabulary: &str) -> ShortcutCombinations {
+        ShortcutCombinations {
+            record: parse(record),
+            cancel: parse(cancel),
+            vocabulary: parse(vocabulary),
+        }
     }
 
     #[test]
@@ -348,25 +479,23 @@ mod tests {
 
     #[test]
     fn rejects_the_current_cancel_shortcut() {
-        let cancel = parse("Ctrl+Q");
-        assert_eq!(
-            validate_record_shortcut(&parse("Ctrl+Q"), &cancel),
-            Err(ShortcutProblem::SameAsCancel)
-        );
-        assert_eq!(validate_record_shortcut(&parse("Ctrl+W"), &cancel), Ok(()));
+        let current = set("Ctrl+Space", "Ctrl+Q", "Ctrl+Alt+D");
+        let record = |text: &str| validate_shortcut(Shortcut::Record, &parse(text), &current);
+        assert_eq!(record("Ctrl+Q"), Err(ShortcutProblem::SameAsCancel));
+        assert_eq!(record("Ctrl+W"), Ok(()));
     }
 
     // cancel-shortcut.md acceptance test 8.
     #[test]
     fn the_cancel_shortcut_accepts_escape_and_must_differ_from_the_record_shortcut() {
-        let record = default_record_shortcut();
-        let cancel = |text: &str| validate_cancel_shortcut(&parse(text), &record);
+        let current = ShortcutCombinations::default();
+        let cancel = |text: &str| validate_shortcut(Shortcut::Cancel, &parse(text), &current);
         assert_eq!(cancel("Escape"), Ok(()));
         assert_eq!(cancel("Ctrl+Q"), Ok(()));
         assert_eq!(cancel("F8"), Ok(()));
         assert_eq!(cancel("Ctrl+Space"), Err(ShortcutProblem::SameAsRecord));
         assert_eq!(
-            validate_cancel_shortcut(&parse("F9"), &parse("F9")),
+            validate_shortcut(Shortcut::Cancel, &parse("F9"), &set("F9", "Escape", "F10")),
             Err(ShortcutProblem::SameAsRecord)
         );
     }
@@ -374,8 +503,8 @@ mod tests {
     // cancel-shortcut.md rule 11: otherwise the Record Shortcut's rules apply.
     #[test]
     fn the_cancel_shortcut_follows_the_record_shortcut_rules() {
-        let record = default_record_shortcut();
-        let cancel = |text: &str| validate_cancel_shortcut(&parse(text), &record);
+        let current = ShortcutCombinations::default();
+        let cancel = |text: &str| validate_shortcut(Shortcut::Cancel, &parse(text), &current);
         assert_eq!(cancel(""), Err(ShortcutProblem::Empty));
         assert_eq!(cancel("A"), Err(ShortcutProblem::NeedsModifier));
         assert_eq!(cancel("Shift"), Err(ShortcutProblem::SingleModifier));
@@ -407,7 +536,7 @@ mod tests {
     fn accepts_the_allowed_kinds_of_combination() {
         for text in [
             "Ctrl+Space",
-            "Ctrl+Alt+D",
+            "Ctrl+Alt+R",
             "F9",
             "F24",
             "Pause",
@@ -418,6 +547,100 @@ mod tests {
             "Ctrl+Escape",
         ] {
             assert_eq!(check(text), Ok(()), "{text}");
+        }
+    }
+
+    /// vocabulary-shortcut.md acceptance test 10 (unit half): all three shortcuts differ, the
+    /// message names the shortcut that holds the combination, and a turned-off Vocabulary
+    /// Shortcut still holds its combination (the set holds it whatever the switch says).
+    #[test]
+    fn the_three_shortcuts_must_differ_and_the_problem_names_the_holder() {
+        let current = set("Ctrl+Space", "Escape", "Ctrl+Alt+D");
+        let check = |shortcut, text: &str| validate_shortcut(shortcut, &parse(text), &current);
+        assert_eq!(
+            check(Shortcut::Record, "Ctrl+Alt+D"),
+            Err(ShortcutProblem::SameAsVocabulary)
+        );
+        assert_eq!(
+            check(Shortcut::Cancel, "Ctrl+Alt+D"),
+            Err(ShortcutProblem::SameAsVocabulary)
+        );
+        assert_eq!(
+            check(Shortcut::Vocabulary, "Ctrl+Space"),
+            Err(ShortcutProblem::SameAsRecord)
+        );
+        assert_eq!(
+            validate_shortcut(
+                Shortcut::Vocabulary,
+                &parse("Ctrl+Q"),
+                &set("Ctrl+Space", "Ctrl+Q", "Ctrl+Alt+D")
+            ),
+            Err(ShortcutProblem::SameAsCancel)
+        );
+        // A shortcut never conflicts with its own current combination.
+        assert_eq!(check(Shortcut::Vocabulary, "Ctrl+Alt+D"), Ok(()));
+        assert_eq!(check(Shortcut::Vocabulary, "Ctrl+Shift+F"), Ok(()));
+        // Escape alone stays reserved for the Cancel Shortcut.
+        assert_eq!(
+            validate_shortcut(
+                Shortcut::Vocabulary,
+                &parse("Escape"),
+                &set("Ctrl+Space", "Ctrl+Q", "Ctrl+Alt+D")
+            ),
+            Err(ShortcutProblem::EscapeReserved)
+        );
+    }
+
+    /// vocabulary-shortcut.md acceptance test 11.
+    #[test]
+    fn editing_combinations_are_rejected_for_every_shortcut() {
+        let current = set("F9", "F10", "F11");
+        for shortcut in [Shortcut::Record, Shortcut::Cancel, Shortcut::Vocabulary] {
+            for text in [
+                "Ctrl+C",
+                "Ctrl+V",
+                "Ctrl+X",
+                "Ctrl+Z",
+                "Ctrl+Y",
+                "Ctrl+A",
+                "Ctrl+S",
+                "Ctrl+Insert",
+                "Shift+Insert",
+                "Shift+Delete",
+            ] {
+                assert_eq!(
+                    validate_shortcut(shortcut, &parse(text), &current),
+                    Err(ShortcutProblem::EditingCombination),
+                    "{shortcut:?} {text}"
+                );
+            }
+            for text in ["Ctrl+Alt+D", "Ctrl+Shift+C"] {
+                assert_eq!(
+                    validate_shortcut(shortcut, &parse(text), &current),
+                    Ok(()),
+                    "{shortcut:?} {text}"
+                );
+            }
+        }
+        assert!(serde_json::from_str::<VocabularyShortcutCombination>("\"Ctrl+C\"").is_err());
+        assert!(serde_json::from_str::<RecordShortcutCombination>("\"Shift+Insert\"").is_err());
+        assert!(serde_json::from_str::<CancelShortcutCombination>("\"Ctrl+Z\"").is_err());
+    }
+
+    #[test]
+    fn the_vocabulary_shortcut_setting_defaults_to_ctrl_alt_d() {
+        assert_eq!(
+            VocabularyShortcutCombination::default().combination(),
+            parse("Ctrl+Alt+D")
+        );
+        let setting: VocabularyShortcutCombination =
+            serde_json::from_str("\"Alt+Ctrl+W\"").expect("allowed");
+        assert_eq!(serde_json::to_string(&setting).unwrap(), "\"Ctrl+Alt+W\"");
+        for invalid in ["\"D\"", "\"\"", "\"Escape\"", "\"Ctrl\"", "3"] {
+            assert!(
+                serde_json::from_str::<VocabularyShortcutCombination>(invalid).is_err(),
+                "{invalid}"
+            );
         }
     }
 }
