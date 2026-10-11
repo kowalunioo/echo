@@ -63,7 +63,7 @@ A global key combination that adds the text selected in any application to the V
 
 ## Acceptance tests
 
-1. *Adds the selection.* Fake selection reader returns "  GitHub \n"; FSL presses and releases the Vocabulary Shortcut → Vocabulary ends with "GitHub", settings saved, Overlay message "Added "GitHub" to Vocabulary" with the open-Vocabulary action. (FSL, fake selection reader, fake Overlay.)
+1. *Adds the selection.* Fake selection reader returns "  GitHub\t"; FSL presses and releases the Vocabulary Shortcut → Vocabulary ends with "GitHub", settings saved, Overlay message "Added "GitHub" to Vocabulary" with the open-Vocabulary action. (FSL, fake selection reader, fake Overlay.)
 2. *Waits for release.* FSL presses and holds the shortcut → the selection reader is not called; on release it is called once. (FSL.)
 3. *Held too long.* FSL holds for 2.1 s → the selection reader is never called, no message. (FSL, controllable clock.)
 4. *Duplicate.* With "GitHub" present, selection "github" → Vocabulary unchanged; message names "GitHub". (fakes.)
