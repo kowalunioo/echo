@@ -34,6 +34,18 @@ describe("Vocabulary Shortcut messages (vocabulary-shortcut.md rule 13)", () => 
     expect(await text("pl", nothing)).toBe("Najpierw zaznacz słowo, potem naciśnij Ctrl+Alt+D");
   });
 
+  it("names the shortcut's keys in the UI Language, still on one line", async () => {
+    const space: OverlayMessage = { kind: "vocabularyNothingSelected", shortcut: "Ctrl+Space" };
+    expect(await text("pl", space)).toBe("Najpierw zaznacz słowo, potem naciśnij Ctrl+Spacja");
+    const longest: OverlayMessage = {
+      kind: "vocabularyNothingSelected",
+      shortcut: "Ctrl+Alt+Shift+Win+D",
+    };
+    for (const language of ["en", "pl"] as const) {
+      expect(charCount(await text(language, longest))).toBeLessThanOrEqual(MAX_MESSAGE_CHARS);
+    }
+  });
+
   // Acceptance test 8 (rule 14).
   it("shortens a long entry with … so the message fits in 60 characters", async () => {
     const entry = `${"Ł".repeat(24)} ${"b".repeat(25)}`;

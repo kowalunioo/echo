@@ -364,6 +364,13 @@ export const pl: Translation = {
     change: "Zmień skrót anulowania, obecnie {{shortcut}}",
     captureHint: "Kliknięcie obok anuluje.",
   },
+  vocabularyShortcut: {
+    label: "Dodaj zaznaczony tekst do Słownika",
+    description:
+      "Zaznacz nazwę w dowolnej aplikacji i naciśnij skrót. Zaznacz samą nazwę, bez końcówki.",
+    change: "Zmień skrót dodawania do Słownika, obecnie {{shortcut}}",
+    captureHint: "Esc lub kliknięcie obok anuluje.",
+  },
   updatedNotice: {
     text: "Echo zostało zaktualizowane do wersji {{version}}",
     dismiss: "Zamknij",

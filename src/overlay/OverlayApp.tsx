@@ -195,7 +195,7 @@ function Message({ message, actionable }: { message: OverlayMessage; actionable:
 
 function Dot({ tone }: { tone: "accent" | "danger" }) {
   const colour = { accent: "bg-accent", danger: "bg-danger" }[tone];
-  return <span aria-hidden className={`size-2 shrink-0 rounded-full ${colour}`} />;
+  return <span aria-hidden data-tone={tone} className={`size-2 shrink-0 rounded-full ${colour}`} />;
 }
 
 /**

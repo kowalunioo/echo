@@ -369,6 +369,13 @@ export const en = {
     change: "Change the Cancel Shortcut, currently {{shortcut}}",
     captureHint: "A click elsewhere cancels.",
   },
+  vocabularyShortcut: {
+    label: "Add selected text to Vocabulary",
+    description:
+      "Select a name in any app and press the shortcut. Select just the name, without a Polish ending.",
+    change: "Change the Vocabulary Shortcut, currently {{shortcut}}",
+    captureHint: "Esc or a click elsewhere cancels.",
+  },
   updatedNotice: {
     text: "Echo was updated to {{version}}",
     dismiss: "Dismiss",

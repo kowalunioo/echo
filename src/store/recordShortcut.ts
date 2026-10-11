@@ -5,11 +5,12 @@ import { type CaptureState, captureKey, initialCapture } from "../shortcut/captu
 import { useSettings } from "./settings";
 
 /**
- * The capture state and feedback of the Record Shortcut and the Cancel Shortcut. The
+ * The capture state and feedback of the Record, Cancel and Vocabulary Shortcuts. The
  * combinations and the mode themselves are settings (`recordShortcut`, `cancelShortcut`,
- * `shortcutMode`; read them with `useSetting`). A captured combination goes through
- * `set_record_shortcut` or `set_cancel_shortcut`, which check it before saving it and say why
- * when they cannot take it (record-shortcut.md rules 20–23, cancel-shortcut.md rule 11).
+ * `vocabularyShortcut`, `shortcutMode`; read them with `useSetting`). A captured combination goes
+ * through `set_record_shortcut`, `set_cancel_shortcut` or `set_vocabulary_shortcut`, which check
+ * it before saving it and say why when they cannot take it (record-shortcut.md rules 20–23,
+ * cancel-shortcut.md rule 11, vocabulary-shortcut.md rules 18–21).
  */
 
 /** The default Record Shortcut, restored by "Reset to default" (record-shortcut.md rule 18). */
@@ -18,14 +19,25 @@ export const DEFAULT_RECORD_SHORTCUT = "Ctrl+Space";
 /** The default Cancel Shortcut, restored by "Reset to default" (cancel-shortcut.md rule 10). */
 export const DEFAULT_CANCEL_SHORTCUT = "Escape";
 
+/** The default Vocabulary Shortcut, restored by "Reset to default" (vocabulary-shortcut.md rule 17). */
+export const DEFAULT_VOCABULARY_SHORTCUT = "Ctrl+Alt+D";
+
 /** Which shortcut a capture or a message is about. */
-export type ShortcutTarget = "record" | "cancel";
+export type ShortcutTarget = "record" | "cancel" | "vocabulary";
 
 /** The setting that holds each shortcut. */
 export const SETTING_OF = {
   record: "recordShortcut",
   cancel: "cancelShortcut",
+  vocabulary: "vocabularyShortcut",
 } as const satisfies Record<ShortcutTarget, string>;
+
+/** The command that checks and saves each shortcut. */
+const SET_COMMAND_OF = {
+  record: commands.setRecordShortcut,
+  cancel: commands.setCancelShortcut,
+  vocabulary: commands.setVocabularyShortcut,
+} as const satisfies Record<ShortcutTarget, (combination: string) => unknown>;
 
 /** Why the last change of a shortcut was refused; shown next to its field. */
 export type ShortcutFeedback = { target: ShortcutTarget } & (
@@ -90,10 +102,7 @@ export const useRecordShortcut = create<RecordShortcutStore>()((set, get) => ({
         // The backend ends the capture itself before validating the proposal.
         set({ capture: null });
         const proposal = outcome.combination;
-        const result =
-          target === "cancel"
-            ? await commands.setCancelShortcut(proposal)
-            : await commands.setRecordShortcut(proposal);
+        const result = await SET_COMMAND_OF[target](proposal);
         if (result.status === "ok") {
           useSettings.setState({ status: "ready", settings: result.data });
           set({ feedback: null });

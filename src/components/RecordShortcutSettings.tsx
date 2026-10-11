@@ -7,6 +7,7 @@ import { useKeyLabel } from "../shortcut/keyLabel";
 import {
   DEFAULT_CANCEL_SHORTCUT,
   DEFAULT_RECORD_SHORTCUT,
+  DEFAULT_VOCABULARY_SHORTCUT,
   SETTING_OF,
   type ShortcutFeedback,
   type ShortcutTarget,
@@ -18,12 +19,13 @@ import { PencilIcon, ResetIcon } from "./icons";
 import { Keycap } from "./Keycap";
 import { SectionHeading } from "./SectionHeading";
 import { SettingRow } from "./SettingRow";
+import { Switch } from "./Switch";
 
 const MODES: readonly ShortcutMode[] = ["pushToTalk", "toggle"];
 
 /**
- * Record Shortcut and its mode, and the Cancel Shortcut, on the Dictation page
- * (record-shortcut.md and cancel-shortcut.md, "UI").
+ * Record Shortcut and its mode, the Cancel Shortcut and the Vocabulary Shortcut, on the Dictation
+ * page (record-shortcut.md, cancel-shortcut.md and vocabulary-shortcut.md, "UI").
  */
 export function RecordShortcutSettings() {
   const captureKey = useRecordShortcut((s) => s.captureKey);
@@ -54,14 +56,26 @@ export function RecordShortcutSettings() {
       <ShortcutRow target="record" feedback={feedback?.target === "record" ? feedback : null} />
       <ModePicker />
       <ShortcutRow target="cancel" feedback={feedback?.target === "cancel" ? feedback : null} />
+      <ShortcutRow
+        target="vocabulary"
+        feedback={feedback?.target === "vocabulary" ? feedback : null}
+      />
     </section>
   );
 }
 
 /** The i18n section of each shortcut's own texts. */
-const TEXTS = { record: "recordShortcut", cancel: "cancelShortcut" } as const;
+const TEXTS = {
+  record: "recordShortcut",
+  cancel: "cancelShortcut",
+  vocabulary: "vocabularyShortcut",
+} as const;
 
-/** One shortcut: name, description, capture field and reset button (cancel-shortcut.md "UI"). */
+/**
+ * One shortcut: name, description, capture field and reset button (cancel-shortcut.md "UI"). The
+ * Vocabulary Shortcut also has an on/off switch at the row's right edge; while it is off its
+ * capture field is disabled (vocabulary-shortcut.md "UI").
+ */
 function ShortcutRow({
   target,
   feedback,
@@ -77,9 +91,12 @@ function ShortcutRow({
       description={t(`${TEXTS[target]}.${capturing ? "captureHint" : "description"}`)}
       labelId={`${target}-shortcut-label`}
       below={feedback && <Feedback feedback={feedback} />}
+      // The Vocabulary Shortcut's description is an instruction, so it is shown in full.
+      wrapDescription={target === "vocabulary"}
     >
       <ShortcutField target={target} />
       <ResetButton target={target} />
+      {target === "vocabulary" && <VocabularySwitch />}
     </SettingRow>
   );
 }
@@ -89,9 +106,23 @@ function ShortcutRow({
  * and a click captures a new one. While capturing it shows the held keys, and a Cancel button sits
  * next to it.
  */
+function VocabularySwitch() {
+  const { t } = useTranslation();
+  const [enabled, setEnabled] = useSetting("vocabularyShortcutEnabled");
+  return (
+    <Switch
+      checked={enabled}
+      label={t("vocabularyShortcut.label")}
+      onChange={(next) => void setEnabled(next)}
+    />
+  );
+}
+
 function ShortcutField({ target }: { target: ShortcutTarget }) {
   const { t } = useTranslation();
   const [current] = useSetting(SETTING_OF[target]);
+  const [vocabularyEnabled] = useSetting("vocabularyShortcutEnabled");
+  const disabled = target === "vocabulary" && !vocabularyEnabled;
   const capture = useRecordShortcut((s) => (s.target === target ? s.capture : null));
   const beginCapture = useRecordShortcut((s) => s.beginCapture);
   const endCapture = useRecordShortcut((s) => s.endCapture);
@@ -126,12 +157,17 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
         }
         aria-describedby={`${target}-shortcut-label`}
         data-testid={`${target}-shortcut-field`}
+        disabled={disabled}
         onClick={() => {
           if (!capturing) void beginCapture(target);
         }}
         title={capturing ? undefined : t(`${TEXTS[target]}.change`, { shortcut: label(current) })}
         className={`group -mr-2 flex min-h-8 items-center gap-2 rounded-lg px-2 transition-colors duration-150 ${
-          capturing ? "" : "cursor-pointer hover:bg-raised/50"
+          capturing
+            ? ""
+            : disabled
+              ? "cursor-not-allowed opacity-50"
+              : "cursor-pointer hover:bg-raised/50"
         }`}
       >
         {capturing ? (
@@ -148,7 +184,11 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
         ) : (
           <>
             {/* Always takes its space, so the hover fill does not shift the row. */}
-            <span className="text-muted opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100">
+            <span
+              className={`text-muted opacity-0 transition-opacity duration-150 ${
+                disabled ? "" : "group-hover:opacity-100 group-focus-visible:opacity-100"
+              }`}
+            >
               <PencilIcon />
             </span>
             <KeyCaps combination={current} />
@@ -161,8 +201,9 @@ function ShortcutField({ target }: { target: ShortcutTarget }) {
           onClick={() => void endCapture()}
           className="hit-target flex items-center gap-1.5 rounded-md text-sm text-muted underline-offset-4 hover:text-fg hover:underline"
         >
-          {/* Esc ends capture of the Record Shortcut; for the Cancel Shortcut it is a value. */}
-          {target === "record" && (
+          {/* Esc ends capture of the Record and Vocabulary Shortcuts; for the Cancel Shortcut it is
+              a value. */}
+          {target !== "cancel" && (
             <span aria-hidden="true">
               <Keycap size="small">{label("Escape")}</Keycap>
             </span>
@@ -192,7 +233,11 @@ function KeyCaps({ combination }: { combination: string }) {
   );
 }
 
-const DEFAULT_OF = { record: DEFAULT_RECORD_SHORTCUT, cancel: DEFAULT_CANCEL_SHORTCUT } as const;
+const DEFAULT_OF = {
+  record: DEFAULT_RECORD_SHORTCUT,
+  cancel: DEFAULT_CANCEL_SHORTCUT,
+  vocabulary: DEFAULT_VOCABULARY_SHORTCUT,
+} as const;
 
 function ResetButton({ target }: { target: ShortcutTarget }) {
   const { t } = useTranslation();

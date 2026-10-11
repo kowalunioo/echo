@@ -193,6 +193,25 @@ describe("Overlay", () => {
     expect(backend.commandsCalled("overlay_message_clicked")).toHaveLength(1);
   });
 
+  // vocabulary-shortcut.md rules 13 and 15: each message is shown with the neutral status dot.
+  it.each([
+    [{ kind: "vocabularyAdded", entry: "GitHub" }, 'Added "GitHub" to Vocabulary'],
+    [
+      { kind: "vocabularyAlreadyPresent", entry: "GitHub" },
+      '"GitHub" is already in your Vocabulary',
+    ],
+    [{ kind: "vocabularyTooLong" }, "Select one word or a short name"],
+    [
+      { kind: "vocabularyNothingSelected", shortcut: "Ctrl+Alt+D" },
+      "Select a word first, then press Ctrl+Alt+D",
+    ],
+  ] as const)("shows %o as a neutral message", async (message, text) => {
+    backend.overlay = { kind: "message", message, actionable: false };
+    const { container } = render(<OverlayApp />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(text);
+    expect(container.querySelector("[data-tone]")).toHaveAttribute("data-tone", "accent");
+  });
+
   // Rule 6: the content stays while the pill fades out.
   it("fades out showing what it showed last", async () => {
     render(<OverlayApp />);

@@ -29,6 +29,17 @@ describe("SettingRow", () => {
     );
   });
 
+  it("wraps a description that must be read in full instead of cutting it", () => {
+    render(
+      <SettingRow label="Add selected text" description="Select a name first." wrapDescription>
+        <span />
+      </SettingRow>,
+    );
+    const description = screen.getByText("Select a name first.");
+    expect(description).not.toHaveClass("truncate");
+    expect(description).not.toHaveAttribute("title");
+  });
+
   it("gives the label an id so the control can name itself by it", () => {
     render(
       <SettingRow label="Cancel Shortcut" labelId="cancel-label">

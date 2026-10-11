@@ -17,10 +17,14 @@ function field() {
   return screen.getByTestId("record-shortcut-field");
 }
 
-const SHORTCUT_NAME = { record: "Record Shortcut", cancel: "Cancel Shortcut" } as const;
+const SHORTCUT_NAME = {
+  record: "Record Shortcut",
+  cancel: "Cancel Shortcut",
+  vocabulary: "Add selected text to Vocabulary",
+} as const;
 
 /** The reset icon next to a shortcut, described by the shortcut's name. */
-function resetButton(target: "record" | "cancel") {
+function resetButton(target: keyof typeof SHORTCUT_NAME) {
   return screen.findByRole("button", {
     name: "Reset to default",
     description: SHORTCUT_NAME[target],
@@ -90,17 +94,17 @@ describe("Record Shortcut settings", () => {
 
     key("RightCtrl", true);
     key("LeftAlt", true);
-    key("D", true);
-    expect(field()).toHaveTextContent("Ctrl+Alt+D");
-    key("D", false);
+    key("R", true);
+    expect(field()).toHaveTextContent("Ctrl+Alt+R");
+    key("R", false);
 
     expect(
-      await screen.findByRole("button", { name: /currently Ctrl \+ Alt \+ D/ }),
+      await screen.findByRole("button", { name: /Record Shortcut, currently Ctrl \+ Alt \+ R/ }),
     ).toBeInTheDocument();
     expect(backend.commandsCalled("set_record_shortcut")[0]?.args).toEqual({
-      combination: "Ctrl+Alt+D",
+      combination: "Ctrl+Alt+R",
     });
-    expect(backend.settings.recordShortcut).toBe("Ctrl+Alt+D");
+    expect(backend.settings.recordShortcut).toBe("Ctrl+Alt+R");
   });
 
   // Acceptance test 14: Ctrl down, Win down, Win up, Ctrl up → "Ctrl+Win".
@@ -344,5 +348,224 @@ describe("Cancel Shortcut settings", () => {
       await screen.findByRole("button", { name: /Zmień skrót anulowania, obecnie/ }),
     ).toBeInTheDocument();
     expect(screen.getByText("Skrót anulowania")).toBeInTheDocument();
+  });
+});
+
+describe("Vocabulary Shortcut settings", () => {
+  function vocabularyField() {
+    return screen.getByTestId("vocabulary-shortcut-field");
+  }
+
+  function vocabularySwitch() {
+    return screen.getByRole("switch", { name: "Add selected text to Vocabulary" });
+  }
+
+  it("sits below the Cancel Shortcut, on with Ctrl+Alt+D by default", async () => {
+    await renderPage();
+
+    const vocabulary = screen.getByRole("button", {
+      name: "Change the Vocabulary Shortcut, currently Ctrl + Alt + D",
+    });
+    expect(vocabulary).toHaveTextContent("Ctrl+Alt+D");
+    expect(vocabulary).toBeEnabled();
+    expect(vocabularySwitch()).toBeChecked();
+    expect(
+      screen.getByText(
+        "Select a name in any app and press the shortcut. Select just the name, without a Polish ending.",
+      ),
+    ).toBeInTheDocument();
+    // vocabulary-shortcut.md "UI": the row comes right after the Cancel Shortcut.
+    expect(
+      screen.getByTestId("cancel-shortcut-field").compareDocumentPosition(vocabularyField()) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Reset to default" })).not.toBeInTheDocument();
+  });
+
+  it("turns the shortcut off and disables its capture field", async () => {
+    await renderPage();
+
+    await userEvent.click(vocabularySwitch());
+
+    await waitFor(() => {
+      expect(backend.settings.vocabularyShortcutEnabled).toBe(false);
+    });
+    expect(vocabularySwitch()).not.toBeChecked();
+    expect(vocabularyField()).toBeDisabled();
+    // The turned-off shortcut keeps its combination.
+    expect(vocabularyField()).toHaveTextContent("Ctrl+Alt+D");
+
+    await userEvent.click(vocabularyField());
+    expect(backend.commandsCalled("begin_shortcut_capture")).toHaveLength(0);
+
+    await userEvent.click(vocabularySwitch());
+    await waitFor(() => {
+      expect(backend.settings.vocabularyShortcutEnabled).toBe(true);
+    });
+    expect(vocabularyField()).toBeEnabled();
+  });
+
+  it("shows a turned-off shortcut from the settings", async () => {
+    backend.settings = { ...backend.settings, vocabularyShortcutEnabled: false };
+    await useSettings.getState().load();
+    render(<RecordShortcutSettings />);
+
+    expect(await screen.findByTestId("vocabulary-shortcut-field")).toBeDisabled();
+    expect(vocabularySwitch()).not.toBeChecked();
+  });
+
+  it("captures a new Vocabulary Shortcut and saves it", async () => {
+    await renderPage();
+    await userEvent.click(vocabularyField());
+    expect(screen.getByText("Esc or a click elsewhere cancels.")).toBeInTheDocument();
+    // Esc ends this capture, as for the Record Shortcut.
+    expect(screen.getByRole("button", { name: "Cancel" })).toHaveTextContent("Esc");
+
+    key("LeftCtrl", true);
+    key("LeftShift", true);
+    key("V", true);
+    key("V", false);
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Change the Vocabulary Shortcut, currently Ctrl + Shift + V",
+      }),
+    ).toBeInTheDocument();
+    expect(backend.commandsCalled("set_vocabulary_shortcut")[0]?.args).toEqual({
+      combination: "Ctrl+Shift+V",
+    });
+    expect(backend.commandsCalled("set_record_shortcut")).toHaveLength(0);
+    expect(backend.commandsCalled("set_cancel_shortcut")).toHaveLength(0);
+  });
+
+  it("ends capture without changes when Escape is pressed alone", async () => {
+    await renderPage();
+    await userEvent.click(vocabularyField());
+
+    key("Escape", true);
+    key("Escape", false);
+
+    await waitFor(() => {
+      expect(backend.commandsCalled("end_shortcut_capture")).toHaveLength(1);
+    });
+    expect(backend.commandsCalled("set_vocabulary_shortcut")).toHaveLength(0);
+  });
+
+  // Acceptance test 10, frontend half: a combination held by another shortcut is refused with a
+  // message naming it, and the previous combination stays.
+  it("explains why the Record Shortcut cannot be the Vocabulary Shortcut", async () => {
+    backend.rejectedShortcuts.set("Ctrl+Space", { kind: "notAllowed", problem: "sameAsRecord" });
+    await renderPage();
+    await userEvent.click(vocabularyField());
+
+    key("LeftCtrl", true);
+    key("Space", true);
+    key("Space", false);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ctrl + Space is already the Record Shortcut. Your previous shortcut stays active.",
+    );
+    expect(vocabularyField()).toHaveTextContent("Ctrl+Alt+D");
+    expect(backend.settings.vocabularyShortcut).toBe("Ctrl+Alt+D");
+  });
+
+  it("explains why the Cancel Shortcut cannot be the Vocabulary Shortcut", async () => {
+    backend.rejectedShortcuts.set("Ctrl+Q", { kind: "notAllowed", problem: "sameAsCancel" });
+    await renderPage();
+    await userEvent.click(vocabularyField());
+
+    key("LeftCtrl", true);
+    key("Q", true);
+    key("Q", false);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ctrl + Q is already the Cancel Shortcut. Your previous shortcut stays active.",
+    );
+  });
+
+  it("explains why the Vocabulary Shortcut cannot be the Record Shortcut", async () => {
+    backend.rejectedShortcuts.set("Ctrl+Alt+D", {
+      kind: "notAllowed",
+      problem: "sameAsVocabulary",
+    });
+    await renderPage();
+    await userEvent.click(field());
+
+    key("LeftCtrl", true);
+    key("LeftAlt", true);
+    key("D", true);
+    key("D", false);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ctrl + Alt + D is already the Vocabulary Shortcut. Your previous shortcut stays active.",
+    );
+    expect(field()).toHaveTextContent("Ctrl+Space");
+  });
+
+  it("explains why the Vocabulary Shortcut cannot be the Cancel Shortcut", async () => {
+    backend.rejectedShortcuts.set("Ctrl+Alt+D", {
+      kind: "notAllowed",
+      problem: "sameAsVocabulary",
+    });
+    await renderPage();
+    await userEvent.click(screen.getByTestId("cancel-shortcut-field"));
+
+    key("LeftCtrl", true);
+    key("LeftAlt", true);
+    key("D", true);
+    key("D", false);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ctrl + Alt + D is already the Vocabulary Shortcut. Your previous shortcut stays active.",
+    );
+  });
+
+  it("explains why a text-editing combination is refused", async () => {
+    backend.rejectedShortcuts.set("Ctrl+C", { kind: "notAllowed", problem: "editingCombination" });
+    await renderPage();
+    await userEvent.click(vocabularyField());
+
+    key("LeftCtrl", true);
+    key("C", true);
+    key("C", false);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Applications need Ctrl + C for editing text. Your previous shortcut stays active.",
+    );
+    expect(vocabularyField()).toHaveTextContent("Ctrl+Alt+D");
+  });
+
+  it("resets to Ctrl+Alt+D", async () => {
+    backend.settings = { ...backend.settings, vocabularyShortcut: "Ctrl+Shift+V" };
+    await useSettings.getState().load();
+    render(<RecordShortcutSettings />);
+
+    await userEvent.click(await resetButton("vocabulary"));
+
+    expect(backend.commandsCalled("reset_setting")[0]?.args).toEqual({
+      key: "vocabularyShortcut",
+    });
+    expect(
+      await screen.findByRole("button", {
+        name: "Change the Vocabulary Shortcut, currently Ctrl + Alt + D",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("is named in Polish", async () => {
+    await renderPage();
+    await act(() => changeUiLanguage("pl"));
+
+    expect(
+      await screen.findByRole("switch", { name: "Dodaj zaznaczony tekst do Słownika" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Zaznacz nazwę w dowolnej aplikacji i naciśnij skrót. Zaznacz samą nazwę, bez końcówki.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Zmień skrót dodawania do Słownika, obecnie/ }),
+    ).toBeInTheDocument();
   });
 });

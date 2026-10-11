@@ -1,6 +1,7 @@
 import type { TFunction } from "i18next";
 
 import type { OverlayMessage } from "../bindings";
+import { keysOf } from "../shortcut/capture";
 import { charCount } from "../vocabulary/vocabulary";
 
 /** The longest Vocabulary Shortcut message, so it fits on one line (vocabulary-shortcut.md rule 14). */
@@ -41,6 +42,19 @@ export function overlayMessageText(message: OverlayMessage, t: TFunction): strin
     case "vocabularyTooLong":
       return t("overlay.messages.vocabularyTooLong");
     case "vocabularyNothingSelected":
-      return t("overlay.messages.vocabularyNothingSelected", { shortcut: message.shortcut });
+      return t("overlay.messages.vocabularyNothingSelected", {
+        shortcut: compactKeyLabel(message.shortcut, t),
+      });
   }
+}
+
+/**
+ * A combination with its keys named in the UI Language ("Ctrl+Spacja"), joined without spaces so
+ * even the longest combination keeps the message on one line.
+ */
+function compactKeyLabel(combination: string, t: TFunction): string {
+  const names = t("keys", { returnObjects: true }) as Partial<Record<string, string>>;
+  return keysOf(combination)
+    .map((key) => names[key] ?? key)
+    .join("+");
 }
