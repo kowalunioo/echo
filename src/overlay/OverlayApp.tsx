@@ -71,7 +71,7 @@ export function OverlayApp() {
   const shape = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const folding = shown.kind === "transcribing";
-  const style = usePillShape(shape, content, folding);
+  const style = usePillShape(shape, content, folding, visible);
 
   return (
     <div className="flex h-full items-center justify-center">
@@ -327,12 +327,15 @@ function useBars(view: OverlayView): readonly number[] {
 /**
  * Animates the pill's width to its content's and reports the shape's size to the backend, which
  * clips the window to it (rule 11). While transcribing the shape is the three dots. The region
- * grows at once and shrinks after the animation.
+ * grows at once and shrinks after the animation. Only a shown pill reports: the backend forgets
+ * the shape when the window hides and shows it unclipped until the pill that appears reports its
+ * own shape, measured as it is drawn rather than as last observed.
  */
 function usePillShape(
   shape: RefObject<HTMLDivElement | null>,
   content: RefObject<HTMLDivElement | null>,
   dots: boolean,
+  visible: boolean,
 ) {
   const [width, setWidth] = useState<number | null>(null);
 
@@ -351,9 +354,16 @@ function usePillShape(
 
   const reported = useRef(0);
   useEffect(() => {
+    if (!visible) {
+      reported.current = 0;
+      return;
+    }
     const height = shape.current?.parentElement?.offsetHeight ?? 0;
-    if (width === null || height === 0) return;
-    const target = dots ? DOTS_SHAPE : { width: width + 2, height };
+    // The content as drawn now: the observer's width may still be that of what was shown before.
+    const drawn = content.current ? Math.ceil(content.current.getBoundingClientRect().width) : 0;
+    const current = drawn > 0 ? drawn : width;
+    if (current === null || height === 0) return;
+    const target = dots ? DOTS_SHAPE : { width: current + 2, height };
     const report = () => {
       reported.current = target.width;
       void commands.overlayShape(target.width, target.height);
@@ -366,7 +376,7 @@ function usePillShape(
     return () => {
       clearTimeout(timer);
     };
-  }, [shape, width, dots]);
+  }, [shape, content, width, dots, visible]);
 
   // While transcribing the shape folds into a capsule (styles.css), whatever the content.
   return width === null || dots ? undefined : { width };

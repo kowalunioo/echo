@@ -72,8 +72,10 @@ pub struct Overlay {
     pill: PillSize,
 }
 
-/// The pill's last reported size in CSS pixels, to clip the window again whenever it is shown at
-/// another size or scaling (rule 11).
+/// The pill's size in CSS pixels as last reported while the window was shown, to clip the window
+/// again whenever it is shown at another size or scaling (rule 11). Forgotten when the window
+/// hides: what it shows next may have another shape (a message after the transcribing dots), and
+/// clipping it to the old one would cut it off until its own shape is reported.
 type PillSize = Arc<Mutex<Option<(f64, f64)>>>;
 
 impl Overlay {
@@ -349,7 +351,8 @@ impl OverlaySurface for WindowSurface {
             #[cfg(windows)]
             if let Ok(hwnd) = _window.hwnd() {
                 // The pill was last measured at another size or scaling, perhaps: clip the
-                // window for the size it is shown at now (rule 11).
+                // window for the size it is shown at now (rule 11). Not measured since the window
+                // last hid: show it unclipped until the pill reports its shape.
                 let region = pill
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -362,6 +365,7 @@ impl OverlaySurface for WindowSurface {
     }
 
     fn hide(&mut self) {
+        *self.pill.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.on_window(|_window| {
             #[cfg(windows)]
             if let Ok(hwnd) = _window.hwnd() {

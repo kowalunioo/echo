@@ -85,11 +85,16 @@ pub fn prepare(hwnd: HWND) {
 }
 
 /// Places the window and shows it without activating it, clipped to `pill` (computed for this
-/// size and scaling) when the pill's size is known.
+/// size and scaling) when the pill's size is known, and not clipped at all otherwise.
 pub fn show(hwnd: HWND, rect: Rect, pill: Option<PillRegion>) {
     prepare(hwnd);
-    if let Some(pill) = pill {
-        set_shape(hwnd, pill);
+    match pill {
+        Some(pill) => set_shape(hwnd, pill),
+        // The region of what was shown before would clip a state of another shape.
+        // SAFETY: as above; no region means the whole window.
+        None => {
+            let _ = unsafe { SetWindowRgn(hwnd, None, true) };
+        }
     }
     // Twice: moving onto a monitor with other scaling makes Windows resize the window for the
     // new DPI; the second call restores the exact size computed for that monitor (rule 15).
