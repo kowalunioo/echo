@@ -9,7 +9,7 @@ A global key combination that adds the text selected in any application to the V
 1. The Vocabulary Shortcut works globally, in every application, whether or not Echo's window is open or focused.
 2. Key handling follows the Record Shortcut: exact match, left/right modifiers equivalent, auto-repeat ignored, 30 ms debounce (`record-shortcut.md` rules 7–10). AltGr is not Ctrl+Alt: on layouts with AltGr, AltGr+D does not trigger Ctrl+Alt+D, whichever window has focus (including Echo's own).
 3. The Vocabulary Shortcut acts on key press. Its keystrokes are swallowed (they do not reach the focused application), as in `record-shortcut.md` rules 12–13.
-4. The copy (rule 6) starts only once every key of the shortcut has been released, so that held modifiers cannot turn the copy keystroke into a different combination. If the keys are still held 2 s after the press, the attempt is dropped silently.
+4. The copy (rule 6) starts only once every key of the shortcut has been released, so that held modifiers cannot turn the copy keystroke into a different combination. However long the keys are held, the attempt waits for them. If a modifier still reads as held 10 s after the press, the attempt ends with the message **Release the shortcut keys and try again** / **Puść klawisze skrótu i spróbuj ponownie** instead of copying.
 5. The Vocabulary Shortcut does nothing while a Dictation is not Idle (Recording, Transcribing or Inserting), while another Vocabulary Shortcut attempt is still in progress, or while a shortcut-capture field is active. Its keystrokes are still swallowed when it does nothing because of a Dictation or an attempt in progress; nothing is remembered for later.
 
 ### Reading the selection
@@ -66,7 +66,7 @@ A global key combination that adds the text selected in any application to the V
 
 1. *Adds the selection.* Fake selection reader returns "  GitHub\t"; FSL presses and releases the Vocabulary Shortcut → Vocabulary ends with "GitHub", settings saved, Overlay message "Added "GitHub" to Vocabulary" with the open-Vocabulary action. (FSL, fake selection reader, fake Overlay.)
 2. *Waits for release.* FSL presses and holds the shortcut → the selection reader is not called; on release it is called once. (FSL.)
-3. *Held too long.* FSL holds for 2.1 s → the selection reader is never called, no message. (FSL, controllable clock.)
+3. *Held long.* FSL holds the shortcut for 3 s, then releases → the selection is read and added. Modifiers still held 10 s after the press → no copy keystroke, the release-the-keys message. (FSL, controllable clock.)
 4. *Duplicate.* With "GitHub" present, selection "github" → Vocabulary unchanged; message names "GitHub". (fakes.)
 5. *Too long / too many words / empty.* A 51-character selection, a 4-word selection and an empty selection leave the Vocabulary unchanged and show the too-long, too-long and nothing-selected messages; a 50-character 3-word selection is added. (fakes.)
 6. *Busy.* During a Recording, pressing the Vocabulary Shortcut does not call the selection reader and does not affect the Recording. (FSL, WAV.)
@@ -94,6 +94,7 @@ A global key combination that adds the text selected in any application to the V
 - **Size limit:** 50 characters and at most 3 words — Vocabulary entries are names and terms; a sentence is almost certainly selected by mistake.
 - **Polish endings:** added as selected; the user selects the stem. Guessing would break names that really end in -a or -u.
 - **Placement:** with the other shortcuts on the Dictation page.
+- **Holding the shortcut:** the attempt waits for the release however long it takes (up to 10 s) — the user held Ctrl+Alt+D and expected it to work; a silent 2 s drop looked like a broken shortcut.
 - **Busy:** ignored and swallowed during a Dictation — a copy would race the Insertion's use of the clipboard, and after Insertion the selection is usually gone.
 - **Shortcut conflicts:** rejected with the name of the shortcut that holds the combination, never swapped; a turned-off shortcut still holds its combination, so it can always be turned back on.
 - **Editing combinations:** banned for every Echo shortcut — Echo swallows its shortcuts, so they would take copy/paste away from every application.
