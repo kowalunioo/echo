@@ -34,6 +34,13 @@ describe("Vocabulary Shortcut messages (vocabulary-shortcut.md rule 13)", () => 
     expect(await text("pl", nothing)).toBe("Najpierw zaznacz słowo, potem naciśnij Ctrl+Alt+D");
   });
 
+  // vocabulary-shortcut.md rule 4: keys still held 10 s after the press.
+  it("asks to release the shortcut keys", async () => {
+    const release: OverlayMessage = { kind: "vocabularyReleaseKeys" };
+    expect(await text("en", release)).toBe("Release the shortcut keys and try again");
+    expect(await text("pl", release)).toBe("Puść klawisze skrótu i spróbuj ponownie");
+  });
+
   it("names the shortcut's keys in the UI Language, still on one line", async () => {
     const space: OverlayMessage = { kind: "vocabularyNothingSelected", shortcut: "Ctrl+Space" };
     expect(await text("pl", space)).toBe("Najpierw zaznacz słowo, potem naciśnij Ctrl+Spacja");

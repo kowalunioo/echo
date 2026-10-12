@@ -75,8 +75,9 @@ impl Default for RecordShortcutConfig {
     }
 }
 
-/// A Vocabulary Shortcut press whose keys were released in time: the selection is to be read
-/// once every key is up, by `release_by` at the latest (`vocabulary-shortcut.md` rule 4).
+/// A Vocabulary Shortcut press that goes on, at its release or when its keys were held too long:
+/// the selection is to be read once every key is up, by `release_by` at the latest; keys still
+/// held then end it with the release-the-keys message (`vocabulary-shortcut.md` rule 4).
 /// Dropping it ends the attempt, so the next press can start another (rule 5).
 pub struct VocabularyAttempt {
     pub release_by: Instant,
@@ -173,7 +174,7 @@ impl RecordShortcut {
     }
 
     /// Feeds one Vocabulary Shortcut event at `now`; returns the attempt to run once its keys
-    /// are released in time (`vocabulary-shortcut.md` rules 4–5).
+    /// are released (`vocabulary-shortcut.md` rules 4–5).
     pub fn handle_vocabulary(
         &mut self,
         event: ShortcutEvent,
@@ -194,14 +195,25 @@ impl RecordShortcut {
                 }
                 None
             }
-            KeyAction::Released => self
-                .attempts
-                .release(now)
-                .map(|release_by| VocabularyAttempt {
-                    release_by,
-                    shortcut: self.config.vocabulary.clone(),
-                    done: None,
-                }),
+            KeyAction::Released => self.attempts.release().map(|r| self.vocabulary_attempt(r)),
+        }
+    }
+
+    /// Time passed: returns the attempt whose keys are still held [`RELEASE_WAIT`] after its
+    /// press; it goes on to show the release-the-keys message (`vocabulary-shortcut.md` rule 4).
+    ///
+    /// [`RELEASE_WAIT`]: super::vocabulary::RELEASE_WAIT
+    pub fn vocabulary_tick(&mut self, now: Instant) -> Option<VocabularyAttempt> {
+        self.attempts
+            .tick(now)
+            .map(|release_by| self.vocabulary_attempt(release_by))
+    }
+
+    fn vocabulary_attempt(&self, release_by: Instant) -> VocabularyAttempt {
+        VocabularyAttempt {
+            release_by,
+            shortcut: self.config.vocabulary.clone(),
+            done: None,
         }
     }
 
@@ -276,8 +288,9 @@ impl RecordShortcut {
         modes.into_iter().chain(self.attempts.next_deadline()).min()
     }
 
+    /// Time passed for the Record Shortcut's modes (see also
+    /// [`vocabulary_tick`](Self::vocabulary_tick)).
     pub fn tick(&mut self, now: Instant) -> Option<RecordIntent> {
-        self.attempts.tick(now);
         self.modes.tick(now)
     }
 
@@ -658,10 +671,7 @@ fn run_worker(handle: &RecordShortcutHandle, inputs: &Receiver<Input>, mut sinks
             Ok(Input::Shortcut(event)) if event.shortcut == Shortcut::Vocabulary => {
                 log::debug!("Vocabulary Shortcut {:?}", event.action);
                 let attempt = handle.core().handle_vocabulary(event, Instant::now());
-                if let Some(mut attempt) = attempt {
-                    attempt.done = Some(FinishOnDrop(handle.inputs.clone()));
-                    (sinks.vocabulary)(attempt);
-                }
+                run_vocabulary(handle, &mut sinks, attempt);
                 None
             }
             Ok(Input::Shortcut(event)) => {
@@ -681,12 +691,30 @@ fn run_worker(handle: &RecordShortcutHandle, inputs: &Receiver<Input>, mut sinks
                 handle.core().vocabulary_finished();
                 None
             }
-            Err(RecvTimeoutError::Timeout) => handle.core().tick(Instant::now()),
+            Err(RecvTimeoutError::Timeout) => {
+                let now = Instant::now();
+                let attempt = handle.core().vocabulary_tick(now);
+                run_vocabulary(handle, &mut sinks, attempt);
+                handle.core().tick(now)
+            }
             Err(RecvTimeoutError::Disconnected) => return,
         };
         if let Some(intent) = intent {
             (sinks.intents)(intent);
         }
+    }
+}
+
+/// Hands `attempt` to the Vocabulary Shortcut; when it is dropped, the next press may start
+/// another.
+fn run_vocabulary(
+    handle: &RecordShortcutHandle,
+    sinks: &mut Sinks,
+    attempt: Option<VocabularyAttempt>,
+) {
+    if let Some(mut attempt) = attempt {
+        attempt.done = Some(FinishOnDrop(handle.inputs.clone()));
+        (sinks.vocabulary)(attempt);
     }
 }
 
@@ -1100,25 +1128,45 @@ mod tests {
 
         rig.fake.press(Shortcut::Vocabulary);
         assert!(vocabulary_attempts(&mut rig, 0).is_empty());
-        rig.core.tick(rig.at(1000));
+        assert!(rig.core.vocabulary_tick(rig.at(1000)).is_none());
         rig.fake.release(Shortcut::Vocabulary);
         let attempts = vocabulary_attempts(&mut rig, 1200);
         assert_eq!(attempts.len(), 1);
-        assert_eq!(attempts[0].release_by, rig.at(2000));
+        assert_eq!(attempts[0].release_by, rig.at(10_000));
     }
 
-    /// Acceptance test 3.
+    /// Acceptance test 3: held for 3 s, the attempt goes on at the release.
     #[test]
-    fn keys_held_for_more_than_two_seconds_drop_the_attempt() {
+    fn keys_held_for_three_seconds_still_start_the_attempt_at_the_release() {
         let mut rig = Rig::new(ShortcutMode::Toggle);
 
         rig.fake.press(Shortcut::Vocabulary);
         vocabulary_attempts(&mut rig, 0);
-        assert_eq!(rig.core.next_deadline(), Some(rig.at(2000)));
-        rig.core.tick(rig.at(2000));
+        assert!(rig.core.vocabulary_tick(rig.at(2000)).is_none());
+        assert!(rig.core.vocabulary_tick(rig.at(3000)).is_none());
         rig.fake.release(Shortcut::Vocabulary);
-        assert!(vocabulary_attempts(&mut rig, 2100).is_empty());
+        let attempts = vocabulary_attempts(&mut rig, 3000);
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(attempts[0].release_by, rig.at(10_000));
+    }
+
+    /// Acceptance test 3: keys still held 10 s after the press hand the attempt over then, so
+    /// it can show the release-the-keys message; the late release starts nothing more.
+    #[test]
+    fn keys_held_for_ten_seconds_hand_the_attempt_over_at_the_deadline() {
+        let mut rig = Rig::new(ShortcutMode::Toggle);
+
+        rig.fake.press(Shortcut::Vocabulary);
+        vocabulary_attempts(&mut rig, 0);
+        assert_eq!(rig.core.next_deadline(), Some(rig.at(10_000)));
+        let attempt = rig
+            .core
+            .vocabulary_tick(rig.at(10_000))
+            .expect("handed over");
+        assert_eq!(attempt.release_by, rig.at(10_000));
         assert_eq!(rig.core.next_deadline(), None);
+        rig.fake.release(Shortcut::Vocabulary);
+        assert!(vocabulary_attempts(&mut rig, 10_100).is_empty());
     }
 
     /// Acceptance test 6 and rule 5: nothing during a Dictation, and the Recording goes on.

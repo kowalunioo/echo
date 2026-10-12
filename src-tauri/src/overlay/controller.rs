@@ -570,6 +570,7 @@ mod tests {
             OverlayMessage::VocabularyNothingSelected {
                 shortcut: "Ctrl+Alt+D".into(),
             },
+            OverlayMessage::VocabularyReleaseKeys,
         ] {
             assert!(!message.is_error());
             r.c.notice(message.clone(), r.at(200));

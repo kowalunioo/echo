@@ -480,7 +480,12 @@ export type OverlayMessage =
 /**  The selection is over 50 characters or over 3 words. */
 { kind: "vocabularyTooLong" } | 
 /**  Nothing was selected; `shortcut` is the Vocabulary Shortcut, e.g. `"Ctrl+Alt+D"`. */
-{ kind: "vocabularyNothingSelected"; shortcut: string };
+{ kind: "vocabularyNothingSelected"; shortcut: string } | 
+/**
+ *  The shortcut's keys were still held 10 s after the press: nothing was copied
+ *  (`vocabulary-shortcut.md` rule 4).
+ */
+{ kind: "vocabularyReleaseKeys" };
 
 /**  Where on the monitor the Overlay sits (the "Overlay position" setting). */
 export type OverlayPosition = 

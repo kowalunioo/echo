@@ -57,8 +57,7 @@ pub fn add_selection(
 /// Runs one attempt: reads the selection (waiting for the keys until `release_by`), adds it to
 /// the Vocabulary in `store` — saved at once, and every window hears of it through the
 /// `SettingsChanged` event (rule 12) — and returns the message to show. `None` when the attempt
-/// was dropped silently (keys held too long, rule 4), selections cannot be read at all, or the
-/// Vocabulary could not be saved.
+/// cannot be read at all or the Vocabulary could not be saved.
 pub fn run_attempt(
     reader: &mut dyn SelectionReader,
     store: &SettingsStore,
@@ -68,8 +67,8 @@ pub fn run_attempt(
     log::info!("Vocabulary Shortcut attempt started");
     let text = match reader.read(release_by) {
         Selection::KeysHeld => {
-            log::info!("Vocabulary Shortcut attempt dropped: keys still held");
-            return None;
+            log::info!("Vocabulary Shortcut attempt ended: keys still held, nothing copied");
+            return Some(OverlayMessage::VocabularyReleaseKeys);
         }
         Selection::Unavailable => {
             log::info!("Vocabulary Shortcut attempt dropped: selections cannot be read");
@@ -108,6 +107,7 @@ fn outcome(message: &OverlayMessage) -> &'static str {
         OverlayMessage::VocabularyAlreadyPresent { .. } => "duplicate",
         OverlayMessage::VocabularyTooLong => "too long",
         OverlayMessage::VocabularyNothingSelected { .. } => "nothing selected",
+        OverlayMessage::VocabularyReleaseKeys => "keys held",
         OverlayMessage::Problem { .. } | OverlayMessage::MicrophoneFallback => "other",
     }
 }
@@ -265,11 +265,15 @@ mod tests {
         assert_eq!(rig.entries(), ["Echo"]);
     }
 
-    /// Rule 4: keys held too long drop the attempt without a message.
+    /// Rule 4 and acceptance test 3: keys still held 10 s after the press end the attempt with
+    /// the release-the-keys message, which is not an error and shows with the Overlay off.
     #[test]
-    fn a_dropped_attempt_shows_nothing() {
+    fn keys_held_too_long_ask_for_the_release() {
         let mut rig = Rig::with(&[]);
-        assert_eq!(rig.attempt(Selection::KeysHeld), None);
+        let message = rig.attempt(Selection::KeysHeld).expect("a message");
+        assert_eq!(message, OverlayMessage::VocabularyReleaseKeys);
+        assert!(!message.is_error());
+        assert!(message.shows_when_overlay_off());
         assert!(rig.entries().is_empty());
     }
 }

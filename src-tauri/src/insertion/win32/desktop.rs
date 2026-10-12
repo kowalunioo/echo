@@ -11,8 +11,8 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT,
     KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, MAPVK_VK_TO_VSC, MapVirtualKeyW,
-    SendInput, VIRTUAL_KEY, VK_CONTROL, VK_INSERT, VK_LWIN, VK_MENU, VK_RETURN, VK_RWIN, VK_SHIFT,
-    VK_TAB,
+    SendInput, VIRTUAL_KEY, VK_CONTROL, VK_INSERT, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN,
+    VK_MENU, VK_RCONTROL, VK_RETURN, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT, VK_TAB,
 };
 use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 
@@ -27,8 +27,27 @@ impl Desktop for WindowsDesktop {
     fn modifiers_held(&self) -> bool {
         [VK_SHIFT, VK_CONTROL, VK_MENU, VK_LWIN, VK_RWIN]
             .into_iter()
-            // SAFETY: GetAsyncKeyState has no preconditions. The high bit means "down now".
-            .any(|vk| (unsafe { GetAsyncKeyState(i32::from(vk.0)) } as u16) & 0x8000 != 0)
+            .any(is_down)
+    }
+
+    fn held_modifiers(&self) -> Vec<&'static str> {
+        [
+            (VK_SHIFT, "Shift"),
+            (VK_LSHIFT, "LShift"),
+            (VK_RSHIFT, "RShift"),
+            (VK_CONTROL, "Ctrl"),
+            (VK_LCONTROL, "LCtrl"),
+            (VK_RCONTROL, "RCtrl"),
+            (VK_MENU, "Alt"),
+            (VK_LMENU, "LAlt"),
+            (VK_RMENU, "RAlt"),
+            (VK_LWIN, "LWin"),
+            (VK_RWIN, "RWin"),
+        ]
+        .into_iter()
+        .filter(|&(vk, _)| is_down(vk))
+        .map(|(_, name)| name)
+        .collect()
     }
 
     fn foreground_elevated(&self) -> bool {
@@ -64,6 +83,12 @@ impl Desktop for WindowsDesktop {
             )))
         }
     }
+}
+
+/// Whether the system reports `vk` as down now.
+fn is_down(vk: VIRTUAL_KEY) -> bool {
+    // SAFETY: GetAsyncKeyState has no preconditions. The high bit means "down now".
+    (unsafe { GetAsyncKeyState(i32::from(vk.0)) } as u16) & 0x8000 != 0
 }
 
 fn inputs_for(event: KeyEvent) -> Vec<INPUT> {

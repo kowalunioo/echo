@@ -65,6 +65,10 @@ pub enum SendError {
 pub trait Desktop: Send {
     /// Whether Ctrl, Alt, Shift or Win is held down right now.
     fn modifiers_held(&self) -> bool;
+    /// The names of the modifier keys that read as held right now, for the log.
+    fn held_modifiers(&self) -> Vec<&'static str> {
+        Vec::new()
+    }
     /// Whether the focused window belongs to a process with higher privileges than Echo, into
     /// which Windows silently drops simulated input. `false` when it cannot be determined.
     fn foreground_elevated(&self) -> bool;
@@ -640,6 +644,58 @@ mod tests {
             ]
         );
         assert_eq!(probe.clipboard.content().as_deref(), Some("previous"));
+    }
+
+    /// The keys still down after the keystrokes in `journal` (refused sends changed nothing).
+    fn keys_left_down(journal: &[String]) -> Vec<String> {
+        let mut down: Vec<String> = Vec::new();
+        for line in journal {
+            let Some((_, keys)) = line.split_once(" keys ") else {
+                continue;
+            };
+            for event in keys.split(' ') {
+                if let Some(key) = event.strip_prefix("Down(") {
+                    down.push(key.to_owned());
+                } else if let Some(key) = event.strip_prefix("Up(") {
+                    // A release without a press is harmless here: after a refused paste the
+                    // Inserter releases Ctrl in case part of the keystroke got through.
+                    if let Some(at) = down.iter().position(|d| d == key) {
+                        down.remove(at);
+                    }
+                }
+            }
+        }
+        down
+    }
+
+    /// Every key the Inserter presses it also releases, whichever way it inserts: no Insertion
+    /// can leave Ctrl (or any other key) down for the shortcuts that follow a Dictation.
+    #[test]
+    fn every_key_pressed_is_released_by_paste_and_by_typing() {
+        let text = "line
+one	two";
+        let scenarios: [Option<Failure>; 3] = [
+            None,
+            Some((is_paste, SendError::Failed("no".into()))),
+            Some((is_paste, SendError::Blocked)),
+        ];
+        for fail in scenarios {
+            let mut rig = rig(Some("previous"));
+            rig.desktop.fail = fail;
+            let (mut inserter, probe) = rig.inserter();
+            let _ = inserter.insert(text);
+            inserter.wait_for_restore();
+            let journal = probe.journal();
+            assert!(keys_left_down(&journal).is_empty(), "{journal:?}");
+        }
+        // The typing fallback, when the clipboard cannot be used.
+        let rig = rig(Some("previous"));
+        rig.clipboard.state().open_fails = true;
+        let (mut inserter, probe) = rig.inserter();
+        inserter.insert(text).unwrap();
+        let journal = probe.journal();
+        assert!(journal.iter().any(|l| l.contains("Down(Return)")));
+        assert!(keys_left_down(&journal).is_empty(), "{journal:?}");
     }
 
     #[test]

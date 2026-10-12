@@ -412,6 +412,7 @@ export const pl: Translation = {
       vocabularyAdded: "Dodano „{{entry}}” do Słownika",
       vocabularyAlreadyPresent: "„{{entry}}” jest już w Słowniku",
       vocabularyTooLong: "Zaznacz jedno słowo lub krótką nazwę",
+      vocabularyReleaseKeys: "Puść klawisze skrótu i spróbuj ponownie",
       vocabularyNothingSelected: "Najpierw zaznacz słowo, potem naciśnij {{shortcut}}",
       noModel: "Brak modelu — otwórz Echo, aby go pobrać",
       microphoneNotFound: "Nie znaleziono mikrofonu",

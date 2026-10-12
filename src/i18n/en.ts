@@ -415,6 +415,7 @@ export const en = {
       vocabularyAdded: 'Added "{{entry}}" to Vocabulary',
       vocabularyAlreadyPresent: '"{{entry}}" is already in your Vocabulary',
       vocabularyTooLong: "Select one word or a short name",
+      vocabularyReleaseKeys: "Release the shortcut keys and try again",
       vocabularyNothingSelected: "Select a word first, then press {{shortcut}}",
       noModel: "No Model — open Echo to download one",
       microphoneNotFound: "No microphone found",

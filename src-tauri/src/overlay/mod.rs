@@ -81,6 +81,9 @@ pub enum OverlayMessage {
     /// Nothing was selected; `shortcut` is the Vocabulary Shortcut, e.g. `"Ctrl+Alt+D"`.
     #[serde(rename_all = "camelCase")]
     VocabularyNothingSelected { shortcut: String },
+    /// The shortcut's keys were still held 10 s after the press: nothing was copied
+    /// (`vocabulary-shortcut.md` rule 4).
+    VocabularyReleaseKeys,
 }
 
 impl OverlayMessage {
@@ -100,6 +103,7 @@ impl OverlayMessage {
                     | Self::VocabularyAlreadyPresent { .. }
                     | Self::VocabularyTooLong
                     | Self::VocabularyNothingSelected { .. }
+                    | Self::VocabularyReleaseKeys
             )
     }
 

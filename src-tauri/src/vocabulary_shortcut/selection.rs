@@ -1,8 +1,8 @@
 //! The **Selection Reader** seam: reads the text selected in the focused application by copying
-//! it (`vocabulary-shortcut.md` rules 4, 6–9).
+//! it (`vocabulary-shortcut.md` rules 4, 6â€“9).
 //!
-//! [`CopySelectionReader`] holds the decisions — wait for the keys to be released, Ctrl+Insert
-//! first, Ctrl+C only outside terminals, restore the clipboard unless something else changed it —
+//! [`CopySelectionReader`] holds the decisions â€” wait for the keys to be released, Ctrl+Insert
+//! first, Ctrl+C only outside terminals, restore the clipboard unless something else changed it â€”
 //! over three seams: [`SelectionClipboard`], the Inserter's [`Desktop`] (keyboard state, injected
 //! keystrokes) plus [`ForegroundWindow`], and a [`Clock`]. The Windows implementations live in
 //! `win32`; tests use fakes, never the real keyboard.
@@ -22,8 +22,8 @@ pub enum Selection {
     Text(String),
     /// Nothing is selected, or it is not text, or the copy could not reach the application.
     Nothing,
-    /// The shortcut's keys were still held at the deadline: the attempt is dropped silently
-    /// (rule 4).
+    /// The shortcut's keys were still held at the deadline: nothing was copied, and the user is
+    /// asked to release them (rule 4).
     KeysHeld,
     /// Selections cannot be read at all (the clipboard could not be set up): the attempt shows
     /// no message, because "select a word first" would send the user looking for the wrong fix.
@@ -49,7 +49,7 @@ pub trait SelectionClipboard: Send {
     /// change counter belong together.
     fn copied(&self) -> Result<Copied, String>;
     /// Puts `saved` back unless the counter has moved on from `sequence` (rule 8, as
-    /// `dictation-pipeline.md` rules 34.5–34.7).
+    /// `dictation-pipeline.md` rules 34.5â€“34.7).
     fn restore_if_sequence(&self, saved: Self::Saved, sequence: u32) -> Result<Restore, String>;
 }
 
@@ -219,6 +219,10 @@ where
     fn read(&mut self, release_by: Instant) -> Selection {
         let start = self.clock.now();
         if !self.keys_released(release_by) {
+            log::debug!(
+                "Vocabulary Shortcut: keys still read as held: {}",
+                self.desktop.held_modifiers().join(", ")
+            );
             return Selection::KeysHeld;
         }
         let released = self.clock.now();
@@ -541,7 +545,7 @@ mod tests {
     }
 
     fn far(world: &World) -> Instant {
-        world.now() + Duration::from_secs(2)
+        world.now() + crate::shortcut::vocabulary::RELEASE_WAIT
     }
 
     /// Acceptance test 9, first case: Ctrl+Insert copied, so Ctrl+C is not sent.
@@ -787,28 +791,30 @@ mod tests {
         assert_eq!(world.inner.lock().unwrap().text, None);
     }
 
-    /// Rule 4: the copy waits for the modifiers, and gives up silently at the deadline.
+    /// Rule 4 and acceptance test 3: the copy waits for the modifiers however long they are
+    /// held, and gives up without a keystroke only at the deadline (10 s after the press).
     #[test]
     fn the_copy_waits_for_the_keys_to_be_released() {
         let world = World::new();
         let start = world.now();
         world.with(|w| {
-            w.modifiers_held_until = Some(start + Duration::from_millis(300));
+            w.modifiers_held_until = Some(start + Duration::from_secs(3));
             w.copies_on = Some((Key::Insert, Some("Tauri".into())));
         });
         assert_eq!(
             world.reader().read(far(&world)),
             Selection::Text("Tauri".into())
         );
-        assert!(world.now() >= start + Duration::from_millis(300));
+        assert!(world.now() >= start + Duration::from_secs(3));
 
         let world = World::new();
         let start = world.now();
-        world.with(|w| w.modifiers_held_until = Some(start + Duration::from_secs(5)));
+        world.with(|w| w.modifiers_held_until = Some(start + Duration::from_secs(12)));
         assert_eq!(
-            world.reader().read(start + Duration::from_secs(2)),
+            world.reader().read(start + Duration::from_secs(10)),
             Selection::KeysHeld
         );
+        assert!(world.now() >= start + Duration::from_secs(10));
         assert!(world.sent().is_empty());
         assert!(world.events().is_empty(), "the clipboard was not touched");
     }

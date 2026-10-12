@@ -41,6 +41,8 @@ export function overlayMessageText(message: OverlayMessage, t: TFunction): strin
       );
     case "vocabularyTooLong":
       return t("overlay.messages.vocabularyTooLong");
+    case "vocabularyReleaseKeys":
+      return t("overlay.messages.vocabularyReleaseKeys");
     case "vocabularyNothingSelected":
       return t("overlay.messages.vocabularyNothingSelected", {
         shortcut: compactKeyLabel(message.shortcut, t),

@@ -2,15 +2,16 @@
 //! (`vocabulary-shortcut.md` rules 3–5), as pure logic over an injected clock.
 //!
 //! A press starts an attempt only while the Dictation is Idle and no other attempt is in
-//! progress; otherwise it does nothing (the hook still swallows it, rule 5). The copy waits for
-//! the shortcut's release; an attempt whose keys are still held [`RELEASE_LIMIT`] after the press
-//! is dropped silently (rule 4). Once released, the attempt is in progress until whoever reads
-//! the selection reports it [`finished`](VocabularyAttempts::finished).
+//! progress; otherwise it does nothing (the hook still swallows it, rule 5). The attempt goes on
+//! at the shortcut's release, however long the keys are held — or, if they are still held
+//! [`RELEASE_WAIT`] after the press, at that moment, so that whoever reads the selection shows
+//! the release-the-keys message instead of copying (rule 4). From then on the attempt is in
+//! progress until whoever reads the selection reports it [`finished`](VocabularyAttempts::finished).
 
 use std::time::{Duration, Instant};
 
-/// How long after the press the keys may still be held before the attempt is dropped (rule 4).
-pub const RELEASE_LIMIT: Duration = Duration::from_secs(2);
+/// How long after the press the attempt waits for every key to be released (rule 4).
+pub const RELEASE_WAIT: Duration = Duration::from_secs(10);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Phase {
@@ -19,7 +20,7 @@ enum Phase {
     Held {
         deadline: Instant,
     },
-    /// Released; the selection is being read and added.
+    /// Released or out of time; the selection is being read and added.
     InProgress,
 }
 
@@ -49,31 +50,30 @@ impl VocabularyAttempts {
             return false;
         }
         self.phase = Phase::Held {
-            deadline: now + RELEASE_LIMIT,
+            deadline: now + RELEASE_WAIT,
         };
         true
     }
 
-    /// The shortcut was released at `now`. Returns the instant by which every key must be up for
-    /// the copy to start, when the attempt goes on (rule 4).
-    pub fn release(&mut self, now: Instant) -> Option<Instant> {
+    /// The shortcut was released. Returns the instant by which every key must be up for the
+    /// copy to start, when this release lets an attempt go on (rule 4).
+    pub fn release(&mut self) -> Option<Instant> {
         let Phase::Held { deadline } = self.phase else {
             return None;
         };
-        if now >= deadline {
-            self.phase = Phase::Ready;
-            return None;
-        }
         self.phase = Phase::InProgress;
         Some(deadline)
     }
 
-    /// Time passed: an attempt still held at its deadline is dropped silently.
-    pub fn tick(&mut self, now: Instant) {
-        if let Phase::Held { deadline } = self.phase
-            && now >= deadline
-        {
-            self.phase = Phase::Ready;
+    /// Time passed: an attempt still held at its deadline goes on now, and returns that
+    /// deadline; whoever reads the selection then finds the keys held and says so (rule 4).
+    pub fn tick(&mut self, now: Instant) -> Option<Instant> {
+        match self.phase {
+            Phase::Held { deadline } if now >= deadline => {
+                self.phase = Phase::InProgress;
+                Some(deadline)
+            }
+            _ => None,
         }
     }
 
@@ -120,27 +120,40 @@ mod tests {
         let mut attempts = VocabularyAttempts::new();
 
         assert!(attempts.press(t0, true));
-        assert_eq!(attempts.next_deadline(), Some(at(t0, 2000)));
-        attempts.tick(at(t0, 1500));
-        assert_eq!(attempts.release(at(t0, 1500)), Some(at(t0, 2000)));
+        assert_eq!(attempts.next_deadline(), Some(at(t0, 10_000)));
+        assert_eq!(attempts.tick(at(t0, 1500)), None);
+        assert_eq!(attempts.release(), Some(at(t0, 10_000)));
         assert_eq!(attempts.next_deadline(), None);
         assert!(attempts.busy());
     }
 
-    /// Acceptance test 3.
+    /// Acceptance test 3: held for 3 s, the attempt still goes on at the release.
     #[test]
-    fn keys_held_for_two_seconds_drop_the_attempt() {
+    fn keys_held_for_seconds_still_go_on_at_the_release() {
         let t0 = Instant::now();
         let mut attempts = VocabularyAttempts::new();
 
         attempts.press(t0, true);
-        attempts.tick(at(t0, 2000));
-        assert!(!attempts.busy());
-        assert_eq!(attempts.release(at(t0, 2100)), None);
+        assert_eq!(attempts.tick(at(t0, 2000)), None);
+        assert_eq!(attempts.tick(at(t0, 3000)), None);
+        assert_eq!(attempts.release(), Some(at(t0, 10_000)));
+        assert!(attempts.busy());
+    }
 
-        // Without a tick in between, a late release drops it too.
-        attempts.press(at(t0, 3000), true);
-        assert_eq!(attempts.release(at(t0, 5100)), None);
+    /// Acceptance test 3: still held 10 s after the press, the attempt goes on without a release
+    /// (to show the release-the-keys message); the late release then does nothing.
+    #[test]
+    fn keys_held_for_ten_seconds_hand_the_attempt_over_at_the_deadline() {
+        let t0 = Instant::now();
+        let mut attempts = VocabularyAttempts::new();
+
+        attempts.press(t0, true);
+        assert_eq!(attempts.tick(at(t0, 9999)), None);
+        assert_eq!(attempts.tick(at(t0, 10_000)), Some(at(t0, 10_000)));
+        assert_eq!(attempts.next_deadline(), None);
+        assert!(attempts.busy());
+        assert_eq!(attempts.release(), None);
+        attempts.finished();
         assert!(!attempts.busy());
     }
 
@@ -152,12 +165,12 @@ mod tests {
         let mut attempts = VocabularyAttempts::new();
 
         assert!(!attempts.press(t0, false));
-        assert_eq!(attempts.release(at(t0, 10)), None);
+        assert_eq!(attempts.release(), None);
         assert!(!attempts.busy());
 
         assert!(attempts.press(at(t0, 100), true));
         assert!(!attempts.press(at(t0, 150), true));
-        attempts.release(at(t0, 200));
+        attempts.release();
         assert!(!attempts.press(at(t0, 300), true));
         attempts.finished();
         assert!(!attempts.busy());

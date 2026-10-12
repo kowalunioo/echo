@@ -207,6 +207,7 @@ describe("Overlay", () => {
       { kind: "vocabularyNothingSelected", shortcut: "Ctrl+Alt+D" },
       "Select a word first, then press Ctrl+Alt+D",
     ],
+    [{ kind: "vocabularyReleaseKeys" }, "Release the shortcut keys and try again"],
   ] as const)("shows %o as a neutral message", async (message, text) => {
     backend.overlay = { kind: "message", message, actionable: false };
     const { container } = render(<OverlayApp />);
@@ -231,6 +232,69 @@ describe("Overlay", () => {
   // Rule 7: a pill that appears fades and slides in with its own shape at once. It must not
   // regrow from the dots it last folded into, which made a message after a Dictation wait for the
   // pill to grow back before its text faded in.
+  // Rule 11: the backend forgets the window's shape when it hides, so a pill that appears must
+  // report its own shape at once, measured as drawn. Otherwise the first message after a
+  // Dictation stayed clipped to the transcribing dots until something else changed its size.
+  it("reports its shape as soon as it appears, and not while hidden", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: () => void) {}
+        observe() {
+          this.callback();
+        }
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(56);
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      // The content is as wide as its text, 7 px per character.
+      const width = this.classList.contains("overlay-content") ? this.textContent.length * 7 : 0;
+      return { width, height: 56 } as DOMRect;
+    });
+    const shape = vi.spyOn(commands, "overlayShape").mockResolvedValue(undefined);
+    const added: OverlayView = {
+      kind: "message",
+      message: { kind: "vocabularyAdded", entry: "GitHub" },
+      actionable: true,
+    };
+    render(<OverlayApp />);
+    act(() => {
+      backend.changeOverlay({ kind: "listening" });
+    });
+    await screen.findByRole("status");
+    act(() => {
+      backend.changeOverlay({ kind: "transcribing", cancellable: true });
+    });
+    act(() => {
+      backend.changeOverlay({ kind: "hidden" });
+    });
+    shape.mockClear();
+    await act(async () => {
+      await new Promise((done) => setTimeout(done, 500));
+    });
+    expect(shape).not.toHaveBeenCalled();
+
+    act(() => {
+      backend.changeOverlay(added);
+    });
+    const text = screen.getByTestId("overlay-pill").querySelector(".overlay-content")?.textContent;
+    expect(shape).toHaveBeenLastCalledWith((text?.length ?? 0) * 7 + 2, 56);
+
+    // The same message again after hiding: its shape is reported again.
+    act(() => {
+      backend.changeOverlay({ kind: "hidden" });
+    });
+    shape.mockClear();
+    act(() => {
+      backend.changeOverlay(added);
+    });
+    expect(shape).toHaveBeenLastCalledWith((text?.length ?? 0) * 7 + 2, 56);
+    vi.unstubAllGlobals();
+  });
+
   it("appears in its own shape, not growing from what it showed before it hid", async () => {
     render(<OverlayApp />);
     act(() => {

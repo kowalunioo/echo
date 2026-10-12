@@ -914,4 +914,61 @@ mod tests {
         assert!(hook.own(KEY_D, false).swallow);
         assert_eq!(hook.shortcut_events(), vec![(Vocabulary, Pressed)]);
     }
+
+    /// Windows' view of the keyboard must never keep a key down that the user released: the
+    /// hook never swallows a release whose press reached Windows (nor lets through a release
+    /// whose press it swallowed). Checked over long pseudo-random sequences of presses, auto-
+    /// repeats and releases while all three shortcuts are bound, as after a Dictation with the
+    /// Record Shortcut followed by the Vocabulary Shortcut.
+    #[test]
+    fn windows_never_sees_a_key_held_that_the_user_released() {
+        let keys = [
+            vk::LCONTROL,
+            vk::RCONTROL,
+            vk::LMENU,
+            vk::RMENU,
+            vk::LSHIFT,
+            vk::LWIN,
+            vk::ESCAPE,
+            SPACE,
+            KEY_D,
+            KEY_A,
+        ];
+        let mut hook = Hook::with("Ctrl+Space");
+        hook.matcher
+            .bind(Cancel, Some(&"Escape".parse().unwrap()))
+            .unwrap();
+        hook.matcher
+            .bind(Vocabulary, Some(&"Ctrl+Alt+D".parse().unwrap()))
+            .unwrap();
+        let mut physical: HashSet<u16> = HashSet::new();
+        let mut seed: u64 = 0x2545_F491_4F6C_DD1D;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        for step in 0..20_000 {
+            let key = keys[(next() % keys.len() as u64) as usize];
+            // Held keys mostly get released, sometimes repeat; free keys get pressed.
+            if physical.contains(&key) && next() % 4 != 0 {
+                physical.remove(&key);
+                hook.up(key);
+            } else {
+                physical.insert(key);
+                hook.down(key);
+            }
+            hook.events.clear();
+            let seen = hook.system.down.borrow().clone();
+            assert!(
+                seen.is_subset(&physical),
+                "step {step}: Windows sees {seen:x?} down, the user holds {physical:x?}"
+            );
+        }
+        for key in physical.drain() {
+            hook.up(key);
+        }
+        assert!(hook.system.down.borrow().is_empty());
+    }
 }
