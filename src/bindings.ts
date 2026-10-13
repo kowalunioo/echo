@@ -103,6 +103,14 @@ export const commands = {
 	 */
 	setCancelShortcut: (combination: string) => typedError<Settings, ShortcutChangeError>(__TAURI_INVOKE("set_cancel_shortcut", { combination })),
 	/**
+	 *  Validates and activates a new Vocabulary Shortcut given in canonical text form
+	 *  (`"Ctrl+Alt+D"`), then saves it (`vocabulary-shortcut.md` rules 18–21). A turned-off
+	 *  Vocabulary Shortcut takes the new combination without binding it. On failure the previous one
+	 *  stays active and saved, and the error names the shortcut that holds the combination
+	 *  (`sameAsRecord`, `sameAsCancel`). Ends a capture in progress. Returns the new settings.
+	 */
+	setVocabularyShortcut: (combination: string) => typedError<Settings, ShortcutChangeError>(__TAURI_INVOKE("set_vocabulary_shortcut", { combination })),
+	/**
 	 *  Starts shortcut capture: the Record Shortcut is suspended and keys arrive as
 	 *  [`CapturedKeyEvent`]s instead of reaching applications.
 	 */
@@ -464,7 +472,20 @@ export type OverlayMessage =
 /**  A Dictation error (`dictation-pipeline.md` rule 39a). */
 { kind: "problem"; problem: ProblemKind } | 
 /**  "Selected microphone not found — using the default microphone" (`microphone.md` rule 5). */
-{ kind: "microphoneFallback" };
+{ kind: "microphoneFallback" } | 
+/**  The Vocabulary Shortcut added `entry` (`vocabulary-shortcut.md` rule 13). */
+{ kind: "vocabularyAdded"; entry: string } | 
+/**  The selection is already in the Vocabulary as `entry` (its stored spelling). */
+{ kind: "vocabularyAlreadyPresent"; entry: string } | 
+/**  The selection is over 50 characters or over 3 words. */
+{ kind: "vocabularyTooLong" } | 
+/**  Nothing was selected; `shortcut` is the Vocabulary Shortcut, e.g. `"Ctrl+Alt+D"`. */
+{ kind: "vocabularyNothingSelected"; shortcut: string } | 
+/**
+ *  The shortcut's keys were still held 10 s after the press: nothing was copied
+ *  (`vocabulary-shortcut.md` rule 4).
+ */
+{ kind: "vocabularyReleaseKeys" };
 
 /**  Where on the monitor the Overlay sits (the "Overlay position" setting). */
 export type OverlayPosition = 
@@ -566,6 +587,13 @@ export type Settings = {
 	shortcutMode: ShortcutMode,
 	/**  The key combination that cancels the current Dictation (`cancel-shortcut.md`). */
 	cancelShortcut: CancelShortcutCombination,
+	/**
+	 *  The key combination that adds the selected text to the Vocabulary
+	 *  (`vocabulary-shortcut.md`). Held even while the shortcut is turned off (rule 19).
+	 */
+	vocabularyShortcut: VocabularyShortcutCombination,
+	/**  Whether the Vocabulary Shortcut is turned on (`vocabulary-shortcut.md` rule 20). */
+	vocabularyShortcutEnabled: boolean,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows: boolean,
 	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
@@ -624,6 +652,13 @@ export type SettingsPatch = {
 	shortcutMode?: ShortcutMode | null,
 	/**  The key combination that cancels the current Dictation (`cancel-shortcut.md`). */
 	cancelShortcut?: CancelShortcutCombination | null,
+	/**
+	 *  The key combination that adds the selected text to the Vocabulary
+	 *  (`vocabulary-shortcut.md`). Held even while the shortcut is turned off (rule 19).
+	 */
+	vocabularyShortcut?: VocabularyShortcutCombination | null,
+	/**  Whether the Vocabulary Shortcut is turned on (`vocabulary-shortcut.md` rule 20). */
+	vocabularyShortcutEnabled?: boolean | null,
 	/**  Start Echo, hidden, when the user signs in to Windows (`autostart.md`). */
 	startWithWindows?: boolean | null,
 	/**  The one-time "Echo is still running in the tray" hint has been shown (`tray.md` rule 13). */
@@ -682,6 +717,16 @@ export type ShortcutProblem =
 "sameAsCancel" | 
 /**  The same combination as the Record Shortcut (`cancel-shortcut.md` rule 11). */
 "sameAsRecord" | 
+/**
+ *  The same combination as the Vocabulary Shortcut, even while it is turned off
+ *  (`vocabulary-shortcut.md` rule 19).
+ */
+"sameAsVocabulary" | 
+/**
+ *  A text-editing combination every application relies on, such as Ctrl+C
+ *  (`record-shortcut.md` rule 20): Echo swallows its shortcuts, so it would take it away.
+ */
+"editingCombination" | 
 /**  Not a combination Echo understands (unknown key name, two main keys, …). */
 "invalid";
 
@@ -759,6 +804,14 @@ export type UpdaterView = {
  *  rejected (`docs/settings.md`). The frontend normalises and checks an entry before adding it.
  */
 export type Vocabulary = string[];
+
+/**
+ *  The Vocabulary Shortcut setting (`vocabulary-shortcut.md`): an allowed combination (rule 18)
+ *  in canonical text form, e.g. `"Ctrl+Alt+D"`. Like [`RecordShortcutCombination`] it accepts
+ *  exactly the allowed combinations; the check against the other shortcuts is made where the
+ *  shortcuts are activated.
+ */
+export type VocabularyShortcutCombination = string;
 
 /* Tauri Specta runtime */
 async function typedError<T, E>(result: Promise<T>): Promise<{ status: "ok"; data: T } | { status: "error"; error: E }> {

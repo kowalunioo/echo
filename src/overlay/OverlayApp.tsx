@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { type OverlayMessage, type OverlayView, commands, events } from "../bindings";
+import { overlayMessageText } from "./messageText";
 import { TestAudioMarker } from "../components/TestAudioMarker";
 import { EchoMark } from "../components/icons";
 import { changeUiLanguage } from "../i18n";
@@ -16,6 +17,13 @@ import { useSettings } from "../store/settings";
 import { type Meter, SILENT_METER, nextMeter } from "./meter";
 
 const HIDDEN: OverlayView = { kind: "hidden" };
+
+/** The state the pill shows and the one it is changing from ("hidden" when it just appeared). */
+interface Phases {
+  current: OverlayView["kind"];
+  previous: OverlayView["kind"];
+  visible: boolean;
+}
 /** How long the pill takes to change shape; the click region shrinks only after it. */
 const SHAPE_TRANSITION_MS = 220;
 /** The pill shrinks into a capsule, then the capsule splits into the dots (overlay.md rule 4). */
@@ -48,14 +56,22 @@ export function OverlayApp() {
   // While the pill folds into the dots, it keeps the content it had so that content can fade.
   const [body, setBody] = useState<OverlayView>(shown);
   if (shown.kind !== "transcribing" && body !== shown) setBody(shown);
-  // A message that follows the dots fades in once the pill has grown back (styles.css).
-  const [phases, setPhases] = useState({ current: shown.kind, previous: shown.kind });
-  if (phases.current !== shown.kind) setPhases({ current: shown.kind, previous: phases.current });
+  // A message that follows the dots fades in once the pill has grown back (styles.css). A pill
+  // that appears has no previous state: it fades in with its own shape (rule 7), rather than
+  // regrowing from whatever it showed before it hid.
+  const kind = visible ? view.kind : shown.kind;
+  const [phases, setPhases] = useState<Phases>({ current: kind, previous: "hidden", visible });
+  if (visible && !phases.visible) {
+    setPhases({ current: kind, previous: "hidden", visible });
+  } else if (phases.current !== kind || phases.visible !== visible) {
+    const previous = phases.current !== kind ? phases.current : phases.previous;
+    setPhases({ current: kind, previous, visible });
+  }
 
   const shape = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const folding = shown.kind === "transcribing";
-  const style = usePillShape(shape, content, folding);
+  const style = usePillShape(shape, content, folding, visible);
 
   return (
     <div className="flex h-full items-center justify-center">
@@ -155,10 +171,7 @@ function Dots({ transcribing }: { transcribing: boolean }) {
 
 function Message({ message, actionable }: { message: OverlayMessage; actionable: boolean }) {
   const { t } = useTranslation();
-  const text =
-    message.kind === "problem"
-      ? t(`overlay.messages.${message.problem}`)
-      : t("overlay.messages.microphoneFallback");
+  const text = overlayMessageText(message, t);
   const body = (
     <>
       <Dot tone={message.kind === "problem" ? "danger" : "accent"} />
@@ -197,7 +210,7 @@ function Message({ message, actionable }: { message: OverlayMessage; actionable:
 
 function Dot({ tone }: { tone: "accent" | "danger" }) {
   const colour = { accent: "bg-accent", danger: "bg-danger" }[tone];
-  return <span aria-hidden className={`size-2 shrink-0 rounded-full ${colour}`} />;
+  return <span aria-hidden data-tone={tone} className={`size-2 shrink-0 rounded-full ${colour}`} />;
 }
 
 /**
@@ -314,12 +327,15 @@ function useBars(view: OverlayView): readonly number[] {
 /**
  * Animates the pill's width to its content's and reports the shape's size to the backend, which
  * clips the window to it (rule 11). While transcribing the shape is the three dots. The region
- * grows at once and shrinks after the animation.
+ * grows at once and shrinks after the animation. Only a shown pill reports: the backend forgets
+ * the shape when the window hides and shows it unclipped until the pill that appears reports its
+ * own shape, measured as it is drawn rather than as last observed.
  */
 function usePillShape(
   shape: RefObject<HTMLDivElement | null>,
   content: RefObject<HTMLDivElement | null>,
   dots: boolean,
+  visible: boolean,
 ) {
   const [width, setWidth] = useState<number | null>(null);
 
@@ -338,9 +354,16 @@ function usePillShape(
 
   const reported = useRef(0);
   useEffect(() => {
+    if (!visible) {
+      reported.current = 0;
+      return;
+    }
     const height = shape.current?.parentElement?.offsetHeight ?? 0;
-    if (width === null || height === 0) return;
-    const target = dots ? DOTS_SHAPE : { width: width + 2, height };
+    // The content as drawn now: the observer's width may still be that of what was shown before.
+    const drawn = content.current ? Math.ceil(content.current.getBoundingClientRect().width) : 0;
+    const current = drawn > 0 ? drawn : width;
+    if (current === null || height === 0) return;
+    const target = dots ? DOTS_SHAPE : { width: current + 2, height };
     const report = () => {
       reported.current = target.width;
       void commands.overlayShape(target.width, target.height);
@@ -353,7 +376,7 @@ function usePillShape(
     return () => {
       clearTimeout(timer);
     };
-  }, [shape, width, dots]);
+  }, [shape, content, width, dots, visible]);
 
   // While transcribing the shape folds into a capsule (styles.css), whatever the content.
   return width === null || dots ? undefined : { width };

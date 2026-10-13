@@ -15,7 +15,7 @@ use super::controller::{OverlayController, OverlaySettings, OverlaySurface};
 #[cfg(windows)]
 use super::placement::pill_region;
 use super::placement::{self, Monitor, Rect};
-use super::{MessageAction, OverlayPosition, OverlayView};
+use super::{MessageAction, OverlayMessage, OverlayPosition, OverlayView};
 use crate::dictation::{Dictation, DictationStatus};
 use crate::settings::{Settings, SettingsStore};
 use crate::window::{MAIN_WINDOW, show_main};
@@ -59,6 +59,7 @@ pub struct MainPageRequested(pub MainPage);
 enum Msg {
     Status(DictationStatus),
     MicrophoneFallback,
+    Notice(OverlayMessage),
     Settings(OverlaySettings),
     MessageClicked,
 }
@@ -71,8 +72,10 @@ pub struct Overlay {
     pill: PillSize,
 }
 
-/// The pill's last reported size in CSS pixels, to clip the window again whenever it is shown at
-/// another size or scaling (rule 11).
+/// The pill's size in CSS pixels as last reported while the window was shown, to clip the window
+/// again whenever it is shown at another size or scaling (rule 11). Forgotten when the window
+/// hides: what it shows next may have another shape (a message after the transcribing dots), and
+/// clipping it to the old one would cut it off until its own shape is reported.
 type PillSize = Arc<Mutex<Option<(f64, f64)>>>;
 
 impl Overlay {
@@ -84,6 +87,11 @@ impl Overlay {
     /// The selected Microphone was missing; the starting Recording uses the default one.
     pub fn microphone_fallback(&self) {
         let _ = self.tx.send(Msg::MicrophoneFallback);
+    }
+
+    /// Shows `message` for 2.5 s (e.g. a Vocabulary Shortcut outcome).
+    pub fn notice(&self, message: OverlayMessage) {
+        let _ = self.tx.send(Msg::Notice(message));
     }
 
     fn view(&self) -> OverlayView {
@@ -201,6 +209,7 @@ fn run(
         match msg {
             Ok(Msg::Status(status)) => controller.status(&status, now),
             Ok(Msg::MicrophoneFallback) => controller.microphone_fallback(now),
+            Ok(Msg::Notice(message)) => controller.notice(message, now),
             Ok(Msg::Settings(settings)) => controller.settings(settings, now),
             Ok(Msg::MessageClicked) => {
                 if let Some(action) = controller.message_clicked(now) {
@@ -249,6 +258,12 @@ fn perform(app: &AppHandle, action: MessageAction) {
             }
         }
         MessageAction::ShowNotices => show_main(app),
+        MessageAction::OpenVocabulary => {
+            show_main(app);
+            if let Err(error) = MainPageRequested(MainPage::Vocabulary).emit_to(app, MAIN_WINDOW) {
+                log::warn!("could not open the Vocabulary page: {error}");
+            }
+        }
     }
 }
 
@@ -336,7 +351,8 @@ impl OverlaySurface for WindowSurface {
             #[cfg(windows)]
             if let Ok(hwnd) = _window.hwnd() {
                 // The pill was last measured at another size or scaling, perhaps: clip the
-                // window for the size it is shown at now (rule 11).
+                // window for the size it is shown at now (rule 11). Not measured since the window
+                // last hid: show it unclipped until the pill reports its shape.
                 let region = pill
                     .lock()
                     .unwrap_or_else(PoisonError::into_inner)
@@ -349,6 +365,7 @@ impl OverlaySurface for WindowSurface {
     }
 
     fn hide(&mut self) {
+        *self.pill.lock().unwrap_or_else(PoisonError::into_inner) = None;
         self.on_window(|_window| {
             #[cfg(windows)]
             if let Ok(hwnd) = _window.hwnd() {

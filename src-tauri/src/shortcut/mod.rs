@@ -1,5 +1,5 @@
-//! The **ShortcutListener** seam: reports presses and releases of the Record Shortcut and the
-//! Cancel Shortcut from anywhere in Windows.
+//! The **ShortcutListener** seam: reports presses and releases of the Record Shortcut, the
+//! Cancel Shortcut and the Vocabulary Shortcut from anywhere in Windows.
 //!
 //! The real listener is our own low-level keyboard hook (ADR 0002): [`matcher`] holds its
 //! decisions as testable logic, `windows_hook` the thin Windows layer around it.
@@ -13,6 +13,7 @@ pub mod matcher;
 pub mod modes;
 pub mod record;
 pub mod validation;
+pub mod vocabulary;
 #[cfg(windows)]
 mod windows_hook;
 
@@ -30,6 +31,8 @@ pub enum Shortcut {
     Record,
     /// Triggers Cancellation of the current Dictation (`docs/specs/cancel-shortcut.md`).
     Cancel,
+    /// Adds the selected text to the Vocabulary (`docs/specs/vocabulary-shortcut.md`).
+    Vocabulary,
 }
 
 /// Whether a shortcut went down or up.

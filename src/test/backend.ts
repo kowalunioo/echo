@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS: Settings = {
   recordShortcut: "Ctrl+Space",
   shortcutMode: "pushToTalk",
   cancelShortcut: "Escape",
+  vocabularyShortcut: "Ctrl+Alt+D",
+  vocabularyShortcutEnabled: true,
   startWithWindows: false,
   trayHintShown: false,
   showOverlay: true,
@@ -242,6 +244,14 @@ export class FakeBackend {
       const rejection = this.rejectedShortcuts.get(combination);
       if (rejection !== undefined) throw new RejectedCommand(rejection);
       this.changeSettings({ cancelShortcut: combination });
+      return this.settings;
+    },
+    // Vocabulary Shortcut: the same, with the same `rejectedShortcuts` list.
+    set_vocabulary_shortcut: (args) => {
+      const combination = args.combination as string;
+      const rejection = this.rejectedShortcuts.get(combination);
+      if (rejection !== undefined) throw new RejectedCommand(rejection);
+      this.changeSettings({ vocabularyShortcut: combination });
       return this.settings;
     },
     begin_shortcut_capture: () => null,

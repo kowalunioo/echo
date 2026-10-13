@@ -7,6 +7,7 @@ One spec per 0.1.0 feature. Each spec is the source of truth for behaviour; it s
 | [dictation-pipeline.md](dictation-pipeline.md) | Dictation states, audio conversion to 16 kHz mono, voice-activity detection, short/silent Recordings, Engine errors, presses while busy, Insertion (clipboard paste with restore, typing fallback), fake-microphone mode and the normalised-WER acceptance tolerance for the fixtures. |
 | [record-shortcut.md](record-shortcut.md) | Push-to-Talk Mode and Toggle Mode, default Ctrl+Space, exact-match and debounce rules, swallowed vs passed-through keys, allowed combinations, capture UI. |
 | [cancel-shortcut.md](cancel-shortcut.md) | Escape by default; Cancellation during Recording or Transcribing, active only during a Dictation; equivalent Overlay and tray actions. |
+| [vocabulary-shortcut.md](vocabulary-shortcut.md) | Ctrl+Alt+D by default: copies the selection in any app (Ctrl+Insert, Ctrl+C outside terminals), adds it to the Vocabulary and confirms in the Overlay; shortcut uniqueness and banned editing combinations. |
 | [vocabulary.md](vocabulary.md) | The Vocabulary list, normalisation and duplicates, hint for Whisper Models with a budget indicator, spelling correction for Parakeet. |
 | [dictation-language.md](dictation-language.md) | Automatic or specific Dictation Language, resolution against each Model's capabilities, picker behaviour. |
 | [microphone.md](microphone.md) | Default device following Windows, specific device selection, missing-device fallback, device lost mid-Recording, privacy block. |
@@ -29,7 +30,6 @@ Behaviour that existed in the previous app but is not part of 0.1.0 (candidates 
 - Lowercase-everything output option.
 - Chinese simplified/traditional script conversion.
 - Translate-to-English option.
-- Global shortcut to add the selected text to the Vocabulary.
 - Alternative insertion methods (Ctrl+Shift+V, Shift+Insert, typing only, none, external script), copy-to-clipboard-after-insertion, auto-press Enter after insertion, adjustable paste delays.
 - Start/stop sound cues with themes, volume and output-device choice; mute system audio while recording.
 - Input channel selection; laptop-lid-closed microphone; keep-microphone-always-open and delayed-close options; extra recording time after release.

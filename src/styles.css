@@ -226,6 +226,9 @@
 .overlay-window,
 .overlay-window body {
   background: transparent;
+  /* The slide makes the page 6 px taller than the window. A scrollable page would get a
+     scrollbar for the length of the slide, narrowing the page so the centred pill hops left. */
+  overflow: hidden;
 }
 
 .overlay-pill {
@@ -280,6 +283,13 @@
    clipped by the moving edge. */
 .overlay-pill[data-phase="message"][data-previous="transcribing"] .overlay-content {
   transition-delay: 180ms;
+}
+
+/* A pill that appears takes its shape at once, so only its fade and slide-in show (rule 7):
+   it never regrows from the dots or the width it had before it hid. */
+.overlay-pill[data-previous="hidden"] .overlay-shape,
+.overlay-pill[data-previous="hidden"] .overlay-content {
+  transition: none;
 }
 
 /* The edge: one light outline (overlay-edge token), with a light band sweeping along it while

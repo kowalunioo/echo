@@ -37,6 +37,17 @@ function chips() {
 }
 
 describe("Vocabulary page", () => {
+  // vocabulary-shortcut.md acceptance test 15: an entry the shortcut adds appears at once.
+  it("shows an entry added elsewhere without reopening the page", async () => {
+    await field();
+    act(() => {
+      backend.changeSettings({ vocabulary: ["GitHub"] });
+    });
+    await waitFor(() => {
+      expect(chips()).toEqual([expect.stringContaining("GitHub") as string]);
+    });
+  });
+
   it("starts empty and has no placeholder", async () => {
     await field();
     expect(screen.getByText(/Your Vocabulary is empty/)).toBeVisible();

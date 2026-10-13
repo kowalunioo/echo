@@ -70,12 +70,41 @@ pub enum OverlayMessage {
     Problem { problem: ProblemKind },
     /// "Selected microphone not found — using the default microphone" (`microphone.md` rule 5).
     MicrophoneFallback,
+    /// The Vocabulary Shortcut added `entry` (`vocabulary-shortcut.md` rule 13).
+    #[serde(rename_all = "camelCase")]
+    VocabularyAdded { entry: String },
+    /// The selection is already in the Vocabulary as `entry` (its stored spelling).
+    #[serde(rename_all = "camelCase")]
+    VocabularyAlreadyPresent { entry: String },
+    /// The selection is over 50 characters or over 3 words.
+    VocabularyTooLong,
+    /// Nothing was selected; `shortcut` is the Vocabulary Shortcut, e.g. `"Ctrl+Alt+D"`.
+    #[serde(rename_all = "camelCase")]
+    VocabularyNothingSelected { shortcut: String },
+    /// The shortcut's keys were still held 10 s after the press: nothing was copied
+    /// (`vocabulary-shortcut.md` rule 4).
+    VocabularyReleaseKeys,
 }
 
 impl OverlayMessage {
     /// Errors are shown even with the Overlay turned off (rule 17).
     pub fn is_error(&self) -> bool {
         matches!(self, Self::Problem { .. })
+    }
+
+    /// Whether the message shows even with the Overlay turned off (rule 17): errors, and the
+    /// Vocabulary Shortcut's messages, which are the only response to the user's action
+    /// (`vocabulary-shortcut.md` rule 15).
+    pub fn shows_when_overlay_off(&self) -> bool {
+        self.is_error()
+            || matches!(
+                self,
+                Self::VocabularyAdded { .. }
+                    | Self::VocabularyAlreadyPresent { .. }
+                    | Self::VocabularyTooLong
+                    | Self::VocabularyNothingSelected { .. }
+                    | Self::VocabularyReleaseKeys
+            )
     }
 
     /// What clicking the message does, if anything (rule 5).
@@ -94,6 +123,8 @@ impl OverlayMessage {
             Self::Problem {
                 problem: ProblemKind::InsertionFailed | ProblemKind::InsertionFailedNotInHistory,
             } => Some(MessageAction::ShowNotices),
+            // Removing the chip there is the undo (`vocabulary-shortcut.md` rule 13).
+            Self::VocabularyAdded { .. } => Some(MessageAction::OpenVocabulary),
             _ => None,
         }
     }
@@ -108,4 +139,6 @@ pub enum MessageAction {
     OpenMicrophonePrivacy,
     /// Show the main window, where the error notice and its actions are.
     ShowNotices,
+    /// Show the main window on its Vocabulary page.
+    OpenVocabulary,
 }

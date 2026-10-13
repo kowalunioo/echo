@@ -7,7 +7,8 @@ import type { ReactNode } from "react";
  * that belongs to the row but needs the full width, such as a failure message. `tag` sits right
  * after the label (e.g. a "Recommended" badge) and never shrinks; `as="li"` makes the row a list
  * item, named by `ariaLabel`. `prominent` sets the label a size larger, for the one row a page is
- * about (the active Model).
+ * about (the active Model). `wrapDescription` lets a description that must be read in full (an
+ * instruction) wrap onto more lines instead of being cut.
  */
 export function SettingRow({
   label,
@@ -18,6 +19,7 @@ export function SettingRow({
   as: Tag = "div",
   ariaLabel,
   prominent = false,
+  wrapDescription = false,
   children,
 }: {
   label: string;
@@ -29,6 +31,7 @@ export function SettingRow({
   as?: "div" | "li";
   ariaLabel?: string;
   prominent?: boolean;
+  wrapDescription?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -48,11 +51,14 @@ export function SettingRow({
             </span>
             {tag}
           </span>
-          {description && (
-            <span title={description} className="truncate text-note text-muted">
-              {description}
-            </span>
-          )}
+          {description &&
+            (wrapDescription ? (
+              <span className="text-note text-pretty text-muted">{description}</span>
+            ) : (
+              <span title={description} className="truncate text-note text-muted">
+                {description}
+              </span>
+            ))}
         </div>
         {children && <div className="flex shrink-0 items-center gap-3">{children}</div>}
       </div>

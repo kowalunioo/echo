@@ -14,7 +14,7 @@ A global key combination that triggers Cancellation of the current Dictation: no
 8. While the Cancel Shortcut is active and pressed, its keystrokes are swallowed (they do not reach the focused application).
 9. After a Cancellation, the next press of the Record Shortcut starts a fresh Dictation normally, in both modes. In Push-to-Talk Mode, releasing the Record Shortcut after a Cancellation does nothing.
 10. The default Cancel Shortcut is **Escape**.
-11. Allowed combinations: the same rules as the Record Shortcut (`record-shortcut.md` rule 19), plus Escape alone. It must differ from the Record Shortcut.
+11. Allowed combinations: the same rules as the Record Shortcut (`record-shortcut.md` rule 19), plus Escape alone. It must differ from the Record Shortcut and the Vocabulary Shortcut (`vocabulary-shortcut.md` rule 19).
 12. Changes take effect for the next Dictation; a change made during a Dictation applies from the next one.
 13. Other ways to trigger the same Cancellation: the cancel button on the Overlay (`overlay.md`) and "Cancel" in the tray menu (`tray.md`). All three behave identically.
 

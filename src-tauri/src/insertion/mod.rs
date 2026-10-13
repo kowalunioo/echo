@@ -17,7 +17,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 pub use fake::FakeInserter;
 pub use try_it::TryItInserter;
 #[cfg(windows)]
-pub use win32::{WindowsInserter, system_inserter};
+pub use win32::{
+    Saved as SavedClipboard, WindowsClipboard, WindowsDesktop, WindowsInserter, system_inserter,
+};
 
 /// Why an Insertion failed. Either way the Transcript is already in History and the user is told
 /// "Couldn't insert the text — it is in History" (rule 36).

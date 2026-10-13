@@ -383,6 +383,8 @@ mod tests {
                 "recordShortcut": "Ctrl+Win",
                 "shortcutMode": "toggle",
                 "cancelShortcut": "Escape",
+                "vocabularyShortcut": "Ctrl+Alt+D",
+                "vocabularyShortcutEnabled": true,
                 "startWithWindows": false,
                 "trayHintShown": false,
                 "showOverlay": true,
@@ -500,6 +502,8 @@ mod tests {
                 "recordShortcut": "Ctrl+Space",
                 "shortcutMode": "pushToTalk",
                 "cancelShortcut": "Escape",
+                "vocabularyShortcut": "Ctrl+Alt+D",
+                "vocabularyShortcutEnabled": true,
                 "startWithWindows": false,
                 "trayHintShown": false,
                 "showOverlay": true,
@@ -628,6 +632,8 @@ mod tests {
                 "recordShortcut": "Space",
                 "shortcutMode": "toggle",
                 "cancelShortcut": "Escape",
+                "vocabularyShortcut": "Ctrl+Alt+D",
+                "vocabularyShortcutEnabled": true,
                 "startWithWindows": false,
                 "trayHintShown": false,
                 "showOverlay": true,
@@ -704,6 +710,48 @@ mod tests {
         assert_eq!(String::from(store.get().cancel_shortcut), "Escape");
     }
 
+    /// vocabulary-shortcut.md acceptance test 14: the combination and the switch survive a
+    /// reload; the defaults are Ctrl+Alt+D, turned on.
+    #[test]
+    fn the_vocabulary_shortcut_and_its_switch_survive_a_reload() {
+        let (_dir, path) = settings_path();
+        let (store, _) = SettingsStore::open(&path, defaults());
+        assert_eq!(String::from(store.get().vocabulary_shortcut), "Ctrl+Alt+D");
+        assert!(store.get().vocabulary_shortcut_enabled);
+
+        let patch: SettingsPatch = serde_json::from_value(
+            json!({ "vocabularyShortcut": "Shift+Ctrl+F", "vocabularyShortcutEnabled": false }),
+        )
+        .unwrap();
+        store.apply_patch(patch).unwrap();
+        drop(store);
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+        assert_eq!(outcome, LoadOutcome::Clean);
+        assert_eq!(
+            String::from(store.get().vocabulary_shortcut),
+            "Ctrl+Shift+F"
+        );
+        assert!(!store.get().vocabulary_shortcut_enabled);
+    }
+
+    #[test]
+    fn a_stored_vocabulary_shortcut_that_is_not_allowed_is_reset() {
+        let (_dir, path) = settings_path();
+        fs::write(
+            &path,
+            json!({ "version": 1, "vocabularyShortcut": "Ctrl+C" }).to_string(),
+        )
+        .unwrap();
+
+        let (store, outcome) = SettingsStore::open(&path, defaults());
+
+        assert!(
+            matches!(outcome, LoadOutcome::Repaired { reset, .. } if reset == ["vocabularyShortcut"])
+        );
+        assert_eq!(String::from(store.get().vocabulary_shortcut), "Ctrl+Alt+D");
+    }
+
     // Issue #33: right Alt or right Ctrl alone is no longer allowed; a file holding one from an
     // earlier version is repaired to the defaults.
     #[test]
@@ -762,6 +810,8 @@ mod tests {
                     "trayHintShown".into(),
                     "unloadModelAfter".into(),
                     "vocabulary".into(),
+                    "vocabularyShortcut".into(),
+                    "vocabularyShortcutEnabled".into(),
                 ]
             }
         );

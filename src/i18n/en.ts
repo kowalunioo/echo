@@ -343,6 +343,8 @@ export const en = {
         "Windows keeps {{shortcut}} for itself and never passes it to applications.",
       sameAsCancel: "{{shortcut}} is already the Cancel Shortcut.",
       sameAsRecord: "{{shortcut}} is already the Record Shortcut.",
+      sameAsVocabulary: "{{shortcut}} is already the Vocabulary Shortcut.",
+      editingCombination: "Applications need {{shortcut}} for editing text.",
       invalid: "{{shortcut}} cannot be used as a shortcut.",
     },
     activationFailed: "Echo could not activate {{shortcut}}.",
@@ -366,6 +368,13 @@ export const en = {
     description: "Cancels the current Dictation. Active only while recording or transcribing.",
     change: "Change the Cancel Shortcut, currently {{shortcut}}",
     captureHint: "A click elsewhere cancels.",
+  },
+  vocabularyShortcut: {
+    label: "Add selected text to Vocabulary",
+    description:
+      "Select a name in any app and press the shortcut. Select just the name, without a Polish ending.",
+    change: "Change the Vocabulary Shortcut, currently {{shortcut}}",
+    captureHint: "Esc or a click elsewhere cancels.",
   },
   updatedNotice: {
     text: "Echo was updated to {{version}}",
@@ -403,6 +412,11 @@ export const en = {
     cancel: "Cancel Dictation",
     messages: {
       microphoneFallback: "Selected microphone not found — using the default microphone",
+      vocabularyAdded: 'Added "{{entry}}" to Vocabulary',
+      vocabularyAlreadyPresent: '"{{entry}}" is already in your Vocabulary',
+      vocabularyTooLong: "Select one word or a short name",
+      vocabularyReleaseKeys: "Release the shortcut keys and try again",
+      vocabularyNothingSelected: "Select a word first, then press {{shortcut}}",
       noModel: "No Model — open Echo to download one",
       microphoneNotFound: "No microphone found",
       microphoneAccessDenied: "Allow microphone access in privacy settings",
