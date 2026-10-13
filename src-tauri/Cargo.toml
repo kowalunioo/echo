@@ -1,6 +1,6 @@
 [package]
 name = "echo"
-version = "0.9.4"
+version = "0.9.5"
 description = "Private, local dictation for Windows"
 authors = ["Jakub Kowalski"]
 license = "MIT"

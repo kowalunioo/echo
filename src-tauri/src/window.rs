@@ -76,13 +76,27 @@ pub fn place(saved: Rect, monitors: &[Rect], primary: Option<Rect>) -> Option<Re
         height: TITLE_STRIP.min(saved.height),
         ..saved
     };
-    let reachable = monitors.iter().any(|monitor| {
+    let reachable = monitors.iter().find(|monitor| {
         let (w, h) = strip.overlap(monitor);
         w >= MIN_VISIBLE_WIDTH.min(i64::from(saved.width))
             && h >= MIN_VISIBLE_HEIGHT.min(i64::from(strip.height))
     });
-    if reachable {
-        return Some(saved);
+    if let Some(monitor) = reachable {
+        if saved.width <= monitor.width && saved.height <= monitor.height {
+            return Some(saved);
+        }
+        // Larger than the monitor it sits on (e.g. stretched across two): fit it to that monitor.
+        let width = saved.width.min(monitor.width);
+        let height = saved.height.min(monitor.height);
+        let clamp = |pos: i32, origin: i32, len: u32, size: u32| {
+            pos.clamp(origin, origin + (len - size) as i32)
+        };
+        return Some(Rect {
+            x: clamp(saved.x, monitor.x, monitor.width, width),
+            y: clamp(saved.y, monitor.y, monitor.height, height),
+            width,
+            height,
+        });
     }
     let target = primary.or_else(|| monitors.first().copied())?;
     let width = saved.width.min(target.width);
@@ -303,6 +317,21 @@ mod tests {
             height: 1300,
         };
         assert_eq!(place(saved, &[PRIMARY], Some(PRIMARY)), Some(PRIMARY));
+    }
+
+    #[test]
+    fn a_window_stretched_across_two_monitors_is_fitted_to_one() {
+        let second = Rect { x: 1920, ..PRIMARY };
+        let saved = Rect {
+            x: 0,
+            y: 0,
+            width: 3840,
+            height: 1080,
+        };
+        assert_eq!(
+            place(saved, &[PRIMARY, second], Some(PRIMARY)),
+            Some(PRIMARY)
+        );
     }
 
     #[test]
